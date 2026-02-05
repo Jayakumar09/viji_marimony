@@ -1,0 +1,158 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  password          String
+  phone             String?  @unique
+  firstName         String   @map("first_name")
+  lastName          String   @map("last_name")
+  gender            Gender
+  dateOfBirth       DateTime @map("date_of_birth")
+  age               Int
+  community         String   @default("Boyar")
+  subCaste          String?  @map("sub_caste")
+  city              String
+  state             String
+  country           String   @default("India")
+  education         String?
+  profession        String?
+  income            String?
+  maritalStatus     MaritalStatus @map("marital_status")
+  height            String?  // in cm
+  weight            String?  // in kg
+  complexion        String?
+  profilePhoto      String?  @map("profile_photo")
+  photos            String[] // Array of photo URLs
+  bio               String?
+  familyValues      String?  @map("family_values")
+  aboutFamily       String?  @map("about_family")
+  isVerified        Boolean  @default(false) @map("is_verified")
+  isPremium         Boolean  @default(false) @map("is_premium")
+  isActive          Boolean  @default(true) @map("is_active")
+  emailVerified     Boolean  @default(false) @map("email_verified")
+  phoneVerified     Boolean  @default(false) @map("phone_verified")
+  lastLoginAt       DateTime? @map("last_login_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  sentInterests     Interest[] @relation("SentInterests")
+  receivedInterests Interest[] @relation("ReceivedInterests")
+  sentMessages      Message[]  @relation("SentMessages")
+  receivedMessages  Message[]  @relation("ReceivedMessages")
+
+  @@map("users")
+}
+
+model Interest {
+  id         String      @id @default(cuid())
+  senderId   String      @map("sender_id")
+  receiverId String      @map("receiver_id")
+  status     InterestStatus @default(PENDING)
+  message    String?
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  sender   User @relation("SentInterests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedInterests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@map("interests")
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  senderId   String   @map("sender_id")
+  receiverId String   @map("receiver_id")
+  content    String
+  isRead     Boolean  @default(false) @map("is_read")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      AdminRole @default(ADMIN)
+  isActive  Boolean  @default(true) @map("is_active")
+  lastLogin DateTime? @map("last_login")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("admins")
+}
+
+model Subscription {
+  id          String           @id @default(cuid())
+  userId      String           @map("user_id")
+  plan        SubscriptionPlan
+  amount      Decimal          @db.Decimal(10, 2)
+  startDate   DateTime         @map("start_date")
+  endDate     DateTime         @map("end_date")
+  status      SubscriptionStatus @default(ACTIVE)
+  paymentId   String?          @map("payment_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
+}
+
+// Enums
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MaritalStatus {
+  SINGLE
+  DIVORCED
+  WIDOWED
+  SEPARATED
+}
+
+enum InterestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+}
+
+enum SubscriptionPlan {
+  BASIC
+  PREMIUM_1_MONTH
+  PREMIUM_3_MONTHS
+  PREMIUM_6_MONTHS
+  PREMIUM_1_YEAR
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
