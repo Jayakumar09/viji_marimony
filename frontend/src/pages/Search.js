@@ -26,7 +26,7 @@ import {
   AccordionSummary,
   AccordionDetails,
   Divider
-} from '@material-ui/core';
+} from '@mui/material';
 import {
   Search,
   FilterList,
@@ -39,8 +39,8 @@ import {
   LocationOn,
   School,
   Work
-} from '@material-ui/icons';
-import { useQuery } from 'react-query';
+} from '@mui/icons-material';
+import { useQuery } from '@tanstack/react-query';
 import searchService from '../services/searchService';
 import toast from 'react-hot-toast';
 

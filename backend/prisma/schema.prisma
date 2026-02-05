@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -17,7 +17,7 @@ model User {
   phone             String?  @unique
   firstName         String   @map("first_name")
   lastName          String   @map("last_name")
-  gender            Gender
+  gender            String
   dateOfBirth       DateTime @map("date_of_birth")
   age               Int
   community         String   @default("Boyar")
@@ -28,12 +28,12 @@ model User {
   education         String?
   profession        String?
   income            String?
-  maritalStatus     MaritalStatus @map("marital_status")
+  maritalStatus     String    @map("marital_status")
   height            String?  // in cm
   weight            String?  // in kg
   complexion        String?
   profilePhoto      String?  @map("profile_photo")
-  photos            String[] // Array of photo URLs
+  photos            String?  // JSON string for SQLite
   bio               String?
   familyValues      String?  @map("family_values")
   aboutFamily       String?  @map("about_family")
@@ -59,10 +59,10 @@ model Interest {
   id         String      @id @default(cuid())
   senderId   String      @map("sender_id")
   receiverId String      @map("receiver_id")
-  status     InterestStatus @default(PENDING)
+  status     String @default("PENDING")
   message    String?
-  createdAt  DateTime    @default(now()) @map("created_at")
-  updatedAt  DateTime    @updatedAt @map("updated_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   // Relations
   sender   User @relation("SentInterests", fields: [senderId], references: [id], onDelete: Cascade)
@@ -93,7 +93,7 @@ model Admin {
   email     String   @unique
   password  String
   name      String
-  role      AdminRole @default(ADMIN)
+  role      String @default("ADMIN")
   isActive  Boolean  @default(true) @map("is_active")
   lastLogin DateTime? @map("last_login")
   createdAt DateTime @default(now()) @map("created_at")
@@ -105,11 +105,11 @@ model Admin {
 model Subscription {
   id          String           @id @default(cuid())
   userId      String           @map("user_id")
-  plan        SubscriptionPlan
-  amount      Decimal          @db.Decimal(10, 2)
+  plan        String
+  amount      Float
   startDate   DateTime         @map("start_date")
   endDate     DateTime         @map("end_date")
-  status      SubscriptionStatus @default(ACTIVE)
+  status      String @default("ACTIVE")
   paymentId   String?          @map("payment_id")
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
@@ -117,42 +117,42 @@ model Subscription {
   @@map("subscriptions")
 }
 
-// Enums
-enum Gender {
-  MALE
-  FEMALE
-  OTHER
-}
+// Enums - Commented out for SQLite compatibility
+// enum Gender {
+//   MALE
+//   FEMALE
+//   OTHER
+// }
 
-enum MaritalStatus {
-  SINGLE
-  DIVORCED
-  WIDOWED
-  SEPARATED
-}
+// enum MaritalStatus {
+//   SINGLE
+//   DIVORCED
+//   WIDOWED
+//   SEPARATED
+// }
 
-enum InterestStatus {
-  PENDING
-  ACCEPTED
-  REJECTED
-}
+// enum InterestStatus {
+//   PENDING
+//   ACCEPTED
+//   REJECTED
+// }
 
-enum AdminRole {
-  SUPER_ADMIN
-  ADMIN
-  MODERATOR
-}
+// enum AdminRole {
+//   SUPER_ADMIN
+//   ADMIN
+//   MODERATOR
+// }
 
-enum SubscriptionPlan {
-  BASIC
-  PREMIUM_1_MONTH
-  PREMIUM_3_MONTHS
-  PREMIUM_6_MONTHS
-  PREMIUM_1_YEAR
-}
+// enum SubscriptionPlan {
+//   BASIC
+//   PREMIUM_1_MONTH
+//   PREMIUM_3_MONTHS
+//   PREMIUM_6_MONTHS
+//   PREMIUM_1_YEAR
+// }
 
-enum SubscriptionStatus {
-  ACTIVE
-  EXPIRED
-  CANCELLED
-}
+// enum SubscriptionStatus {
+//   ACTIVE
+//   EXPIRED
+//   CANCELLED
+// }

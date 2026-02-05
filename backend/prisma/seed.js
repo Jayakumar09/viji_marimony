@@ -71,14 +71,38 @@ async function main() {
       familyValues: 'Moderate',
       aboutFamily: 'Respectable family with traditional values',
       isVerified: true
+    },
+    {
+      email: 'sowmya.reddy@example.com',
+      password: await bcrypt.hash('password123', 12),
+      firstName: 'Sowmya',
+      lastName: 'Reddy',
+      gender: 'FEMALE',
+      dateOfBirth: new Date('1995-08-22'),
+      age: 29,
+      community: 'Boyar',
+      subCaste: 'Reddy',
+      city: 'Hyderabad',
+      state: 'Telangana',
+      education: 'M.Sc Mathematics',
+      profession: 'Teacher',
+      income: '4-6 Lakhs',
+      maritalStatus: 'SINGLE',
+      height: '162',
+      weight: '55',
+      complexion: 'Wheatish',
+      bio: 'Seeking a compatible partner from our community',
+      familyValues: 'Moderate',
+      aboutFamily: 'Respectable family with traditional values',
+      isVerified: true
     }
   ];
 
-  for (const userData of sampleUsers) {
-    const user = await prisma.user.upsert({
-      where: { email: userData.email },
-      update: {},
-      create: userData
+    for (const userData of sampleUsers) {
+      const user = await prisma.user.upsert({
+        where: { email: userData.email },
+        update: {},
+        create: userData
     });
     console.log(`✅ Sample user created: ${user.firstName} ${user.lastName}`);
   }

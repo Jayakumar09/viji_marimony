@@ -1,6 +1,6 @@
 import React from 'react';
-import { Box, Typography, Button, Container } from '@material-ui/core';
-import { Home } from '@material-ui/icons';
+import { Box, Typography, Button, Container } from '@mui/material';
+import { Home } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
 const NotFound = () => {

@@ -4,13 +4,14 @@ const prisma = new PrismaClient({
   log: ['query', 'info', 'warn', 'error'],
 });
 
-// Test database connection
+// Test database connection asynchronously
 async function testConnection() {
   try {
     await prisma.$connect();
-    console.log('✅ Database connected successfully to AWS RDS PostgreSQL');
+    console.log('✅ Database connected successfully');
+    return true;
   } catch (error) {
-    console.error('❌ Database connection failed:', error);
+    console.error('❌ Database connection failed:', error.message);
     process.exit(1);
   }
 }

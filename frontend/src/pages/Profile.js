@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import {
   Container,
   Paper,
@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions
-} from '@material-ui/core';
+} from '@mui/material';
 import {
   CloudUpload,
   Delete,
@@ -32,10 +32,12 @@ import {
   Person,
   Save,
   CameraAlt
-} from '@material-ui/icons';
+} from '@mui/icons-material';
 import { useAuth } from '../hooks/useAuth';
 import profileService from '../services/profileService';
 import toast from 'react-hot-toast';
+import { compressImage, blobToFile } from '../utils/imageCompression';
+import { STATES, getCitiesForState, MAX_GALLERY_IMAGES } from '../data/indianLocations';
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
@@ -48,8 +50,12 @@ const Profile = () => {
   const [editing, setEditing] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState('');
+  const [availableCities, setAvailableCities] = useState([]);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm();
+  const { register, handleSubmit, reset, watch, control, formState: { errors } } = useForm();
+  
+  // Watch state field to update cities
+  const selectedState = watch('state');
 
   useEffect(() => {
     if (!user) {
@@ -58,6 +64,13 @@ const Profile = () => {
     }
     fetchProfile();
   }, [user, navigate]);
+
+  // Update available cities when state changes
+  useEffect(() => {
+    if (selectedState) {
+      setAvailableCities(getCitiesForState(selectedState));
+    }
+  }, [selectedState]);
 
   const fetchProfile = async () => {
     try {
@@ -95,19 +108,22 @@ const Profile = () => {
     const file = event.target.files[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Photo size must be less than 5MB');
-      return;
-    }
-
     try {
       setUploading(true);
-      const response = await profileService.uploadProfilePhoto(file);
+      setError('');
+      
+      // Compress image to less than 50KB
+      const compressedBlob = await compressImage(file, 50 * 1024);
+      const compressedFile = blobToFile(compressedBlob, file.name);
+      
+      const response = await profileService.uploadProfilePhoto(compressedFile);
       setProfileData(prev => ({ ...prev, profilePhoto: response.profilePhoto }));
       updateUser({ ...user, profilePhoto: response.profilePhoto });
       toast.success('Profile photo uploaded successfully!');
     } catch (error) {
+      console.error('Photo upload error:', error);
       setError(error.response?.data?.error || 'Failed to upload photo');
+      toast.error('Failed to upload photo');
     } finally {
       setUploading(false);
     }
@@ -117,21 +133,33 @@ const Profile = () => {
     const files = Array.from(event.target.files);
     if (!files.length) return;
 
-    // Check total photos won't exceed 6
+    // Check total photos won't exceed 9
     const currentPhotos = profileData?.photos || [];
-    if (currentPhotos.length + files.length > 6) {
-      setError('Maximum 6 photos allowed in gallery');
+    if (currentPhotos.length + files.length > MAX_GALLERY_IMAGES) {
+      setError(`Maximum ${MAX_GALLERY_IMAGES} photos allowed in gallery. You have ${currentPhotos.length}.`);
       return;
     }
 
     try {
       setUploading(true);
-      const response = await profileService.uploadGalleryPhotos(files);
+      setError('');
+      
+      // Compress all files before upload
+      const compressedFiles = [];
+      for (const file of files) {
+        const compressedBlob = await compressImage(file, 50 * 1024);
+        const compressedFile = blobToFile(compressedBlob, file.name);
+        compressedFiles.push(compressedFile);
+      }
+      
+      const response = await profileService.uploadGalleryPhotos(compressedFiles);
       setProfileData(prev => ({ ...prev, photos: response.photos }));
       updateUser({ ...user, photos: response.photos });
       toast.success('Gallery photos uploaded successfully!');
     } catch (error) {
+      console.error('Gallery upload error:', error);
       setError(error.response?.data?.error || 'Failed to upload photos');
+      toast.error('Failed to upload photos');
     } finally {
       setUploading(false);
     }
@@ -286,6 +314,56 @@ const Profile = () => {
                     variant={editing ? "outlined" : "filled"}
                   />
                 </Grid>
+
+                {/* Gender */}
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth disabled={!editing}>
+                    <InputLabel>Gender</InputLabel>
+                    <Controller
+                      name="gender"
+                      control={control}
+                      rules={{ required: editing && 'Gender is required' }}
+                      defaultValue={profileData?.gender || ''}
+                      render={({ field }) => (
+                        <Select {...field} label="Gender">
+                          <MenuItem value="">Select Gender</MenuItem>
+                          <MenuItem value="Male">Male</MenuItem>
+                          <MenuItem value="Female">Female</MenuItem>
+                          <MenuItem value="Other">Other</MenuItem>
+                        </Select>
+                      )}
+                    />
+                  </FormControl>
+                </Grid>
+
+                {/* Date of Birth */}
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Date of Birth"
+                    type="date"
+                    {...register('dateOfBirth')}
+                    disabled={!editing}
+                    variant={editing ? "outlined" : "filled"}
+                    InputLabelProps={{ shrink: true }}
+                    defaultValue={profileData?.dateOfBirth || ''}
+                  />
+                </Grid>
+
+                {/* Age */}
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Age"
+                    type="number"
+                    {...register('age')}
+                    disabled={!editing}
+                    variant={editing ? "outlined" : "filled"}
+                    defaultValue={profileData?.age || ''}
+                  />
+                </Grid>
+
+                {/* Email & Phone */}
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
@@ -304,31 +382,85 @@ const Profile = () => {
                     variant={editing ? "outlined" : "filled"}
                     error={!!errors.phone}
                     helperText={errors.phone?.message}
+                    defaultValue={profileData?.phone || ''}
                   />
                 </Grid>
 
-                {/* Location */}
+                {/* Location - State */}
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="City"
-                    value={profileData?.city || ''}
-                    disabled
-                    variant="filled"
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="State"
-                    value={profileData?.state || ''}
-                    disabled
-                    variant="filled"
-                  />
+                  <FormControl fullWidth disabled={!editing}>
+                    <InputLabel>State</InputLabel>
+                    <Controller
+                      name="state"
+                      control={control}
+                      defaultValue={profileData?.state || ''}
+                      render={({ field }) => (
+                        <Select {...field} label="State">
+                          <MenuItem value="">Select State</MenuItem>
+                          {STATES.map(state => (
+                            <MenuItem key={state} value={state}>{state}</MenuItem>
+                          ))}
+                        </Select>
+                      )}
+                    />
+                  </FormControl>
                 </Grid>
 
-                {/* Professional Details */}
+                {/* Location - City */}
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth disabled={!editing || !selectedState}>
+                    <InputLabel>City</InputLabel>
+                    <Controller
+                      name="city"
+                      control={control}
+                      defaultValue={profileData?.city || ''}
+                      render={({ field }) => (
+                        <Select {...field} label="City">
+                          <MenuItem value="">Select City</MenuItem>
+                          {availableCities.map(city => (
+                            <MenuItem key={city} value={city}>{city}</MenuItem>
+                          ))}
+                        </Select>
+                      )}
+                    />
+                  </FormControl>
+                </Grid>
+
+                {/* Country */}
                 <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Country"
+                    {...register('country')}
+                    disabled={!editing}
+                    variant={editing ? "outlined" : "filled"}
+                    defaultValue={profileData?.country || 'India'}
+                  />
+                </Grid>
+
+                {/* Marital Status */}
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth disabled={!editing}>
+                    <InputLabel>Marital Status</InputLabel>
+                    <Controller
+                      name="maritalStatus"
+                      control={control}
+                      defaultValue={profileData?.maritalStatus || ''}
+                      render={({ field }) => (
+                        <Select {...field} label="Marital Status">
+                          <MenuItem value="">Select Status</MenuItem>
+                          <MenuItem value="Never Married">Never Married</MenuItem>
+                          <MenuItem value="Divorced">Divorced</MenuItem>
+                          <MenuItem value="Widowed">Widowed</MenuItem>
+                          <MenuItem value="Separated">Separated</MenuItem>
+                        </Select>
+                      )}
+                    />
+                  </FormControl>
+                </Grid>
+
+                {/* Education */}
+                <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     label="Education"
@@ -336,8 +468,11 @@ const Profile = () => {
                     disabled={!editing}
                     variant={editing ? "outlined" : "filled"}
                     placeholder="e.g., B.Tech Computer Science"
+                    defaultValue={profileData?.education || ''}
                   />
                 </Grid>
+
+                {/* Profession */}
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -346,89 +481,84 @@ const Profile = () => {
                     disabled={!editing}
                     variant={editing ? "outlined" : "filled"}
                     placeholder="e.g., Software Engineer"
+                    defaultValue={profileData?.profession || ''}
                   />
                 </Grid>
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
+
+                {/* Annual Income */}
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth disabled={!editing}>
                     <InputLabel>Annual Income</InputLabel>
-                    <Select
-                      {...register('income')}
-                      disabled={!editing}
-                      value={profileData?.income || ''}
-                      onChange={(e) => {
-                        if (editing) {
-                          setProfileData(prev => ({ ...prev, income: e.target.value }));
-                        }
-                      }}
-                    >
-                      <MenuItem value="">Select Income Range</MenuItem>
-                      <MenuItem value="Below 3 Lakhs">Below 3 Lakhs</MenuItem>
-                      <MenuItem value="3-6 Lakhs">3-6 Lakhs</MenuItem>
-                      <MenuItem value="6-10 Lakhs">6-10 Lakhs</MenuItem>
-                      <MenuItem value="10-15 Lakhs">10-15 Lakhs</MenuItem>
-                      <MenuItem value="15-25 Lakhs">15-25 Lakhs</MenuItem>
-                      <MenuItem value="Above 25 Lakhs">Above 25 Lakhs</MenuItem>
-                    </Select>
+                    <Controller
+                      name="income"
+                      control={control}
+                      defaultValue={profileData?.income || ''}
+                      render={({ field }) => (
+                        <Select {...field} label="Annual Income">
+                          <MenuItem value="">Select Income Range</MenuItem>
+                          <MenuItem value="Below 3 Lakhs">Below 3 Lakhs</MenuItem>
+                          <MenuItem value="3-6 Lakhs">3-6 Lakhs</MenuItem>
+                          <MenuItem value="6-10 Lakhs">6-10 Lakhs</MenuItem>
+                          <MenuItem value="10-15 Lakhs">10-15 Lakhs</MenuItem>
+                          <MenuItem value="15-25 Lakhs">15-25 Lakhs</MenuItem>
+                          <MenuItem value="Above 25 Lakhs">Above 25 Lakhs</MenuItem>
+                        </Select>
+                      )}
+                    />
                   </FormControl>
                 </Grid>
 
-                {/* Physical Details */}
-                <Grid item xs={12} sm={4}>
+                {/* Height */}
+                <Grid item xs={12} sm={3}>
                   <TextField
                     fullWidth
                     label="Height (cm)"
+                    type="number"
                     {...register('height')}
                     disabled={!editing}
                     variant={editing ? "outlined" : "filled"}
                     placeholder="e.g., 175"
+                    defaultValue={profileData?.height || ''}
                   />
                 </Grid>
-                <Grid item xs={12} sm={4}>
+
+                {/* Weight */}
+                <Grid item xs={12} sm={3}>
                   <TextField
                     fullWidth
                     label="Weight (kg)"
+                    type="number"
                     {...register('weight')}
                     disabled={!editing}
                     variant={editing ? "outlined" : "filled"}
                     placeholder="e.g., 72"
+                    defaultValue={profileData?.weight || ''}
                   />
                 </Grid>
-                <Grid item xs={12} sm={4}>
-                  <FormControl fullWidth>
+
+                {/* Complexion */}
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth disabled={!editing}>
                     <InputLabel>Complexion</InputLabel>
-                    <Select
-                      {...register('complexion')}
-                      disabled={!editing}
-                      value={profileData?.complexion || ''}
-                      onChange={(e) => {
-                        if (editing) {
-                          setProfileData(prev => ({ ...prev, complexion: e.target.value }));
-                        }
-                      }}
-                    >
-                      <MenuItem value="">Select Complexion</MenuItem>
-                      <MenuItem value="Very Fair">Very Fair</MenuItem>
-                      <MenuItem value="Fair">Fair</MenuItem>
-                      <MenuItem value="Wheatish">Wheatish</MenuItem>
-                      <MenuItem value="Wheatish Brown">Wheatish Brown</MenuItem>
-                      <MenuItem value="Dark">Dark</MenuItem>
-                    </Select>
+                    <Controller
+                      name="complexion"
+                      control={control}
+                      defaultValue={profileData?.complexion || ''}
+                      render={({ field }) => (
+                        <Select {...field} label="Complexion">
+                          <MenuItem value="">Select Complexion</MenuItem>
+                          <MenuItem value="Very Fair">Very Fair</MenuItem>
+                          <MenuItem value="Fair">Fair</MenuItem>
+                          <MenuItem value="Wheatish">Wheatish</MenuItem>
+                          <MenuItem value="Wheatish Brown">Wheatish Brown</MenuItem>
+                          <MenuItem value="Dark">Dark</MenuItem>
+                        </Select>
+                      )}
+                    />
                   </FormControl>
                 </Grid>
 
-                {/* Community Details */}
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Sub-Caste"
-                    {...register('subCaste')}
-                    disabled={!editing}
-                    variant={editing ? "outlined" : "filled"}
-                    placeholder="e.g., Kapu, Reddy, etc."
-                  />
-                </Grid>
-
-                {/* Personal Information */}
+                {/* Bio */}
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -439,31 +569,31 @@ const Profile = () => {
                     multiline
                     rows={3}
                     placeholder="Tell us about yourself..."
+                    defaultValue={profileData?.bio || ''}
                   />
                 </Grid>
 
-                {/* Family Information */}
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
+                {/* Family Values */}
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth disabled={!editing}>
                     <InputLabel>Family Values</InputLabel>
-                    <Select
-                      {...register('familyValues')}
-                      disabled={!editing}
-                      value={profileData?.familyValues || ''}
-                      onChange={(e) => {
-                        if (editing) {
-                          setProfileData(prev => ({ ...prev, familyValues: e.target.value }));
-                        }
-                      }}
-                    >
-                      <MenuItem value="">Select Family Values</MenuItem>
-                      <MenuItem value="Traditional">Traditional</MenuItem>
-                      <MenuItem value="Moderate">Moderate</MenuItem>
-                      <MenuItem value="Liberal">Liberal</MenuItem>
-                    </Select>
+                    <Controller
+                      name="familyValues"
+                      control={control}
+                      defaultValue={profileData?.familyValues || ''}
+                      render={({ field }) => (
+                        <Select {...field} label="Family Values">
+                          <MenuItem value="">Select Family Values</MenuItem>
+                          <MenuItem value="Traditional">Traditional</MenuItem>
+                          <MenuItem value="Moderate">Moderate</MenuItem>
+                          <MenuItem value="Liberal">Liberal</MenuItem>
+                        </Select>
+                      )}
+                    />
                   </FormControl>
                 </Grid>
 
+                {/* About Family */}
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -474,6 +604,7 @@ const Profile = () => {
                     multiline
                     rows={3}
                     placeholder="Tell us about your family..."
+                    defaultValue={profileData?.aboutFamily || ''}
                   />
                 </Grid>
               </Grid>
@@ -486,7 +617,7 @@ const Profile = () => {
           <Paper elevation={3} style={{ padding: '2rem' }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
               <Typography variant="h6">
-                Photo Gallery ({profileData?.photos?.length || 0}/6)
+                Photo Gallery ({profileData?.photos?.length || 0}/{MAX_GALLERY_IMAGES})
               </Typography>
               <input
                 accept="image/*"
@@ -502,7 +633,7 @@ const Profile = () => {
                   color="primary"
                   component="span"
                   startIcon={<CloudUpload />}
-                  disabled={uploading || (profileData?.photos?.length >= 6)}
+                  disabled={uploading || (profileData?.photos?.length >= MAX_GALLERY_IMAGES)}
                 >
                   Add Photos
                 </Button>
@@ -512,7 +643,7 @@ const Profile = () => {
             {profileData?.photos?.length > 0 ? (
               <Grid container spacing={2}>
                 {profileData.photos.map((photo, index) => (
-                  <Grid item xs={12} sm={6} md={4} key={index}>
+                  <Grid item xs={12} sm={6} md={4} lg={3} key={index}>
                     <Card>
                       <CardMedia
                         component="img"
@@ -541,7 +672,7 @@ const Profile = () => {
                   No photos in gallery
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
-                  Upload up to 6 photos to showcase your personality
+                  Upload up to {MAX_GALLERY_IMAGES} photos to showcase your personality
                 </Typography>
               </Box>
             )}

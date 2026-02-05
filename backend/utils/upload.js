@@ -38,8 +38,8 @@ const upload = multer({
 // Upload single file (profile photo)
 const uploadSingle = upload.single('photo');
 
-// Upload multiple files (gallery photos)
-const uploadMultiple = upload.array('photos', 6);
+// Upload multiple files (gallery photos) - maximum 9 images
+const uploadMultiple = upload.array('photos', 9);
 
 // Delete image from Cloudinary
 const deleteImage = async (publicId) => {

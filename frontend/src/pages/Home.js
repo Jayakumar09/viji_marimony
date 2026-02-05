@@ -1,6 +1,6 @@
 import React from 'react';
-import { Box, Typography, Button, Container, Paper, Grid } from '@material-ui/core';
-import { Search, People, Security, Favorite } from '@material-ui/icons';
+import { Box, Typography, Button, Container, Paper, Grid } from '@mui/material';
+import { Search, People, Security, Favorite } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 

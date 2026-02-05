@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { IconButton, InputAdornment, Tooltip, Box, Button, Alert } from '@material-ui/core';
-import { Visibility, VisibilityOff, Refresh, ContentCopy } from '@material-ui/icons';
+import { IconButton, InputAdornment, Tooltip, Box, Button, Alert } from '@mui/material';
+import { Visibility, VisibilityOff, Refresh, ContentCopy } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 
 const PasswordField = ({ 

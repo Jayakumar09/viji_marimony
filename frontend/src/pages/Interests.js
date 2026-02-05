@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Container,
   Paper,
@@ -24,7 +24,7 @@ import {
   Alert,
   Grid,
   Divider
-} from '@material-ui/core';
+} from '@mui/material';
 import {
   Person,
   CheckCircle,
@@ -36,7 +36,7 @@ import {
   LocationOn,
   Work,
   School
-} from '@material-ui/icons';
+} from '@mui/icons-material';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import interestService from '../services/interestService';

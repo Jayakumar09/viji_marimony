@@ -56,9 +56,16 @@ const updateProfile = async (req, res) => {
   try {
     const {
       phone,
+      gender,
+      dateOfBirth,
+      age,
+      city,
+      state,
+      country,
       education,
       profession,
       income,
+      maritalStatus,
       height,
       weight,
       complexion,
@@ -72,9 +79,16 @@ const updateProfile = async (req, res) => {
     
     // Only include fields that are provided
     if (phone !== undefined) updateData.phone = phone;
+    if (gender !== undefined) updateData.gender = gender;
+    if (dateOfBirth !== undefined) updateData.dateOfBirth = new Date(dateOfBirth);
+    if (age !== undefined) updateData.age = parseInt(age);
+    if (city !== undefined) updateData.city = city;
+    if (state !== undefined) updateData.state = state;
+    if (country !== undefined) updateData.country = country;
     if (education !== undefined) updateData.education = education;
     if (profession !== undefined) updateData.profession = profession;
     if (income !== undefined) updateData.income = income;
+    if (maritalStatus !== undefined) updateData.maritalStatus = maritalStatus;
     if (height !== undefined) updateData.height = height;
     if (weight !== undefined) updateData.weight = weight;
     if (complexion !== undefined) updateData.complexion = complexion;
@@ -93,9 +107,15 @@ const updateProfile = async (req, res) => {
         firstName: true,
         lastName: true,
         gender: true,
+        dateOfBirth: true,
+        age: true,
+        city: true,
+        state: true,
+        country: true,
         education: true,
         profession: true,
         income: true,
+        maritalStatus: true,
         height: true,
         weight: true,
         complexion: true,
@@ -175,12 +195,12 @@ const uploadGalleryPhotos = async (req, res) => {
     // Extract new photo URLs
     const newPhotos = req.files.map(file => file.path);
     
-    // Combine existing photos with new ones (max 6 photos)
+    // Combine existing photos with new ones (max 9 photos)
     let updatedPhotos = [];
     if (currentUser.photos && currentUser.photos.length > 0) {
-      updatedPhotos = [...currentUser.photos, ...newPhotos].slice(0, 6);
+      updatedPhotos = [...currentUser.photos, ...newPhotos].slice(0, 9);
     } else {
-      updatedPhotos = newPhotos.slice(0, 6);
+      updatedPhotos = newPhotos.slice(0, 9);
     }
 
     // Update user with new photos array

@@ -1,7 +1,7 @@
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth as useAuthContext } from '../contexts/AuthContext';
 
-export const useAuthHook = () => {
-  const { user, loading, login, register, logout, updateUser } = useAuth();
+export const useAuth = () => {
+  const { user, loading, login, register, logout, updateUser } = useAuthContext();
   
   return {
     user,
@@ -13,5 +13,3 @@ export const useAuthHook = () => {
     updateUser
   };
 };
-
-export const useAuth = useAuthHook;

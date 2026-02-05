@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Container, Paper, Link } from '@material-ui/core';
+import { Box, Typography, Container, Paper, Link } from '@mui/material';
 
 const Footer = () => {
   return (

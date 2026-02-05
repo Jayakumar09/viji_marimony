@@ -1,6 +1,6 @@
 import React from 'react';
-import { AppBar, Toolbar, Typography, Button, Box, IconButton, Menu, MenuItem } from '@material-ui/core';
-import { AccountCircle, Search, Message, FavoriteBorder } from '@material-ui/icons';
+import { AppBar, Toolbar, Typography, Button, Box, IconButton, Menu, MenuItem } from '@mui/material';
+import { AccountCircle, Search, Message, FavoriteBorder } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 

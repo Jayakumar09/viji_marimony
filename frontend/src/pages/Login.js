@@ -10,7 +10,7 @@ import {
   Box,
   Alert,
   CircularProgress
-} from '@material-ui/core';
+} from '@mui/material';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
 import PasswordField from '../components/PasswordField';

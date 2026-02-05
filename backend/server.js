@@ -5,9 +5,8 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-// Test database connection
+// Database connection
 const { testConnection } = require('./utils/database');
-testConnection();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -38,7 +37,8 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'Vijayalakshmi Boyar Matrimony API',
     version: '1.0.0',
-    status: 'running'
+    status: 'running',
+    database: 'connected'
   });
 });
 
@@ -72,8 +72,25 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📧 Admin contact: vijayalakshmijayakumar45@gmail.com`);
-  console.log(`🏠 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-});
+// Start server after database connection
+async function startServer() {
+  try {
+    // Connect to database first
+    await testConnection();
+    
+    // Only start server after successful DB connection
+    app.listen(PORT, () => {
+      console.log(`\n✅ Database: Connected Successfully`);
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📧 Admin contact: vijayalakshmijayakumar45@gmail.com`);
+      console.log(`🏠 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+      console.log(`\n✅ Frontend can now connect to the backend\n`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error.message);
+    process.exit(1);
+  }
+}
+
+// Initialize server
+startServer();
