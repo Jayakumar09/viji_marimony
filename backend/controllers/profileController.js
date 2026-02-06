@@ -44,6 +44,31 @@ const getProfile = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Normalize profile photo path if it's a local file path
+    if (user.profilePhoto && !user.profilePhoto.startsWith('http') && !user.profilePhoto.startsWith('/')) {
+      user.profilePhoto = `/${user.profilePhoto}`;
+    }
+
+    // Normalize photos array paths (parse JSON string first)
+    let photosArray = [];
+    if (user.photos) {
+      try {
+        photosArray = JSON.parse(user.photos);
+      } catch (e) {
+        photosArray = [];
+      }
+    }
+    if (Array.isArray(photosArray)) {
+      user.photos = photosArray.map(photo => {
+        if (!photo.startsWith('http') && !photo.startsWith('/')) {
+          return `/${photo}`;
+        }
+        return photo;
+      });
+    } else {
+      user.photos = [];
+    }
+
     res.json({ user });
 
   } catch (error) {
@@ -141,7 +166,13 @@ const updateProfile = async (req, res) => {
 const uploadProfilePhoto = async (req, res) => {
   try {
     if (!req.file) {
+      console.error('Upload profile photo: No file received');
       return res.status(400).json({ error: 'No photo uploaded' });
+    }
+
+    if (!req.user || !req.user.id) {
+      console.error('Upload profile photo: No user found in request');
+      return res.status(401).json({ error: 'User not authenticated' });
     }
 
     // Get current user to delete old profile photo if exists
@@ -150,18 +181,37 @@ const uploadProfilePhoto = async (req, res) => {
       select: { profilePhoto: true }
     });
 
+    if (!currentUser) {
+      console.error('Upload profile photo: User not found in database');
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     // Delete old profile photo from Cloudinary if it exists
     if (currentUser.profilePhoto) {
       const oldPublicId = extractPublicId(currentUser.profilePhoto);
       if (oldPublicId) {
-        await deleteImage(oldPublicId);
+        try {
+          await deleteImage(oldPublicId);
+        } catch (deleteErr) {
+          console.warn('Warning: Could not delete old profile photo:', deleteErr);
+          // Continue anyway, don't let this block the upload
+        }
       }
     }
 
-    // Update user with new profile photo URL
+    // Update user with new profile photo URL (always use HTTP path)
+    let photoUrl;
+    if (req.file.path && req.file.path.startsWith('http')) {
+      // Cloudinary URL
+      photoUrl = req.file.path;
+    } else {
+      // Local storage - construct HTTP URL
+      photoUrl = `/uploads/${req.file.filename}`;
+    }
+    
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
-      data: { profilePhoto: req.file.path },
+      data: { profilePhoto: photoUrl },
       select: {
         id: true,
         profilePhoto: true,
@@ -176,14 +226,20 @@ const uploadProfilePhoto = async (req, res) => {
 
   } catch (error) {
     console.error('Upload profile photo error:', error);
-    res.status(500).json({ error: 'Internal server error during photo upload' });
+    res.status(500).json({ error: 'Internal server error during photo upload', details: error.message });
   }
 };
 
 const uploadGalleryPhotos = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
+      console.error('Upload gallery photos: No files received');
       return res.status(400).json({ error: 'No photos uploaded' });
+    }
+
+    if (!req.user || !req.user.id) {
+      console.error('Upload gallery photos: No user found in request');
+      return res.status(401).json({ error: 'User not authenticated' });
     }
 
     // Get current user photos
@@ -192,21 +248,55 @@ const uploadGalleryPhotos = async (req, res) => {
       select: { photos: true }
     });
 
-    // Extract new photo URLs
-    const newPhotos = req.files.map(file => file.path);
-    
-    // Combine existing photos with new ones (max 9 photos)
-    let updatedPhotos = [];
-    if (currentUser.photos && currentUser.photos.length > 0) {
-      updatedPhotos = [...currentUser.photos, ...newPhotos].slice(0, 9);
-    } else {
-      updatedPhotos = newPhotos.slice(0, 9);
+    if (!currentUser) {
+      console.error('Upload gallery photos: User not found in database');
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    // Update user with new photos array
+    // Extract new photo URLs (always use HTTP paths)
+    const newPhotos = req.files.map(file => {
+      if (file.path && file.path.startsWith('http')) {
+        return file.path; // Cloudinary URL
+      } else {
+        return `/uploads/${file.filename}`; // Local storage HTTP path
+      }
+    });
+    
+    // Parse current photos from JSON string to array
+    let currentPhotosArray = [];
+    if (currentUser.photos) {
+      try {
+        currentPhotosArray = JSON.parse(currentUser.photos);
+      } catch (e) {
+        currentPhotosArray = [];
+      }
+    }
+    
+    // Extract filenames from current photos for duplicate check
+    const currentFilenames = currentPhotosArray.map(photo => {
+      const parts = photo.split('/');
+      return parts[parts.length - 1];
+    });
+    
+    // Filter out duplicates: remove photos that already exist
+    const uniqueNewPhotos = newPhotos.filter(newPhoto => {
+      const parts = newPhoto.split('/');
+      const filename = parts[parts.length - 1];
+      return !currentFilenames.includes(filename);
+    });
+    
+    // Combine existing photos with new unique ones (max 9 photos)
+    let updatedPhotos = [];
+    if (Array.isArray(currentPhotosArray) && currentPhotosArray.length > 0) {
+      updatedPhotos = [...currentPhotosArray, ...uniqueNewPhotos].slice(0, 9);
+    } else {
+      updatedPhotos = uniqueNewPhotos.slice(0, 9);
+    }
+
+    // Update user with new photos array (stored as JSON string)
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
-      data: { photos: updatedPhotos },
+      data: { photos: JSON.stringify(updatedPhotos) },
       select: {
         id: true,
         photos: true,
@@ -216,12 +306,12 @@ const uploadGalleryPhotos = async (req, res) => {
 
     res.json({
       message: 'Gallery photos uploaded successfully',
-      photos: updatedUser.photos
+      photos: updatedPhotos
     });
 
   } catch (error) {
     console.error('Upload gallery photos error:', error);
-    res.status(500).json({ error: 'Internal server error during photo upload' });
+    res.status(500).json({ error: 'Internal server error during photo upload', details: error.message });
   }
 };
 
@@ -239,8 +329,18 @@ const deletePhoto = async (req, res) => {
       select: { photos: true, profilePhoto: true }
     });
 
+    // Parse photos from JSON string to array
+    let photosArray = [];
+    if (currentUser.photos) {
+      try {
+        photosArray = JSON.parse(currentUser.photos);
+      } catch (e) {
+        photosArray = [];
+      }
+    }
+
     // Check if photo exists in user's photos
-    if (!currentUser.photos.includes(photoUrl)) {
+    if (!Array.isArray(photosArray) || !photosArray.includes(photoUrl)) {
       return res.status(404).json({ error: 'Photo not found in your gallery' });
     }
 
@@ -251,11 +351,11 @@ const deletePhoto = async (req, res) => {
     }
 
     // Remove photo from user's photos array
-    const updatedPhotos = currentUser.photos.filter(photo => photo !== photoUrl);
+    const updatedPhotos = photosArray.filter(photo => photo !== photoUrl);
 
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
-      data: { photos: updatedPhotos },
+      data: { photos: JSON.stringify(updatedPhotos) },
       select: {
         id: true,
         photos: true,
@@ -265,7 +365,7 @@ const deletePhoto = async (req, res) => {
 
     res.json({
       message: 'Photo deleted successfully',
-      photos: updatedUser.photos
+      photos: updatedPhotos
     });
 
   } catch (error) {

@@ -15,48 +15,30 @@ import {
   Box,
   Alert,
   CircularProgress,
-  FormControlLabel,
-  Checkbox
-  ,Autocomplete } from '@mui/material';
+  Autocomplete
+} from '@mui/material';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
 import PasswordField from '../components/PasswordField';
 import { STATES, getCitiesForState } from '../data/indianLocations';
 import api from '../services/api';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import { InputAdornment } from '@mui/material';
 
 const Register = () => {
   const navigate = useNavigate();
   const { register: registerUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [customCities, setCustomCities] = useState([]);
+  const [subCastes, setSubCastes] = useState([]);
+  const [presetCities, setPresetCities] = useState([]);
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm();
 
   const selectedState = watch('state');
 
   useEffect(() => {
-    // Clear city when state changes
-    setValue('city', null);
-  }, [selectedState, setValue]);
-
-    const DEFAULT_SUBCASTES = [
-      'Boyas',
-      'Kal Oddars',
-      'Sooramari Oddars',
-      'Nellorepet Oddars',
-      'Mannu Oddars'
-    ];
-  const [subCastes, setSubCastes] = useState(DEFAULT_SUBCASTES);
-  const [customCities, setCustomCities] = useState([]);
-  const [presetCities, setPresetCities] = useState([]);
-  const [cityInputValue, setCityInputValue] = useState('');
-  const [subCasteInputValue, setSubCasteInputValue] = useState('');
-
-  useEffect(() => {
-    const fetchCustom = async () => {
+    // Fetch custom cities for the selected state
+    const fetchCustomCities = async () => {
       if (!selectedState) {
         setCustomCities([]);
         setPresetCities([]);
@@ -65,30 +47,60 @@ const Register = () => {
       }
 
       try {
-        const res = await api.get(`/lookup/cities?state=${encodeURIComponent(selectedState)}`);
-        const custom = res.data.cities.map(c => c.name);
+        const response = await api.get(`/lookup/cities?state=${selectedState}`);
+        const custom = response.data.cities.map(c => c.name);
+        const preset = getCitiesForState(selectedState);
         setCustomCities(custom);
+        setPresetCities(preset);
+        setValue('city', null);
       } catch (err) {
-        console.error('Failed to fetch custom cities', err);
-        setCustomCities([]);
+        console.error('Error fetching custom cities:', err);
+        setPresetCities(getCitiesForState(selectedState));
       }
-
-      // always set preset cities from static list
-      setPresetCities(getCitiesForState(selectedState));
-      setValue('city', null);
-      setCityInputValue('');
     };
 
-    fetchCustom();
+    fetchCustomCities();
   }, [selectedState, setValue]);
 
-  const cityOptions = [...new Set([...(presetCities || []), ...(customCities || [])])];
+  useEffect(() => {
+    // Fetch all sub castes on mount
+    const fetchSubCastes = async () => {
+      try {
+        const response = await api.get('/lookup/subcastes');
+        setSubCastes(response.data.subCastes.map(s => s.name));
+      } catch (err) {
+        console.error('Error fetching sub castes:', err);
+      }
+    };
+
+    fetchSubCastes();
+  }, []);
+
   const onSubmit = async (data) => {
     setLoading(true);
     setError('');
-    setSuccess('');
 
     try {
+      // If city is custom (new), add it to DB first
+      if (data.city && !presetCities.includes(data.city) && selectedState) {
+        try {
+          await api.post('/lookup/cities', { name: data.city, state: selectedState });
+        } catch (err) {
+          console.error('Error adding custom city:', err);
+          // Continue with registration even if city addition fails
+        }
+      }
+
+      // If sub caste is custom (new), add it to DB first
+      if (data.subCaste && !subCastes.includes(data.subCaste)) {
+        try {
+          await api.post('/lookup/subcastes', { name: data.subCaste });
+        } catch (err) {
+          console.error('Error adding custom sub caste:', err);
+          // Continue with registration even if sub caste addition fails
+        }
+      }
+
       const result = await registerUser({
         ...data,
         dateOfBirth: data.dateOfBirth,
@@ -97,24 +109,19 @@ const Register = () => {
       });
 
       if (result.success) {
-        const msg = result.message || 'Registration successful!';
-        toast.success(msg);
-        setSuccess(msg);
-        // short delay so user sees the toast/alert, then navigate
-        setTimeout(() => navigate('/dashboard'), 900);
+        toast.success('Registration successful!');
+        navigate('/dashboard');
       } else {
-        const err = result.error || 'Registration failed';
-        setError(err);
-        toast.error(err);
+        setError(result.error);
       }
     } catch (error) {
-      const errMsg = error?.response?.data?.error || 'Registration failed. Please try again.';
-      setError(errMsg);
-      toast.error(errMsg);
+      setError('Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  const cityOptions = [...new Set([...presetCities, ...customCities])];
 
   return (
     <Container maxWidth="sm" style={{ marginTop: '2rem' }}>
@@ -130,11 +137,6 @@ const Register = () => {
         {error && (
           <Alert severity="error" style={{ marginBottom: '1rem' }}>
             {error}
-          </Alert>
-        )}
-        {success && (
-          <Alert severity="success" style={{ marginBottom: '1rem' }}>
-            {success}
           </Alert>
         )}
 
@@ -282,39 +284,18 @@ const Register = () => {
             <Grid item xs={12} sm={6}>
               <Autocomplete
                 freeSolo
-                openOnFocus
                 options={cityOptions}
                 value={watch('city') || null}
-                inputValue={cityInputValue}
-                onInputChange={(e, newInput) => {
-                  setCityInputValue(newInput);
-                  // update form value while typing
-                  setValue('city', newInput || '');
-                }}
-                onChange={(e, value) => {
-                  setValue('city', value || '');
-                  setCityInputValue(value || '');
-                }}
-                popupIcon={<ArrowDropDownIcon />}
-                renderInput={(params) => {
-                  const endAdornment = params.InputProps?.endAdornment ?? (
-                    <InputAdornment position="end">
-                      <ArrowDropDownIcon />
-                    </InputAdornment>
-                  );
-
-                  return (
-                    <TextField
-                      {...params}
-                      variant="outlined"
-                      label="City"
-                      placeholder="Select or type city..."
-                      error={!!errors.city}
-                      helperText={errors.city?.message || 'Type a new city if not in list'}
-                      InputProps={{ ...params.InputProps, endAdornment }}
-                    />
-                  );
-                }}
+                onChange={(e, value) => setValue('city', value || '')}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="City"
+                    placeholder="Select or type city..."
+                    error={!!errors.city}
+                    helperText={errors.city?.message || 'Type a new city if not in list'}
+                  />
+                )}
               />
               <input type="hidden" {...register('city', { required: 'City is required' })} />
             </Grid>
@@ -347,71 +328,19 @@ const Register = () => {
             <Grid item xs={12}>
               <Autocomplete
                 freeSolo
-                openOnFocus
                 options={subCastes}
                 value={watch('subCaste') || null}
-                inputValue={subCasteInputValue}
-                onInputChange={(e, newInput) => {
-                  setSubCasteInputValue(newInput);
-                  setValue('subCaste', newInput || '');
-                }}
-                onChange={(e, value) => {
-                  setValue('subCaste', value || '');
-                  setSubCasteInputValue(value || '');
-                }}
-                popupIcon={<ArrowDropDownIcon />}
-                renderInput={(params) => {
-                  const endAdornment = params.InputProps?.endAdornment ?? (
-                    <InputAdornment position="end">
-                      <ArrowDropDownIcon />
-                    </InputAdornment>
-                  );
-
-                  return (
-                    <TextField
-                      {...params}
-                      variant="outlined"
-                      label="Sub Caste (Optional)"
-                      placeholder="Select or type sub caste..."
-                      helperText="Type a new sub caste if not in list"
-                      InputProps={{ ...params.InputProps, endAdornment }}
-                    />
-                  );
-                }}
+                onChange={(e, value) => setValue('subCaste', value || '')}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Sub Caste (Optional)"
+                    placeholder="Select or type sub caste..."
+                    helperText="Type a new sub caste if not in list"
+                  />
+                )}
               />
               <input type="hidden" {...register('subCaste')} />
-            </Grid>
-
-            {/* Terms and Conditions */}
-            <Grid item xs={12}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    {...register('acceptTerms', { 
-                      required: 'You must agree to the terms and conditions' 
-                    })}
-                    color="primary"
-                    size="small"
-                  />
-                }
-                label={
-                  <Typography variant="body2">
-                    I agree to the{' '}
-                    <Link to="/terms" style={{ color: '#8B5CF6', textDecoration: 'none' }}>
-                      Terms of Service
-                    </Link>{' '}
-                    and{' '}
-                    <Link to="/privacy" style={{ color: '#8B5CF6', textDecoration: 'none' }}>
-                      Privacy Policy
-                    </Link>. I also confirm that I am at least 18 years of age and acknowledge that all payments for premium memberships are due on time and are non-refundable as per the Refund Policy.
-                  </Typography>
-                }
-              />
-              {errors.acceptTerms && (
-                <Typography variant="caption" color="error" display="block" style={{ marginTop: '4px' }}>
-                  {errors.acceptTerms.message}
-                </Typography>
-              )}
             </Grid>
 
             {/* Submit Button */}
@@ -422,7 +351,7 @@ const Register = () => {
                   variant="contained"
                   color="primary"
                   size="large"
-                  disabled={loading || errors.acceptTerms}
+                  disabled={loading}
                   style={{ minWidth: '200px' }}
                 >
                   {loading ? <CircularProgress size={24} /> : 'Register'}

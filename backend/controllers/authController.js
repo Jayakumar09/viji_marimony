@@ -196,6 +196,21 @@ const getMe = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Normalize profile photo path if it's a local file path
+    if (user.profilePhoto && !user.profilePhoto.startsWith('http') && !user.profilePhoto.startsWith('/')) {
+      user.profilePhoto = `/${user.profilePhoto}`;
+    }
+
+    // Normalize photos array paths
+    if (user.photos && Array.isArray(user.photos)) {
+      user.photos = user.photos.map(photo => {
+        if (!photo.startsWith('http') && !photo.startsWith('/')) {
+          return `/${photo}`;
+        }
+        return photo;
+      });
+    }
+
     res.json({ user });
 
   } catch (error) {

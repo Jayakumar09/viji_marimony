@@ -43,6 +43,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import searchService from '../services/searchService';
 import toast from 'react-hot-toast';
+import { getImageUrl } from '../utils/imageUrl';
 
 const SearchProfiles = () => {
   const navigate = useNavigate();
@@ -63,7 +64,7 @@ const SearchProfiles = () => {
 
   // Fetch search filters
   const { data: filterOptions } = useQuery(
-    'searchFilters',
+    ['searchFilters'],
     searchService.getSearchFilters,
     {
       staleTime: 30 * 60 * 1000, // 30 minutes
@@ -120,7 +121,7 @@ const SearchProfiles = () => {
           <CardMedia
             component="img"
             height="200"
-            image={profile.profilePhoto}
+            image={getImageUrl(profile.profilePhoto)}
             alt={`${profile.firstName} ${profile.lastName}`}
             style={{ objectFit: 'cover' }}
           />

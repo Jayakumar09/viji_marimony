@@ -23,11 +23,33 @@ router.get('/', getProfile);
 // Update user profile
 router.put('/', validateProfileUpdate, handleValidationErrors, updateProfile);
 
-// Upload profile photo
-router.post('/photo', uploadSingle, uploadProfilePhoto);
+// Upload profile photo with error handling for multer
+router.post('/photo', (req, res, next) => {
+  uploadSingle(req, res, (err) => {
+    if (err) {
+      console.error('Multer error (profile photo):', err);
+      return res.status(400).json({ 
+        error: 'File upload failed', 
+        details: err.message 
+      });
+    }
+    next();
+  });
+}, uploadProfilePhoto);
 
-// Upload gallery photos
-router.post('/photos', uploadMultiple, uploadGalleryPhotos);
+// Upload gallery photos with error handling for multer
+router.post('/photos', (req, res, next) => {
+  uploadMultiple(req, res, (err) => {
+    if (err) {
+      console.error('Multer error (gallery photos):', err);
+      return res.status(400).json({ 
+        error: 'File upload failed', 
+        details: err.message 
+      });
+    }
+    next();
+  });
+}, uploadGalleryPhotos);
 
 // Delete photo
 router.delete('/photo', deletePhoto);

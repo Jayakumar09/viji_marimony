@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import {
@@ -38,6 +38,7 @@ import profileService from '../services/profileService';
 import toast from 'react-hot-toast';
 import { compressImage, blobToFile } from '../utils/imageCompression';
 import { STATES, getCitiesForState, MAX_GALLERY_IMAGES } from '../data/indianLocations';
+import { getImageUrl } from '../utils/imageUrl';
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
@@ -51,6 +52,8 @@ const Profile = () => {
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState('');
   const [availableCities, setAvailableCities] = useState([]);
+  const galleryInputRef = useRef(null);
+  const isUploadingRef = useRef(false); // Prevent duplicate uploads
 
   const { register, handleSubmit, reset, watch, control, formState: { errors } } = useForm();
   
@@ -76,8 +79,42 @@ const Profile = () => {
     try {
       setLoading(true);
       const response = await profileService.getProfile();
-      setProfileData(response.user);
-      reset(response.user);
+      const apiUser = response.user || {};
+
+      const GENDER_MAP = { MALE: 'Male', FEMALE: 'Female', OTHER: 'Other', male: 'Male', female: 'Female' };
+      const MARITAL_MAP = { SINGLE: 'Never Married', NEVER_MARRIED: 'Never Married', DIVORCED: 'Divorced', WIDOWED: 'Widowed', SEPARATED: 'Separated' };
+
+      const formatDateToInput = (d) => {
+        if (!d) return '';
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) return '';
+        const yyyy = dt.getFullYear();
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const dd = String(dt.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      };
+
+      const normalized = { ...apiUser };
+      // normalize enumerations and nulls to values the UI expects
+      normalized.gender = GENDER_MAP[apiUser.gender] || (apiUser.gender || '');
+      normalized.maritalStatus = MARITAL_MAP[apiUser.maritalStatus] || (apiUser.maritalStatus || '');
+      normalized.dateOfBirth = formatDateToInput(apiUser.dateOfBirth);
+
+      // ensure other nullable selects/texts are empty strings instead of null
+      ['income', 'complexion', 'familyValues', 'education', 'profession', 'country', 'city', 'state', 'bio', 'aboutFamily'].forEach(key => {
+        if (normalized[key] === null || typeof normalized[key] === 'undefined') normalized[key] = '';
+      });
+
+      // prepare city options immediately so Select has the option available
+      const stateForCities = normalized.state || apiUser.state || '';
+      const citiesForState = stateForCities ? getCitiesForState(stateForCities) : [];
+      if (apiUser.city && apiUser.city !== '' && !citiesForState.includes(apiUser.city)) {
+        citiesForState.unshift(apiUser.city);
+      }
+      setAvailableCities(citiesForState);
+
+      setProfileData(normalized);
+      reset(normalized);
     } catch (error) {
       setError('Failed to load profile data');
     } finally {
@@ -93,7 +130,23 @@ const Profile = () => {
 
       const response = await profileService.updateProfile(data);
       updateUser(response.user);
-      setProfileData(response.user);
+      // normalize updated user for consistent UI state
+      const apiUser = response.user || {};
+      const formatDateToInput = (d) => {
+        if (!d) return '';
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) return '';
+        const yyyy = dt.getFullYear();
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const dd = String(dt.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      };
+      const normalized = { ...apiUser };
+      normalized.dateOfBirth = formatDateToInput(apiUser.dateOfBirth);
+      ['income', 'complexion', 'familyValues', 'education', 'profession', 'country', 'city', 'state', 'bio', 'aboutFamily', 'maritalStatus', 'gender'].forEach(key => {
+        if (normalized[key] === null || typeof normalized[key] === 'undefined') normalized[key] = '';
+      });
+      setProfileData(normalized);
       setEditing(false);
       setSuccess('Profile updated successfully!');
       toast.success('Profile updated successfully!');
@@ -133,6 +186,12 @@ const Profile = () => {
     const files = Array.from(event.target.files);
     if (!files.length) return;
 
+    // Prevent duplicate uploads
+    if (isUploadingRef.current) {
+      console.log('Upload already in progress, ignoring...');
+      return;
+    }
+
     // Check total photos won't exceed 9
     const currentPhotos = profileData?.photos || [];
     if (currentPhotos.length + files.length > MAX_GALLERY_IMAGES) {
@@ -141,6 +200,7 @@ const Profile = () => {
     }
 
     try {
+      isUploadingRef.current = true;
       setUploading(true);
       setError('');
       
@@ -154,13 +214,20 @@ const Profile = () => {
       
       const response = await profileService.uploadGalleryPhotos(compressedFiles);
       setProfileData(prev => ({ ...prev, photos: response.photos }));
+      // Update user state without triggering cache invalidation
       updateUser({ ...user, photos: response.photos });
       toast.success('Gallery photos uploaded successfully!');
+      
+      // Clear the file input to prevent duplicate uploads
+      if (galleryInputRef.current) {
+        galleryInputRef.current.value = '';
+      }
     } catch (error) {
       console.error('Gallery upload error:', error);
       setError(error.response?.data?.error || 'Failed to upload photos');
       toast.error('Failed to upload photos');
     } finally {
+      isUploadingRef.current = false;
       setUploading(false);
     }
   };
@@ -223,7 +290,7 @@ const Profile = () => {
             <Box mb={2}>
               {profileData?.profilePhoto ? (
                 <Avatar
-                  src={profileData.profilePhoto}
+                  src={getImageUrl(profileData.profilePhoto)}
                   alt={profileData.firstName}
                   style={{
                     width: 150,
@@ -257,11 +324,11 @@ const Profile = () => {
             <label htmlFor="profile-photo-upload">
               <Button
                 variant="contained"
-                color="primary"
                 component="span"
                 startIcon={<CameraAlt />}
                 disabled={uploading}
                 fullWidth
+                sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
               >
                 {uploading ? 'Uploading...' : 'Change Photo'}
               </Button>
@@ -278,7 +345,6 @@ const Profile = () => {
               </Typography>
               <Button
                 variant={editing ? "contained" : "outlined"}
-                color="primary"
                 startIcon={editing ? <Save /> : <Edit />}
                 onClick={() => {
                   if (editing) {
@@ -288,6 +354,7 @@ const Profile = () => {
                   }
                 }}
                 disabled={uploading}
+                sx={{ bgcolor: editing ? '#8B5CF6' : 'inherit', '&:hover': { bgcolor: editing ? '#7C3AED' : 'inherit' } }}
               >
                 {editing ? 'Save' : 'Edit'}
               </Button>
@@ -625,15 +692,16 @@ const Profile = () => {
                 type="file"
                 multiple
                 hidden
+                ref={galleryInputRef}
                 onChange={handleGalleryUpload}
               />
               <label htmlFor="gallery-upload">
                 <Button
                   variant="contained"
-                  color="primary"
                   component="span"
                   startIcon={<CloudUpload />}
                   disabled={uploading || (profileData?.photos?.length >= MAX_GALLERY_IMAGES)}
+                  sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
                 >
                   Add Photos
                 </Button>
@@ -648,7 +716,7 @@ const Profile = () => {
                       <CardMedia
                         component="img"
                         height="200"
-                        image={photo}
+                        image={getImageUrl(photo)}
                         alt={`Gallery photo ${index + 1}`}
                         style={{ objectFit: 'cover' }}
                       />
@@ -689,10 +757,17 @@ const Profile = () => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialog(false)} color="default">
+          <Button 
+            onClick={() => setDeleteDialog(false)} 
+            sx={{ color: '#666' }}
+          >
             Cancel
           </Button>
-          <Button onClick={confirmDeletePhoto} color="secondary" variant="contained">
+          <Button 
+            onClick={confirmDeletePhoto} 
+            variant="contained"
+            sx={{ bgcolor: '#EC4899', '&:hover': { bgcolor: '#DB2777' } }}
+          >
             Delete
           </Button>
         </DialogActions>

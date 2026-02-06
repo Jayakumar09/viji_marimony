@@ -40,6 +40,7 @@ import {
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import interestService from '../services/interestService';
+import { getImageUrl } from '../utils/imageUrl';
 
 const Interests = () => {
   const queryClient = useQueryClient();
@@ -81,7 +82,7 @@ const Interests = () => {
 
   // Fetch interest stats
   const { data: stats } = useQuery(
-    'interestStats',
+    ['interestStats'],
     interestService.getInterestStats,
     {
       refetchInterval: 30000, // Refetch every 30 seconds
@@ -144,7 +145,7 @@ const Interests = () => {
               <Box display="flex" alignItems="center" gap={2}>
                 {user.profilePhoto ? (
                   <Avatar
-                    src={user.profilePhoto}
+                    src={getImageUrl(user.profilePhoto)}
                     alt={`${user.firstName} ${user.lastName}`}
                     style={{ width: 60, height: 60 }}
                   />

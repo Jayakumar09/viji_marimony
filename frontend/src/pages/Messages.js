@@ -17,7 +17,8 @@ import {
   Badge,
   CircularProgress,
   Alert,
-  Divider
+  Divider,
+  Button
 } from '@mui/material';
 import {
   Send,
@@ -29,6 +30,7 @@ import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import messageService from '../services/messageService';
 import toast from 'react-hot-toast';
+import { getImageUrl } from '../utils/imageUrl';
 
 const Messages = () => {
   const queryClient = useQueryClient();
@@ -44,7 +46,7 @@ const Messages = () => {
     isLoading: loadingConversations,
     refetch: refetchConversations
   } = useQuery(
-    'conversations',
+    ['conversations'],
     messageService.getConversations,
     {
       refetchInterval: 30000, // Refetch every 30 seconds
@@ -160,7 +162,7 @@ const Messages = () => {
                   <ListItemAvatar>
                     <Badge badgeContent={conversation.unreadCount || 0} color="secondary">
                       {conversation.profilePhoto ? (
-                        <Avatar src={conversation.profilePhoto} />
+                        <Avatar src={getImageUrl(conversation.profilePhoto)} />
                       ) : (
                         <Avatar>
                           <Person />
@@ -231,7 +233,7 @@ const Messages = () => {
             {/* Header */}
             <Box p={2} borderBottom="1px solid #e0e0e0" display="flex" alignItems="center" gap={2}>
               {selectedConversation.profilePhoto ? (
-                <Avatar src={selectedConversation.profilePhoto} />
+                <Avatar src={getImageUrl(selectedConversation.profilePhoto)} />
               ) : (
                 <Avatar>
                   <Person />

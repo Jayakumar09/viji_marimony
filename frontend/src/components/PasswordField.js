@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { IconButton, InputAdornment, Tooltip, Box, Button, Alert } from '@mui/material';
-import { Visibility, VisibilityOff, Refresh, ContentCopy } from '@mui/icons-material';
+import { IconButton, InputAdornment, Tooltip, Box, Button, Alert, Switch, FormControlLabel } from '@mui/material';
+import { Visibility, VisibilityOff, ContentCopy } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 
 const PasswordField = ({ 
@@ -14,6 +14,7 @@ const PasswordField = ({
   const [showPassword, setShowPassword] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [showGeneratedAlert, setShowGeneratedAlert] = useState(false);
+  const [generatorEnabled, setGeneratorEnabled] = useState(false);
 
   const generateStrongPassword = () => {
     const length = 16;
@@ -79,6 +80,23 @@ const PasswordField = ({
     setShowPassword(!showPassword);
   };
 
+  const toggleGenerator = (e) => {
+    const enabled = e.target.checked;
+    setGeneratorEnabled(enabled);
+    if (enabled) {
+      const pw = generateStrongPassword();
+      setGeneratedPassword(pw);
+      // automatically apply generated password if onChange provided
+      if (props.onChange) {
+        const event = { target: { name: props.name || 'password', value: pw } };
+        props.onChange(event);
+      }
+    } else {
+      setGeneratedPassword('');
+      setShowGeneratedAlert(false);
+    }
+  };
+
   return (
     <Box>
       {showGeneratedAlert && generatedPassword && (
@@ -131,16 +149,11 @@ const PasswordField = ({
         
         <InputAdornment position="end" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
           {showGenerator && (
-            <Tooltip title="Generate Strong Password">
-              <IconButton
-                onClick={generateStrongPassword}
-                edge="end"
-                size="small"
-                style={{ marginRight: '4px' }}
-              >
-                <Refresh />
-              </IconButton>
-            </Tooltip>
+            <FormControlLabel
+              control={<Switch size="small" checked={generatorEnabled} onChange={toggleGenerator} color="primary" />}
+              label="Generator"
+              style={{ marginRight: '8px' }}
+            />
           )}
           
           <Tooltip title={showPassword ? 'Hide Password' : 'Show Password'}>

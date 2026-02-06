@@ -12,7 +12,9 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(compression());
 
 // Rate limiting
@@ -23,14 +25,26 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // CORS configuration
+// Configure CORS to allow frontend dev servers (3000 and 3001) and any configured FRONTEND_URL
+const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:3000', 'http://localhost:3001'];
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    return callback(new Error('CORS policy: Origin not allowed'), false);
+  },
   credentials: true
 }));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Serve static files (uploaded images)
+app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
 
 // API routes
 app.get('/', (req, res) => {
@@ -48,6 +62,7 @@ const profileRoutes = require('./routes/profile');
 const searchRoutes = require('./routes/search');
 const messageRoutes = require('./routes/message');
 const interestRoutes = require('./routes/interest');
+const lookupRoutes = require('./routes/lookup');
 // const adminRoutes = require('./routes/admin');
 
 // Use routes
@@ -56,6 +71,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/message', messageRoutes);
 app.use('/api/interest', interestRoutes);
+app.use('/api/lookup', lookupRoutes);
 // app.use('/api/admin', adminRoutes);
 
 // Error handling middleware
