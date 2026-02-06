@@ -11,6 +11,8 @@ A community-focused matrimony platform for the Boyar community.
 - ✅ Image compression (<50KB automatic)
 - ✅ Indian state/city dropdowns (cascading)
 - ✅ Gallery support (up to 9 images per user)
+- ✅ Email & Phone OTP Verification
+- ✅ Admin Photo Verification System
 
 ## Project Structure
 
@@ -19,7 +21,7 @@ A community-focused matrimony platform for the Boyar community.
 │   ├── controllers/      # Business logic
 │   ├── routes/          # API endpoints
 │   ├── middleware/       # Auth, validation
-│   ├── utils/           # Helpers (image upload, JWT, DB)
+│   ├── utils/           # Helpers (image upload, JWT, DB, OTP)
 │   ├── prisma/          # Database schema & seeds
 │   └── server.js        # Main server file
 ├── frontend/
@@ -56,7 +58,15 @@ A community-focused matrimony platform for the Boyar community.
 - **Interest System**: Connect with other profiles
 - **Messaging**: Direct messaging between matched users
 - **Search/Matching**: Find compatible profiles
-- **Admin Panel**: Verification and management
+- **Verification System**:
+  - Email OTP verification (via Gmail SMTP)
+  - Phone OTP verification (via Twilio SMS)
+  - **Fallback**: If SMS fails, OTP sent via email automatically
+  - Admin photo verification and approval
+- **Admin Panel**:
+  - Dashboard with statistics
+  - Photo verification queue (approve/reject photos)
+  - User management with verification status
 
 ### Technology Stack
 - **Frontend**: 
@@ -73,6 +83,8 @@ A community-focused matrimony platform for the Boyar community.
   - JWT authentication
   - Multer + Cloudinary (file uploads)
   - Input validation middleware
+  - Nodemailer (email OTP)
+  - Twilio (SMS OTP)
   
 - **Database**: 
   - SQLite (development)
@@ -87,6 +99,7 @@ A community-focused matrimony platform for the Boyar community.
 - Node.js v16+ 
 - npm or yarn
 - Cloudinary account (for image upload) - [Sign up free](https://cloudinary.com)
+- Twilio account (for SMS) - [Sign up free](https://twilio.com)
 
 ### Installation
 
@@ -102,6 +115,11 @@ A community-focused matrimony platform for the Boyar community.
    ```
    DATABASE_URL="file:./dev.db"
    JWT_SECRET=your-secret-key-here
+   EMAIL_USER=your-email@gmail.com
+   EMAIL_PASS=your-app-password
+   TWILIO_ACCOUNT_SID=your-twilio-sid
+   TWILIO_AUTH_TOKEN=your-twilio-token
+   TWILIO_PHONE_NUMBER=+1234567890
    CLOUDINARY_CLOUD_NAME=your_cloud_name
    CLOUDINARY_API_KEY=your_api_key
    CLOUDINARY_API_SECRET=your_api_secret
@@ -183,6 +201,21 @@ npm run build  # Creates optimized build in build/ folder
 - `POST /api/profile/photos` - Upload gallery photos (up to 9)
 - `DELETE /api/profile/photo` - Delete gallery photo
 
+### Verification
+- `POST /api/verification/email/send-otp` - Send email OTP
+- `POST /api/verification/email/verify` - Verify email OTP
+- `POST /api/verification/phone/send-otp` - Send phone OTP (with fallback email)
+- `POST /api/verification/phone/verify` - Verify phone OTP
+- `GET /api/verification/status` - Get verification status
+
+### Admin (Admin users only)
+- `GET /api/admin/dashboard` - Dashboard statistics
+- `GET /api/admin/photos/pending` - Pending photo verifications
+- `PUT /api/admin/photos/:id/approve` - Approve photo
+- `PUT /api/admin/photos/:id/reject` - Reject photo with reason
+- `GET /api/admin/users` - List all users
+- `PUT /api/admin/users/:id/verification` - Manual verification
+
 ### Other
 - `GET /` - Health check
 - `GET /api/search` - Search profiles
@@ -198,6 +231,22 @@ npm run build  # Creates optimized build in build/ folder
 4. Submit → Get redirected to Login
 5. Login with credentials
 6. See Dashboard
+
+### Test Verification
+1. After login, go to "Verification" from menu
+2. **Email Tab**: Click "Send OTP" → Check email → Enter OTP → Verify
+3. **Phone Tab**: 
+   - Click "Send OTP" → Check phone/SMS
+   - If SMS fails, OTP auto-sent to email
+   - Enter OTP → Verify
+4. Once both verified, get "Verified" badge
+
+### Test Admin Panel (Admin users only)
+1. Login with admin email (info@vijayalakshmiboyarmatrimony.com)
+2. "Admin Panel" link appears in menu
+3. View dashboard stats
+4. Review pending photo approvals
+5. Approve/reject user photos
 
 ### Test Profile Features
 1. After login, click "Profile"
