@@ -1,6 +1,6 @@
 import React from 'react';
-import { AppBar, Toolbar, Typography, Button, Box, IconButton, Menu, MenuItem } from '@mui/material';
-import { AccountCircle, Search, Message, FavoriteBorder } from '@mui/icons-material';
+import { AppBar, Toolbar, Typography, Button, Box, IconButton, Menu, MenuItem, Badge } from '@mui/material';
+import { AccountCircle, Search, Message, FavoriteBorder, Verified, AdminPanelSettings } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
@@ -9,6 +9,10 @@ const Header = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [anchorEl, setAnchorEl] = React.useState(null);
+
+  // Simple admin check
+  const isAdmin = user?.email?.toLowerCase().includes('admin') || 
+                  user?.email === 'info@vijayalakshmiboyarmatrimony.com';
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -85,6 +89,16 @@ const Header = () => {
               <MenuItem onClick={() => { navigate('/profile'); handleMenuClose(); }}>
                 My Profile
               </MenuItem>
+              <MenuItem onClick={() => { navigate('/verification'); handleMenuClose(); }}>
+                <Verified fontSize="small" style={{ marginRight: 8 }} />
+                Verification
+              </MenuItem>
+              {isAdmin && (
+                <MenuItem onClick={() => { navigate('/admin'); handleMenuClose(); }}>
+                  <AdminPanelSettings fontSize="small" style={{ marginRight: 8 }} />
+                  Admin Panel
+                </MenuItem>
+              )}
               <MenuItem onClick={handleLogout}>
                 Logout
               </MenuItem>

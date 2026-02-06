@@ -28,7 +28,7 @@ model User {
   education         String?
   profession        String?
   income            String?
-  maritalStatus     String    @map("marital_status")
+  maritalStatus     String   @map("marital_status")
   height            String?  // in cm
   weight            String?  // in kg
   complexion        String?
@@ -42,6 +42,7 @@ model User {
   isActive          Boolean  @default(true) @map("is_active")
   emailVerified     Boolean  @default(false) @map("email_verified")
   phoneVerified     Boolean  @default(false) @map("phone_verified")
+  photosVerified    Boolean  @default(false) @map("photos_verified")
   lastLoginAt       DateTime? @map("last_login_at")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -51,8 +52,27 @@ model User {
   receivedInterests Interest[] @relation("ReceivedInterests")
   sentMessages      Message[]  @relation("SentMessages")
   receivedMessages  Message[]  @relation("ReceivedMessages")
+  photoVerifications PhotoVerification[] @relation("UserPhotos")
 
   @@map("users")
+}
+
+model PhotoVerification {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  photoUrl    String   @map("photo_url")
+  photoType   String   @default("PROFILE") @map("photo_type") // PROFILE, PHOTO_GALLERY
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  rejectedReason String? @map("rejected_reason")
+  reviewedBy  String?  @map("reviewed_by")
+  reviewedAt  DateTime? @map("reviewed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user        User     @relation("UserPhotos", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("photo_verifications")
 }
 
 model Interest {

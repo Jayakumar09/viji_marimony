@@ -15,6 +15,7 @@ import Search from './pages/Search';
 import Messages from './pages/Messages';
 import Interests from './pages/Interests';
 import Dashboard from './pages/Dashboard';
+import Verification from './pages/Verification';
 import AdminPanel from './pages/AdminPanel';
 import NotFound from './pages/NotFound';
 
@@ -41,6 +42,7 @@ function App() {
           {/* Protected Routes */}
           <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/login" />} />
           <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
+          <Route path="/verification" element={user ? <Verification /> : <Navigate to="/login" />} />
           <Route path="/search" element={user ? <Search /> : <Navigate to="/login" />} />
           <Route path="/messages" element={user ? <Messages /> : <Navigate to="/login" />} />
           <Route path="/interests" element={user ? <Interests /> : <Navigate to="/login" />} />
