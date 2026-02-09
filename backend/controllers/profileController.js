@@ -1,6 +1,14 @@
 const { prisma } = require('../utils/database');
 const { extractPublicId, deleteImage } = require('../utils/upload');
 
+// Subscription plans configuration
+const SUBSCRIPTION_PLANS = [
+  { id: 'FREE', name: 'Free', price: 0, successFee: 0 },
+  { id: 'STANDARD', name: 'Standard', price: 999, successFee: 5000 },
+  { id: 'PREMIUM', name: 'Premium', price: 2499, successFee: 10000 },
+  { id: 'ELITE', name: 'Elite', price: 4999, successFee: 25000 }
+];
+
 const getProfile = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
@@ -35,6 +43,28 @@ const getProfile = async (req, res) => {
         isPremium: true,
         emailVerified: true,
         phoneVerified: true,
+        // Horoscope fields
+        raasi: true,
+        natchathiram: true,
+        lagnam: true,
+        dhosam: true,
+        birthDate: true,
+        birthTime: true,
+        birthPlace: true,
+        // Family background fields
+        fatherName: true,
+        fatherOccupation: true,
+        fatherCaste: true,
+        motherName: true,
+        motherOccupation: true,
+        motherCaste: true,
+        // Subscription fields
+        subscriptionTier: true,
+        successFee: true,
+        subscriptionStart: true,
+        subscriptionEnd: true,
+        // Manual verification
+        manualVerificationStatus: true,
         createdAt: true,
         updatedAt: true
       }
@@ -44,12 +74,12 @@ const getProfile = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Normalize profile photo path if it's a local file path
+    // Normalize profile photo path
     if (user.profilePhoto && !user.profilePhoto.startsWith('http') && !user.profilePhoto.startsWith('/')) {
       user.profilePhoto = `/${user.profilePhoto}`;
     }
 
-    // Normalize photos array paths (parse JSON string first)
+    // Normalize photos array paths
     let photosArray = [];
     if (user.photos) {
       try {
@@ -68,6 +98,19 @@ const getProfile = async (req, res) => {
     } else {
       user.photos = [];
     }
+
+    // Get user documents
+    const documents = await prisma.document.findMany({
+      where: { userId: req.user.id },
+      select: {
+        id: true,
+        documentType: true,
+        documentUrl: true,
+        status: true,
+        uploadedAt: true
+      }
+    });
+    user.documents = documents;
 
     res.json({ user });
 
@@ -102,7 +145,6 @@ const updateProfile = async (req, res) => {
 
     const updateData = {};
     
-    // Only include fields that are provided
     if (phone !== undefined) updateData.phone = phone;
     if (gender !== undefined) updateData.gender = gender;
     if (dateOfBirth !== undefined) updateData.dateOfBirth = new Date(dateOfBirth);
@@ -133,7 +175,6 @@ const updateProfile = async (req, res) => {
         lastName: true,
         gender: true,
         dateOfBirth: true,
-        age: true,
         city: true,
         state: true,
         country: true,
@@ -163,6 +204,267 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// ============ HOROSCOPE FIELDS ============
+const updateHoroscope = async (req, res) => {
+  try {
+    const {
+      raasi,
+      natchathiram,
+      lagnam,
+      dhosam,
+      birthDate,
+      birthTime,
+      birthPlace
+    } = req.body;
+
+    const updateData = {};
+    if (raasi !== undefined) updateData.raasi = raasi;
+    if (natchathiram !== undefined) updateData.natchathiram = natchathiram;
+    if (lagnam !== undefined) updateData.lagnam = lagnam;
+    if (dhosam !== undefined) updateData.dhosam = dhosam;
+    if (birthDate !== undefined) updateData.birthDate = birthDate;
+    if (birthTime !== undefined) updateData.birthTime = birthTime;
+    if (birthPlace !== undefined) updateData.birthPlace = birthPlace;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: updateData,
+      select: {
+        id: true,
+        raasi: true,
+        natchathiram: true,
+        lagnam: true,
+        dhosam: true,
+        birthDate: true,
+        birthTime: true,
+        birthPlace: true
+      }
+    });
+
+    res.json({
+      message: 'Horoscope details updated successfully',
+      user: updatedUser
+    });
+
+  } catch (error) {
+    console.error('Update horoscope error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ============ FAMILY BACKGROUND FIELDS ============
+const updateFamilyBackground = async (req, res) => {
+  try {
+    const {
+      fatherName,
+      fatherOccupation,
+      fatherCaste,
+      motherName,
+      motherOccupation,
+      motherCaste
+    } = req.body;
+
+    const updateData = {};
+    if (fatherName !== undefined) updateData.fatherName = fatherName;
+    if (fatherOccupation !== undefined) updateData.fatherOccupation = fatherOccupation;
+    if (fatherCaste !== undefined) updateData.fatherCaste = fatherCaste;
+    if (motherName !== undefined) updateData.motherName = motherName;
+    if (motherOccupation !== undefined) updateData.motherOccupation = motherOccupation;
+    if (motherCaste !== undefined) updateData.motherCaste = motherCaste;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: updateData,
+      select: {
+        id: true,
+        fatherName: true,
+        fatherOccupation: true,
+        fatherCaste: true,
+        motherName: true,
+        motherOccupation: true,
+        motherCaste: true
+      }
+    });
+
+    res.json({
+      message: 'Family background updated successfully',
+      user: updatedUser
+    });
+
+  } catch (error) {
+    console.error('Update family background error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ============ SUBSCRIPTION FIELDS ============
+const updateSubscription = async (req, res) => {
+  try {
+    const { subscriptionTier } = req.body;
+
+    if (!subscriptionTier) {
+      return res.status(400).json({ error: 'Subscription tier is required' });
+    }
+
+    // Find the plan
+    const plan = SUBSCRIPTION_PLANS.find(p => p.id === subscriptionTier);
+    if (!plan) {
+      return res.status(400).json({ error: 'Invalid subscription tier' });
+    }
+
+    // Calculate subscription dates
+    const startDate = new Date();
+    let endDate = new Date();
+    endDate.setFullYear(endDate.getFullYear() + 1); // Default 1 year
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        subscriptionTier: subscriptionTier,
+        successFee: plan.successFee,
+        subscriptionStart: startDate,
+        subscriptionEnd: endDate,
+        isPremium: subscriptionTier !== 'FREE'
+      },
+      select: {
+        id: true,
+        subscriptionTier: true,
+        successFee: true,
+        subscriptionStart: true,
+        subscriptionEnd: true,
+        isPremium: true
+      }
+    });
+
+    res.json({
+      message: 'Subscription updated successfully',
+      user: updatedUser
+    });
+
+  } catch (error) {
+    console.error('Update subscription error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const getSubscriptionPlans = async (req, res) => {
+  try {
+    res.json({
+      plans: SUBSCRIPTION_PLANS,
+      note: 'Success fee is applicable only when marriage is fixed through our platform. This follows the guidelines set by the Government of India for matrimonial services.'
+    });
+  } catch (error) {
+    console.error('Get subscription plans error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ============ DOCUMENTS ============
+const uploadDocument = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No document uploaded' });
+    }
+
+    const { documentType } = req.body;
+    if (!documentType) {
+      return res.status(400).json({ error: 'Document type is required' });
+    }
+
+    // Normalize document URL
+    let documentUrl;
+    if (req.file.path && req.file.path.startsWith('http')) {
+      documentUrl = req.file.path;
+    } else {
+      documentUrl = `/uploads/${req.file.filename}`;
+    }
+
+    // Create document record
+    const document = await prisma.document.create({
+      data: {
+        userId: req.user.id,
+        documentType: documentType,
+        documentUrl: documentUrl,
+        status: 'PENDING'
+      }
+    });
+
+    res.json({
+      message: 'Document uploaded successfully',
+      document: {
+        id: document.id,
+        documentType: document.documentType,
+        documentUrl: document.documentUrl,
+        status: document.status,
+        uploadedAt: document.uploadedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Upload document error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const getDocuments = async (req, res) => {
+  try {
+    const documents = await prisma.document.findMany({
+      where: { userId: req.user.id },
+      select: {
+        id: true,
+        documentType: true,
+        documentUrl: true,
+        status: true,
+        rejectedReason: true,
+        uploadedAt: true
+      }
+    });
+
+    res.json({ documents });
+
+  } catch (error) {
+    console.error('Get documents error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const deleteDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const document = await prisma.document.findFirst({
+      where: { id: id, userId: req.user.id }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Delete file from storage
+    if (document.documentUrl) {
+      const publicId = extractPublicId(document.documentUrl);
+      if (publicId) {
+        try {
+          await deleteImage(publicId);
+        } catch (deleteErr) {
+          console.warn('Warning: Could not delete document file:', deleteErr);
+        }
+      }
+    }
+
+    // Delete from database
+    await prisma.document.delete({
+      where: { id: id }
+    });
+
+    res.json({ message: 'Document deleted successfully' });
+
+  } catch (error) {
+    console.error('Delete document error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 const uploadProfilePhoto = async (req, res) => {
   try {
     if (!req.file) {
@@ -175,7 +477,6 @@ const uploadProfilePhoto = async (req, res) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get current user to delete old profile photo if exists
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { profilePhoto: true }
@@ -186,7 +487,6 @@ const uploadProfilePhoto = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Delete old profile photo from Cloudinary if it exists
     if (currentUser.profilePhoto) {
       const oldPublicId = extractPublicId(currentUser.profilePhoto);
       if (oldPublicId) {
@@ -194,18 +494,14 @@ const uploadProfilePhoto = async (req, res) => {
           await deleteImage(oldPublicId);
         } catch (deleteErr) {
           console.warn('Warning: Could not delete old profile photo:', deleteErr);
-          // Continue anyway, don't let this block the upload
         }
       }
     }
 
-    // Update user with new profile photo URL (always use HTTP path)
     let photoUrl;
     if (req.file.path && req.file.path.startsWith('http')) {
-      // Cloudinary URL
       photoUrl = req.file.path;
     } else {
-      // Local storage - construct HTTP URL
       photoUrl = `/uploads/${req.file.filename}`;
     }
     
@@ -242,7 +538,6 @@ const uploadGalleryPhotos = async (req, res) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Get current user photos
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { photos: true }
@@ -253,16 +548,14 @@ const uploadGalleryPhotos = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Extract new photo URLs (always use HTTP paths)
     const newPhotos = req.files.map(file => {
       if (file.path && file.path.startsWith('http')) {
-        return file.path; // Cloudinary URL
+        return file.path;
       } else {
-        return `/uploads/${file.filename}`; // Local storage HTTP path
+        return `/uploads/${file.filename}`;
       }
     });
     
-    // Parse current photos from JSON string to array
     let currentPhotosArray = [];
     if (currentUser.photos) {
       try {
@@ -272,20 +565,17 @@ const uploadGalleryPhotos = async (req, res) => {
       }
     }
     
-    // Extract filenames from current photos for duplicate check
     const currentFilenames = currentPhotosArray.map(photo => {
       const parts = photo.split('/');
       return parts[parts.length - 1];
     });
     
-    // Filter out duplicates: remove photos that already exist
     const uniqueNewPhotos = newPhotos.filter(newPhoto => {
       const parts = newPhoto.split('/');
       const filename = parts[parts.length - 1];
       return !currentFilenames.includes(filename);
     });
     
-    // Combine existing photos with new unique ones (max 9 photos)
     let updatedPhotos = [];
     if (Array.isArray(currentPhotosArray) && currentPhotosArray.length > 0) {
       updatedPhotos = [...currentPhotosArray, ...uniqueNewPhotos].slice(0, 9);
@@ -293,7 +583,6 @@ const uploadGalleryPhotos = async (req, res) => {
       updatedPhotos = uniqueNewPhotos.slice(0, 9);
     }
 
-    // Update user with new photos array (stored as JSON string)
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
       data: { photos: JSON.stringify(updatedPhotos) },
@@ -323,13 +612,11 @@ const deletePhoto = async (req, res) => {
       return res.status(400).json({ error: 'Photo URL is required' });
     }
 
-    // Get current user
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { photos: true, profilePhoto: true }
     });
 
-    // Parse photos from JSON string to array
     let photosArray = [];
     if (currentUser.photos) {
       try {
@@ -339,18 +626,15 @@ const deletePhoto = async (req, res) => {
       }
     }
 
-    // Check if photo exists in user's photos
     if (!Array.isArray(photosArray) || !photosArray.includes(photoUrl)) {
       return res.status(404).json({ error: 'Photo not found in your gallery' });
     }
 
-    // Delete photo from Cloudinary
     const publicId = extractPublicId(photoUrl);
     if (publicId) {
       await deleteImage(publicId);
     }
 
-    // Remove photo from user's photos array
     const updatedPhotos = photosArray.filter(photo => photo !== photoUrl);
 
     const updatedUser = await prisma.user.update({
@@ -377,6 +661,13 @@ const deletePhoto = async (req, res) => {
 module.exports = {
   getProfile,
   updateProfile,
+  updateHoroscope,
+  updateFamilyBackground,
+  updateSubscription,
+  getSubscriptionPlans,
+  uploadDocument,
+  getDocuments,
+  deleteDocument,
   uploadProfilePhoto,
   uploadGalleryPhotos,
   deletePhoto

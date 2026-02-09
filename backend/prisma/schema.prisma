@@ -47,14 +47,60 @@ model User {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
+  // Horoscope Fields
+  raasi             String?  // Moon Sign (Raasi)
+  natchathiram      String?  // Star/Nakshatra
+  lagnam            String?  // Ascendant
+  dhosam            String?  // Dhosam (Yes/No/-details)
+  birthDate         String?  @map("birth_date") // Birth date for horoscope
+  birthTime         String?  @map("birth_time") // Birth time for horoscope
+  birthPlace        String?  @map("birth_place") // Birth place for horoscope
+
+  // Family Background Fields
+  fatherName        String?  @map("father_name")
+  fatherOccupation  String?  @map("father_occupation")
+  fatherCaste       String?  @map("father_caste")
+  motherName        String?  @map("mother_name")
+  motherOccupation  String?  @map("mother_occupation")
+  motherCaste       String?  @map("mother_caste")
+
+  // Subscription Fields
+  subscriptionTier   String?  @map("subscription_tier") // FREE, STANDARD, PREMIUM, ELITE
+  successFee        Float?   @map("success_fee") // Success fee for premium services
+  subscriptionStart DateTime? @map("subscription_start")
+  subscriptionEnd   DateTime? @map("subscription_end")
+
+  // Verification Status
+  manualVerificationStatus String?  @map("manual_verification_status") // PENDING, APPROVED, REJECTED
+  manualVerificationNotes String?  @map("manual_verification_notes")
+
   // Relations
   sentInterests     Interest[] @relation("SentInterests")
   receivedInterests Interest[] @relation("ReceivedInterests")
   sentMessages      Message[]  @relation("SentMessages")
-  receivedMessages  Message[]  @relation("ReceivedMessages")
+  receivedMessages  Message[] @relation("ReceivedMessages")
   photoVerifications PhotoVerification[] @relation("UserPhotos")
+  documents         Document[] @relation("UserDocuments")
 
   @@map("users")
+}
+
+model Document {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  documentType  String   @map("document_type") // GOVERNMENT_ID, ADDRESS_PROOF, FINANCIAL_PROOF, etc.
+  documentUrl   String?  @map("document_url")
+  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  rejectedReason String? @map("rejected_reason")
+  reviewedBy    String?  @map("reviewed_by")
+  reviewedAt    DateTime? @map("reviewed_at")
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User     @relation("UserDocuments", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("documents")
 }
 
 model PhotoVerification {
@@ -131,6 +177,7 @@ model Subscription {
   endDate     DateTime         @map("end_date")
   status      String @default("ACTIVE")
   paymentId   String?          @map("payment_id")
+  successFee  Float?           @map("success_fee")
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
 
@@ -154,42 +201,13 @@ model SubCaste {
   @@map("sub_castes")
 }
 
-// Enums - Commented out for SQLite compatibility
-// enum Gender {
-//   MALE
-//   FEMALE
-//   OTHER
-// }
+// Rasi and Natchathiram mapping for horoscope
+model RasiNakshatra {
+  id        String   @id @default(cuid())
+  rasi      String
+  nakshatra String   @unique
+  rasiOrder Int      @map("rasi_order")
+  createdAt DateTime @default(now()) @map("created_at")
 
-// enum MaritalStatus {
-//   SINGLE
-//   DIVORCED
-//   WIDOWED
-//   SEPARATED
-// }
-
-// enum InterestStatus {
-//   PENDING
-//   ACCEPTED
-//   REJECTED
-// }
-
-// enum AdminRole {
-//   SUPER_ADMIN
-//   ADMIN
-//   MODERATOR
-// }
-
-// enum SubscriptionPlan {
-//   BASIC
-//   PREMIUM_1_MONTH
-//   PREMIUM_3_MONTHS
-//   PREMIUM_6_MONTHS
-//   PREMIUM_1_YEAR
-// }
-
-// enum SubscriptionStatus {
-//   ACTIVE
-//   EXPIRED
-//   CANCELLED
-// }
+  @@map("rasi_nakshatras")
+}
