@@ -13,6 +13,10 @@ A community-focused matrimony platform for the Boyar community.
 - ✅ Gallery support (up to 9 images per user)
 - ✅ Email & Phone OTP Verification
 - ✅ Admin Photo Verification System
+- ✅ Horoscope Details (Raasi, Natchathiram, Lagnam, Dhosam)
+- ✅ Family Background (Father & Mother details)
+- ✅ Subscription Plans with Success Fee
+- ✅ Mandatory Documents Upload
 
 ## Project Structure
 
@@ -31,7 +35,7 @@ A community-focused matrimony platform for the Boyar community.
 │   │   ├── services/    # API calls
 │   │   ├── contexts/    # React Context (Auth)
 │   │   ├── hooks/       # Custom hooks (useAuth)
-│   │   ├── data/        # Static data (Indian locations)
+│   │   ├── data/        # Static data (Indian locations, Horoscope)
 │   │   └── utils/       # Helpers (image compression)
 │   └── public/          # Static assets
 ├── database/            # Database setup docs
@@ -43,7 +47,7 @@ A community-focused matrimony platform for the Boyar community.
 
 ### Core Features
 - **Authentication**: Register → Login with JWT tokens stored in localStorage
-- **Profile Management**: Complete user profile with 15+ editable fields
+- **Profile Management**: Complete user profile with 20+ editable fields
 - **Image Handling**: 
   - Profile photo (1 image, uploadable)
   - Photo gallery (up to 9 images)
@@ -55,6 +59,27 @@ A community-focused matrimony platform for the Boyar community.
   - Professional: Education, Profession, Income range
   - Appearance: Height, Weight, Complexion
   - Personal: Bio, Marital Status, Family Values, About Family
+- **Horoscope Details** (New!):
+  - Raasi (Moon Sign): 12 Indian zodiac signs
+  - Natchathiram (Star/Nakshatra): Auto-selects based on Raasi
+  - Lagnam (Ascendant): 12 ascendant signs
+  - Dhosam: Dosh types (Kuja, Rahu, Kethu, etc.)
+  - Birth Details: Date, Time, Place
+- **Family Background** (New!):
+  - Father's Name, Occupation, Caste
+  - Mother's Name, Occupation, Caste
+- **Subscription Plans** (New!):
+  - Free: ₹0, Success Fee: ₹0
+  - Standard: ₹999, Success Fee: ₹5,000
+  - Premium: ₹2,499, Success Fee: ₹10,000
+  - Elite: ₹4,999, Success Fee: ₹25,000
+- **Mandatory Documents** (New!):
+  - Government ID (Aadhaar, PAN)
+  - Proof of Current Address
+  - Financial Verification (Bank Statement/ITR)
+  - Photo ID Proof
+  - Birth Certificate (optional)
+  - Education Certificate (optional)
 - **Interest System**: Connect with other profiles
 - **Messaging**: Direct messaging between matched users
 - **Search/Matching**: Find compatible profiles
@@ -63,10 +88,12 @@ A community-focused matrimony platform for the Boyar community.
   - Phone OTP verification (via Twilio SMS)
   - **Fallback**: If SMS fails, OTP sent via email automatically
   - Admin photo verification and approval
+  - Manual verification for complete profile
 - **Admin Panel**:
   - Dashboard with statistics
   - Photo verification queue (approve/reject photos)
   - User management with verification status
+  - Document verification
 
 ### Technology Stack
 - **Frontend**: 
@@ -76,7 +103,7 @@ A community-focused matrimony platform for the Boyar community.
   - Axios (HTTP client)
   - React Hot Toast (notifications)
   - TanStack React Query (data fetching)
-  
+   
 - **Backend**: 
   - Node.js with Express.js
   - Prisma ORM (database access)
@@ -85,11 +112,11 @@ A community-focused matrimony platform for the Boyar community.
   - Input validation middleware
   - Nodemailer (email OTP)
   - Twilio (SMS OTP)
-  
+   
 - **Database**: 
   - SQLite (development)
   - Prisma schema with migrations
-  
+   
 - **Cloud Services**:
   - Cloudinary (image hosting)
 
@@ -180,6 +207,66 @@ npm run build  # Creates optimized build in build/ folder
   - Select "Karnataka" → Shows: Bangalore, Mysore, Mangalore, etc
   - Select "Tamil Nadu" → Shows: Chennai, Coimbatore, Madurai, etc
 
+### Horoscope Details (NEW!)
+- **Raasi (Moon Sign)**: Select from 12 Indian zodiac signs
+  - Mesham, Rishabam, Mithunam, Kadagam, Simmam, Kanni
+  - Thulam, Vrischikam, Dhanusu, Makaram, Kumbam, Meenam
+
+- **Natchathiram (Star)**: Auto-populates based on Raasi selection
+  - 27 Nakshatras mapped to their respective Raasi
+  - Example: Selecting "Mesham" shows Ashwini, Bharani, Krittika
+
+- **Lagnam (Ascendant)**: Select ascendant sign
+  - Same 12 signs as Raasi
+
+- **Dhosam**: Select applicable dosham (if any)
+  - None, Kuja Dhosam, Rahu Dhosam, Kethu Dhosam, etc.
+
+- **Birth Details**:
+  - Birth Date (date picker)
+  - Birth Time (time picker)
+  - Birth Place (text input)
+
+### Family Background (NEW!)
+- **Father's Details**:
+  - Father's Name
+  - Father's Occupation
+  - Father's Caste
+
+- **Mother's Details**:
+  - Mother's Name
+  - Mother's Occupation
+  - Mother's Caste
+
+### Subscription Plans (NEW!)
+Choose a subscription tier based on your needs:
+
+| Plan | Price | Success Fee | Features |
+|------|-------|-------------|----------|
+| Free | ₹0 | ₹0 | Basic profile viewing, Limited interests |
+| Standard | ₹999 | ₹5,000 | Priority search, More interests, View contacts |
+| Premium | ₹2,499 | ₹10,000 | Top priority, Unlimited interests, All photos |
+| Elite | ₹4,999 | ₹25,000 | Featured profile, Dedicated support |
+
+**Note**: Success fee is applicable only when marriage is fixed through our platform. This follows the guidelines set by the Government of India for matrimonial services.
+
+### Mandatory Documents (NEW!)
+Upload required documents for verification:
+
+| Document Type | Required | Status Tracking |
+|--------------|----------|-----------------|
+| Government ID (Aadhaar, PAN) | ✅ Yes | Pending/Approved/Rejected |
+| Proof of Current Address | ✅ Yes | Pending/Approved/Rejected |
+| Financial Proof (ITR/Bank) | ✅ Yes | Pending/Approved/Rejected |
+| Photo ID Proof | ✅ Yes | Pending/Approved/Rejected |
+| Birth Certificate | ❌ Optional | Pending/Approved/Rejected |
+| Education Certificate | ❌ Optional | Pending/Approved/Rejected |
+
+**Document Status**:
+- **Pending**: Uploaded, awaiting admin review
+- **Approved**: Verified by admin
+- **Rejected**: Please re-upload with valid document
+
 ### Profile Fields (Editable)
 - Gender, Date of Birth, Age
 - Phone, Country, State, City
@@ -187,6 +274,7 @@ npm run build  # Creates optimized build in build/ folder
 - Education, Profession, Income
 - Height, Weight, Complexion
 - Bio, Family Values, About Family
+- **NEW**: Horoscope Details, Family Background
 
 ## 🔧 API Endpoints
 
@@ -200,6 +288,13 @@ npm run build  # Creates optimized build in build/ folder
 - `POST /api/profile/photo` - Upload profile photo
 - `POST /api/profile/photos` - Upload gallery photos (up to 9)
 - `DELETE /api/profile/photo` - Delete gallery photo
+- `PUT /api/profile/horoscope` - Update horoscope details (NEW!)
+- `PUT /api/profile/family` - Update family background (NEW!)
+- `PUT /api/profile/subscription` - Update subscription tier (NEW!)
+- `GET /api/profile/subscription/plans` - Get subscription plans (NEW!)
+- `POST /api/profile/documents` - Upload document (NEW!)
+- `GET /api/profile/documents` - Get uploaded documents (NEW!)
+- `DELETE /api/profile/documents/:id` - Delete document (NEW!)
 
 ### Verification
 - `POST /api/verification/email/send-otp` - Send email OTP
@@ -222,7 +317,7 @@ npm run build  # Creates optimized build in build/ folder
 - `GET /api/interests` - Manage interests
 - `GET /api/messages` - Messaging system
 
-## 🧪 Testing
+## 🧪 Testing (Updated for New Features)
 
 ### Test Registration & Login
 1. Open http://localhost:3000
@@ -258,6 +353,43 @@ npm run build  # Creates optimized build in build/ folder
 7. Click "Save" to submit
 8. Upload gallery photos (up to 9)
 
+### Test Horoscope Details (NEW!)
+1. Go to Profile page
+2. Click "Horoscope" tab
+3. Click "Edit" button
+4. Select Raasi (Moon Sign) from dropdown
+5. Verify Natchathiram dropdown auto-populates with stars for that Raasi
+6. Select Lagnam and Dhosam
+7. Enter birth date, time, and place
+8. Click "Save"
+
+### Test Family Background (NEW!)
+1. Go to Profile page
+2. Click "Family" tab
+3. Click "Edit" button
+4. Enter Father's Name, Occupation, Caste
+5. Enter Mother's Name, Occupation, Caste
+6. Click "Save"
+
+### Test Subscription Plans (NEW!)
+1. Go to Profile page
+2. Click "Subscription" tab
+3. View all available plans with prices and success fees
+4. Click "Select Plan" on desired tier
+5. Confirm subscription update
+6. See current plan highlighted
+
+### Test Mandatory Documents (NEW!)
+1. Go to Profile page
+2. Click "Documents" tab
+3. View required documents checklist
+4. Click "Upload Document" button
+5. Select document type from dropdown
+6. Upload file (image or PDF)
+7. View uploaded documents in table
+8. Check status (Pending/Approved/Rejected)
+9. Delete and re-upload if rejected
+
 ### Test Image Compression
 1. Upload a large image (>50KB)
 2. Open browser DevTools → Network tab
@@ -274,3 +406,6 @@ Built specifically for the Boyar community with:
 - Cultural understanding (family values, marital status)
 - Personalized matching preferences
 - Trust and verification system
+- Horoscope compatibility features
+- Traditional family background collection
+- Compliant success fee structure per Indian laws
