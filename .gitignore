@@ -101,6 +101,8 @@ Thumbs.db
 # Prisma
 prisma/migrations/
 prisma/dev.db*
+prisma/*.db*
+prisma/*.sqlite3*
 
 # Temporary files
 *.tmp
