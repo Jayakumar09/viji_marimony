@@ -1,10 +1,10 @@
 /**
- * Compress image to less than 50KB
+ * Compress image to reasonable size for profile photos
  * @param {File} file - Image file to compress
- * @param {number} maxSize - Maximum size in bytes (default: 50KB)
+ * @param {number} maxSize - Maximum size in bytes (default: 500KB for profile photos)
  * @returns {Promise<Blob>} - Compressed image blob
  */
-export const compressImage = (file, maxSize = 50 * 1024) => {
+export const compressImage = (file, maxSize = 500 * 1024) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
@@ -35,31 +35,27 @@ export const compressImage = (file, maxSize = 50 * 1024) => {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
         
-        // Compress by reducing quality progressively
+        // Compress by reducing quality progressively with max iterations
         let quality = 0.9;
-        canvas.toBlob(
-          (blob) => {
-            if (blob.size > maxSize && quality > 0.1) {
-              quality -= 0.1;
-              canvas.toBlob(
-                (retryBlob) => {
-                  if (retryBlob.size > maxSize && quality > 0.1) {
-                    // Recursive compression
-                    compressImage(file, maxSize).then(resolve).catch(reject);
-                  } else {
-                    resolve(retryBlob);
-                  }
-                },
-                file.type || 'image/jpeg',
-                quality
-              );
-            } else {
-              resolve(blob);
-            }
-          },
-          file.type || 'image/jpeg',
-          quality
-        );
+        const maxIterations = 10;
+        let iterations = 0;
+        
+        const tryCompress = (currentCanvas, currentQuality) => {
+          iterations++;
+          currentCanvas.toBlob(
+            (blob) => {
+              if (blob.size > maxSize && currentQuality > 0.1 && iterations < maxIterations) {
+                tryCompress(currentCanvas, currentQuality - 0.1);
+              } else {
+                resolve(blob);
+              }
+            },
+            file.type || 'image/jpeg',
+            currentQuality
+          );
+        };
+        
+        tryCompress(canvas, quality);
       };
       
       img.onerror = () => {

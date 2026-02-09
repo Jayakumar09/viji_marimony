@@ -1,6 +1,6 @@
 import api from './api';
 
-const API_URL = '/api/verification';
+const API_URL = '/verification';
 
 // Send email OTP
 export const sendEmailOTP = async (email) => {

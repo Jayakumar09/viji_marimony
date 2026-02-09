@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
+import Cropper from 'react-easy-crop';
 import {
   Container,
   Paper,
@@ -23,7 +24,8 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Slider
 } from '@mui/material';
 import {
   CloudUpload,
@@ -31,7 +33,10 @@ import {
   Edit,
   Person,
   Save,
-  CameraAlt
+  CameraAlt,
+  Add,
+  ZoomIn,
+  ZoomOut
 } from '@mui/icons-material';
 import { useAuth } from '../hooks/useAuth';
 import profileService from '../services/profileService';
@@ -53,7 +58,14 @@ const Profile = () => {
   const [photoToDelete, setPhotoToDelete] = useState('');
   const [availableCities, setAvailableCities] = useState([]);
   const galleryInputRef = useRef(null);
-  const isUploadingRef = useRef(false); // Prevent duplicate uploads
+  const isUploadingRef = useRef(false);
+
+  // Cropper states
+  const [imageToCrop, setImageToCrop] = useState(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
 
   const { register, handleSubmit, reset, watch, control, formState: { errors } } = useForm();
   
@@ -157,22 +169,81 @@ const Profile = () => {
     }
   };
 
-  const handleProfilePhotoUpload = async (event) => {
+  // Helper function to create the cropped image
+  const getCroppedImg = useCallback(async (imageSrc, pixelCrop) => {
+    const image = await new Promise((resolve) => {
+      const img = new Image();
+      img.src = imageSrc;
+      img.onload = () => resolve(img);
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = pixelCrop.width;
+    canvas.height = pixelCrop.height;
+    const ctx = canvas.getContext('2d');
+
+    ctx.drawImage(
+      image,
+      pixelCrop.x,
+      pixelCrop.y,
+      pixelCrop.width,
+      pixelCrop.height,
+      0,
+      0,
+      pixelCrop.width,
+      pixelCrop.height
+    );
+
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), 'image/jpeg');
+    });
+  }, []);
+
+  // Handle crop complete
+  const onCropComplete = useCallback((_area, pixels) => {
+    setCroppedAreaPixels(pixels);
+  }, []);
+
+  // Handle profile photo selection - opens cropper
+  const handleProfilePhotoSelect = (event) => {
     const file = event.target.files[0];
-    if (!file) return;
+    if (file) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        setImageToCrop(reader.result);
+        setCrop({ x: 0, y: 0 });
+        setZoom(1);
+        setIsCropDialogOpen(true);
+      };
+    }
+  };
+
+  // Handle confirm crop and upload
+  const handleConfirmCrop = async () => {
+    if (!croppedAreaPixels) {
+      toast.error('Please adjust the crop area');
+      return;
+    }
 
     try {
       setUploading(true);
-      setError('');
       
-      // Compress image to less than 50KB
-      const compressedBlob = await compressImage(file, 50 * 1024);
-      const compressedFile = blobToFile(compressedBlob, file.name);
+      // Get the cropped image
+      const croppedImageBlob = await getCroppedImg(imageToCrop, croppedAreaPixels);
       
+      // Compress the cropped image
+      const compressedBlob = await compressImage(croppedImageBlob, 500 * 1024);
+      const compressedFile = blobToFile(compressedBlob, 'profile.jpg');
+      
+      // Upload
       const response = await profileService.uploadProfilePhoto(compressedFile);
       setProfileData(prev => ({ ...prev, profilePhoto: response.profilePhoto }));
       updateUser({ ...user, profilePhoto: response.profilePhoto });
-      toast.success('Profile photo uploaded successfully!');
+      
+      setIsCropDialogOpen(false);
+      setImageToCrop(null);
+      toast.success('Profile photo updated successfully!');
     } catch (error) {
       console.error('Photo upload error:', error);
       setError(error.response?.data?.error || 'Failed to upload photo');
@@ -207,7 +278,7 @@ const Profile = () => {
       // Compress all files before upload
       const compressedFiles = [];
       for (const file of files) {
-        const compressedBlob = await compressImage(file, 50 * 1024);
+        const compressedBlob = await compressImage(file, 500 * 1024);
         const compressedFile = blobToFile(compressedBlob, file.name);
         compressedFiles.push(compressedFile);
       }
@@ -289,16 +360,31 @@ const Profile = () => {
             
             <Box mb={2}>
               {profileData?.profilePhoto ? (
-                <Avatar
-                  src={getImageUrl(profileData.profilePhoto)}
-                  alt={profileData.firstName}
-                  style={{
+                <Box
+                  sx={{
                     width: 150,
                     height: 150,
                     margin: '0 auto',
-                    border: '4px solid #8B5CF6'
+                    borderRadius: '50%',
+                    border: '4px solid #8B5CF6',
+                    overflow: 'hidden',
+                    bgcolor: '#f5f5f5',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                   }}
-                />
+                >
+                  <img
+                    src={getImageUrl(profileData.profilePhoto)}
+                    alt={profileData.firstName}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      objectPosition: 'center'
+                    }}
+                  />
+                </Box>
               ) : (
                 <Avatar
                   style={{
@@ -319,14 +405,13 @@ const Profile = () => {
               id="profile-photo-upload"
               type="file"
               hidden
-              onChange={handleProfilePhotoUpload}
+              onChange={handleProfilePhotoSelect}
             />
             <label htmlFor="profile-photo-upload">
               <Button
                 variant="contained"
                 component="span"
-                startIcon={<CameraAlt />}
-                disabled={uploading}
+                startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : <CameraAlt />}
                 fullWidth
                 sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
               >
@@ -345,7 +430,7 @@ const Profile = () => {
               </Typography>
               <Button
                 variant={editing ? "contained" : "outlined"}
-                startIcon={editing ? <Save /> : <Edit />}
+                startIcon={editing ? (uploading ? <CircularProgress size={20} color="inherit" /> : <Save />) : <Edit />}
                 onClick={() => {
                   if (editing) {
                     handleSubmit(handleUpdateProfile)();
@@ -353,10 +438,17 @@ const Profile = () => {
                     setEditing(true);
                   }
                 }}
+                sx={{ 
+                  bgcolor: editing ? '#8B5CF6' : 'inherit', 
+                  '&:hover': { bgcolor: editing ? '#7C3AED' : 'inherit' },
+                  '&.Mui-disabled': {
+                    bgcolor: editing ? '#8B5CF6' : 'inherit',
+                    opacity: editing ? 0.7 : 1
+                  }
+                }}
                 disabled={uploading}
-                sx={{ bgcolor: editing ? '#8B5CF6' : 'inherit', '&:hover': { bgcolor: editing ? '#7C3AED' : 'inherit' } }}
               >
-                {editing ? 'Save' : 'Edit'}
+                {uploading ? 'Saving...' : (editing ? 'Save' : 'Edit')}
               </Button>
             </Box>
 
@@ -699,11 +791,11 @@ const Profile = () => {
                 <Button
                   variant="contained"
                   component="span"
-                  startIcon={<CloudUpload />}
-                  disabled={uploading || (profileData?.photos?.length >= MAX_GALLERY_IMAGES)}
+                  startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : <CloudUpload />}
+                  disabled={profileData?.photos?.length >= MAX_GALLERY_IMAGES}
                   sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
                 >
-                  Add Photos
+                  {uploading ? 'Uploading...' : 'Add Photos'}
                 </Button>
               </label>
             </Box>
@@ -726,7 +818,7 @@ const Profile = () => {
                           onClick={() => handleDeletePhoto(photo)}
                           disabled={uploading}
                         >
-                          <Delete />
+                          {uploading ? <CircularProgress size={24} /> : <Delete />}
                         </IconButton>
                       </CardActions>
                     </Card>
@@ -769,6 +861,77 @@ const Profile = () => {
             sx={{ bgcolor: '#EC4899', '&:hover': { bgcolor: '#DB2777' } }}
           >
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Photo Cropper Dialog */}
+      <Dialog 
+        open={isCropDialogOpen} 
+        onClose={() => setIsCropDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Adjust Profile Photo</DialogTitle>
+        <DialogContent>
+          <Box 
+            sx={{ 
+              position: 'relative', 
+              height: 400, 
+              bgcolor: '#1a1a1a',
+              borderRadius: 1,
+              overflow: 'hidden'
+            }}
+          >
+            <Cropper
+              image={imageToCrop}
+              crop={crop}
+              zoom={zoom}
+              aspect={1}
+              onCropChange={setCrop}
+              onZoomChange={setZoom}
+              onCropComplete={onCropComplete}
+              cropShape="round"
+              showGrid={false}
+            />
+          </Box>
+          
+          {/* Zoom Controls */}
+          <Box sx={{ px: 2, mt: 2 }}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <ZoomOut sx={{ color: '#666' }} />
+              <Slider
+                value={zoom}
+                min={1}
+                max={3}
+                step={0.1}
+                onChange={(e, newValue) => setZoom(newValue)}
+                sx={{ color: '#8B5CF6' }}
+              />
+              <ZoomIn sx={{ color: '#666' }} />
+            </Box>
+            <Typography variant="caption" color="textSecondary" display="block" textAlign="center">
+              Scroll or drag slider to zoom • Drag image to position
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => {
+              setIsCropDialogOpen(false);
+              setImageToCrop(null);
+            }}
+            sx={{ color: '#666' }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmCrop} 
+            variant="contained"
+            disabled={uploading}
+            sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
+          >
+            {uploading ? <CircularProgress size={24} color="inherit" /> : 'Save & Upload'}
           </Button>
         </DialogActions>
       </Dialog>

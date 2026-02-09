@@ -2,21 +2,22 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import verificationService from '../services/verificationService';
 import LoadingSpinner from '../components/LoadingSpinner';
+import '../components/Verification.css';
 
 const Verification = () => {
   const { user, updateUser } = useAuth();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState({ email: false, phone: false });
-  const [verifying, setVerifying] = useState({ email: false, phone: false });
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [otp, setOtp] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('email');
   const [resendTimer, setResendTimer] = useState(0);
-  const [isFullyVerified, setIsFullyVerified] = useState(false);
   const [fallbackEmail, setFallbackEmail] = useState('');
   const [showFallback, setShowFallback] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   const [lastOtpMethod, setLastOtpMethod] = useState(null);
 
   useEffect(() => {
@@ -37,7 +38,6 @@ const Verification = () => {
     try {
       const data = await verificationService.getVerificationStatus();
       setStatus(data);
-      setIsFullyVerified(data.emailVerified && data.phoneVerified);
       setFallbackEmail(data.email || '');
     } catch (err) {
       setError(err.error || 'Failed to fetch verification status');
@@ -46,52 +46,52 @@ const Verification = () => {
     }
   };
 
-  const handleSendOTP = async (type) => {
-    const value = type === 'email' ? user?.email : user?.phone;
+  const handleSendOTP = async () => {
+    const value = activeTab === 'email' ? user?.email : user?.phone;
     if (!value && !fallbackEmail) {
-      setError(`${type === 'email' ? 'Email' : 'Phone'} not available`);
+      setError(`${activeTab === 'email' ? 'Email' : 'Phone'} not available`);
       return;
     }
 
-    setSending((prev) => ({ ...prev, [type]: true }));
+    setSending(true);
     setError('');
     setMessage('');
 
     try {
       let data;
-      if (type === 'email') {
+      if (activeTab === 'email') {
         data = await verificationService.sendEmailOTP(value);
       } else {
-        // For phone, check if we should use fallback
         const phoneValue = user?.phone || '';
         data = await verificationService.sendPhoneOTP(phoneValue, fallbackEmail);
       }
       
-      setMessage(`OTP sent to your ${data.sentVia === 'email' ? 'email' : type}${data.sentVia === 'email' ? ' (SMS unavailable)' : ''}`);
-      setLastOtpMethod(data.sentVia || type);
+      setMessage(`OTP sent to your ${data.sentVia === 'email' ? 'email' : activeTab}${data.sentVia === 'email' ? ' (SMS unavailable)' : ''}`);
+      setLastOtpMethod(data.sentVia || activeTab);
       setResendTimer(60);
       setShowFallback(false);
+      setOtpSent(true);
     } catch (err) {
-      setError(err.error || `Failed to send ${type} OTP`);
+      setError(err.error || `Failed to send ${activeTab} OTP`);
     } finally {
-      setSending((prev) => ({ ...prev, [type]: false }));
+      setSending(false);
     }
   };
 
-  const handleVerify = async (type) => {
-    const value = type === 'email' ? user?.email : user?.phone;
+  const handleVerify = async () => {
+    const value = activeTab === 'email' ? user?.email : user?.phone;
     if (!otp) {
       setError('Please enter OTP');
       return;
     }
 
-    setVerifying((prev) => ({ ...prev, [type]: true }));
+    setVerifying(true);
     setError('');
     setMessage('');
 
     try {
       let data;
-      if (type === 'email') {
+      if (activeTab === 'email') {
         data = await verificationService.verifyEmailOTP(value, otp);
       } else {
         const phoneValue = user?.phone || '';
@@ -99,255 +99,159 @@ const Verification = () => {
       }
       
       if (data.isVerified) {
-        setIsFullyVerified(true);
         setMessage('🎉 Congratulations! Your profile is now fully verified!');
       } else {
-        setMessage(`${type.charAt(0).toUpperCase() + type.slice(1)} verified successfully! Complete both to get verified badge.`);
+        setMessage(`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} verified successfully!`);
       }
       setOtp('');
+      setOtpSent(false);
       fetchStatus();
       updateUser();
     } catch (err) {
-      setError(err.error || `Failed to verify ${type}`);
+      setError(err.error || `Failed to verify ${activeTab}`);
     } finally {
-      setVerifying((prev) => ({ ...prev, [type]: false }));
+      setVerifying(false);
     }
+  };
+
+  const switchMethod = (type) => {
+    setActiveTab(type);
+    setOtp('');
+    setOtpSent(false);
+    setError('');
+    setMessage('');
   };
 
   if (loading) return <LoadingSpinner />;
 
+  const getStatusText = () => {
+    if (activeTab === 'email') {
+      return status?.emailVerified ? 'Email verified successfully' : 'Email verification pending';
+    } else {
+      return status?.phoneVerified ? 'Phone verified successfully' : 'Phone verification pending';
+    }
+  };
+
+  const isVerified = activeTab === 'email' ? status?.emailVerified : status?.phoneVerified;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 py-12 px-4">
-      <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 py-6 px-6">
-          <h1 className="text-2xl font-bold text-white">Identity Verification</h1>
-          <p className="text-purple-100 mt-1">Verify your email and phone number</p>
-        </div>
+    <div className="verify-page-wrapper">
+      {/* Page Wrapper */}
+      <div className="verify-wrapper">
+        {/* Card */}
+        <div className="verify-card">
+          <h2>Identity Verification</h2>
+          <div className="subtitle">
+            Verify your contact details to continue
+          </div>
 
-        <div className="p-6">
-          {isFullyVerified && (
-            <div className="mb-6 p-4 bg-green-100 rounded-lg text-center">
-              <span className="text-3xl">✅</span>
-              <p className="text-green-700 font-semibold mt-2">Your Profile is Fully Verified!</p>
-              <p className="text-green-600 text-sm">You now have the verified badge on your profile.</p>
-            </div>
-          )}
+          {/* Status */}
+          <div className={`status ${isVerified ? 'verified' : 'pending'}`}>
+            {getStatusText()}
+          </div>
 
-          {message && !isFullyVerified && (
-            <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg">
-              {message}
-            </div>
+          {/* Tabs */}
+          <div className="verify-tabs">
+            <button 
+              className={activeTab === 'email' ? 'active' : ''} 
+              onClick={() => switchMethod('email')}
+            >
+              Email
+            </button>
+            <button 
+              className={activeTab === 'phone' ? 'active' : ''} 
+              onClick={() => switchMethod('phone')}
+            >
+              Phone
+            </button>
+          </div>
+
+          {/* Messages */}
+          {message && (
+            <div className="status verified">{message}</div>
           )}
           
           {error && (
-            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
-              {error}
-            </div>
+            <div className="status" style={{ color: '#f44336' }}>{error}</div>
           )}
 
-          {/* Verification Status Summary */}
-          <div className="mb-6 grid grid-cols-2 gap-4">
-            <div className={`p-4 rounded-lg ${status?.emailVerified ? 'bg-green-100' : 'bg-gray-100'}`}>
-              <div className="flex items-center">
-                <span className={`text-2xl mr-2 ${status?.emailVerified ? '✅' : '📧'}`}></span>
-                <div>
-                  <p className="text-sm text-gray-600">Email</p>
-                  <p className="font-semibold">{status?.emailVerified ? 'Verified' : 'Pending'}</p>
-                </div>
-              </div>
-            </div>
-            <div className={`p-4 rounded-lg ${status?.phoneVerified ? 'bg-green-100' : 'bg-gray-100'}`}>
-              <div className="flex items-center">
-                <span className={`text-2xl mr-2 ${status?.phoneVerified ? '✅' : '📱'}`}></span>
-                <div>
-                  <p className="text-sm text-gray-600">Phone</p>
-                  <p className="font-semibold">{status?.phoneVerified ? 'Verified' : 'Pending'}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Contact Input Label */}
+          <label>{activeTab === 'email' ? 'Email Address' : 'Mobile Number'}</label>
+          <input
+            type={activeTab === 'email' ? 'email' : 'tel'}
+            value={activeTab === 'email' ? (user?.email || '') : (user?.phone || '')}
+            disabled
+            placeholder={activeTab === 'email' ? 'Enter your email address' : 'Enter your mobile number'}
+          />
 
-          {/* Tab Selection */}
-          <div className="flex mb-6 border-b">
+          {/* Fallback Email (for phone) */}
+          {activeTab === 'phone' && !user?.phone && (
+            <>
+              <label>Email for OTP</label>
+              <input
+                type="email"
+                value={fallbackEmail}
+                onChange={(e) => setFallbackEmail(e.target.value)}
+                placeholder="Enter your email for OTP"
+              />
+            </>
+          )}
+
+          {/* Show fallback option for phone if user has phone */}
+          {activeTab === 'phone' && user?.phone && (
             <button
-              onClick={() => setActiveTab('email')}
-              className={`flex-1 py-3 font-medium ${
-                activeTab === 'email'
-                  ? 'text-purple-600 border-b-2 border-purple-600'
-                  : 'text-gray-500'
-              }`}
+              className="fallback-btn"
+              onClick={() => setShowFallback(!showFallback)}
             >
-              Email Verification
+              {showFallback ? 'Hide fallback option' : 'SMS not working? Use email instead'}
             </button>
-            <button
-              onClick={() => setActiveTab('phone')}
-              className={`flex-1 py-3 font-medium ${
-                activeTab === 'phone'
-                  ? 'text-purple-600 border-b-2 border-purple-600'
-                  : 'text-gray-500'
-              }`}
-            >
-              Phone Verification
-            </button>
+          )}
+
+          {/* Fallback email input */}
+          {showFallback && activeTab === 'phone' && user?.phone && (
+            <>
+              <label>Email for fallback OTP</label>
+              <input
+                type="email"
+                value={fallbackEmail}
+                onChange={(e) => setFallbackEmail(e.target.value)}
+                placeholder="Enter your email"
+              />
+            </>
+          )}
+
+          {/* Send OTP Button */}
+          <button 
+            className="btn btn-primary" 
+            onClick={handleSendOTP}
+            disabled={sending || resendTimer > 0}
+          >
+            {sending ? 'Sending...' : resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Send OTP'}
+          </button>
+
+          {/* OTP Input */}
+          <label style={{ marginTop: '14px', display: 'block' }}>Enter OTP</label>
+          <input
+            type="text"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            placeholder="Enter 6-digit OTP"
+            disabled={!otpSent}
+          />
+
+          {/* Verify Button */}
+          <button 
+            className="btn btn-primary" 
+            onClick={handleVerify}
+            disabled={verifying || otp.length !== 6}
+          >
+            {verifying ? 'Verifying...' : 'Verify'}
+          </button>
+
+          {/* Trust Message */}
+          <div className="trust">
+            🔒 Your details are safe and never shared with anyone
           </div>
-
-          {/* Email Verification Tab */}
-          {activeTab === 'email' && (
-            <div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={user?.email || ''}
-                  disabled
-                  className="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-500"
-                />
-              </div>
-
-              {status?.emailVerified ? (
-                <div className="p-4 bg-green-100 rounded-lg text-center">
-                  <span className="text-2xl">✅</span>
-                  <p className="text-green-700 font-medium">Your email is verified</p>
-                </div>
-              ) : (
-                <>
-                  <button
-                    onClick={() => handleSendOTP('email')}
-                    disabled={sending.email || resendTimer > 0}
-                    className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {sending.email ? 'Sending...' : resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Send OTP'}
-                  </button>
-
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Enter OTP
-                    </label>
-                    <input
-                      type="text"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      placeholder="Enter 6-digit OTP"
-                      maxLength={6}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <button
-                    onClick={() => handleVerify('email')}
-                    disabled={verifying.email || otp.length !== 6}
-                    className="w-full mt-4 py-3 bg-pink-600 text-white rounded-lg font-medium hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {verifying.email ? 'Verifying...' : 'Verify OTP'}
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Phone Verification Tab */}
-          {activeTab === 'phone' && (
-            <div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={user?.phone || 'Not provided'}
-                  disabled
-                  className="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-500"
-                />
-              </div>
-
-              {status?.phoneVerified ? (
-                <div className="p-4 bg-green-100 rounded-lg text-center">
-                  <span className="text-2xl">✅</span>
-                  <p className="text-green-700 font-medium">Your phone is verified</p>
-                </div>
-              ) : (
-                <>
-                  {!user?.phone ? (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Enter Email for OTP (since phone not available)
-                      </label>
-                      <input
-                        type="email"
-                        value={fallbackEmail}
-                        onChange={(e) => setFallbackEmail(e.target.value)}
-                        placeholder="Enter your email"
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        OTP will be sent to this email if SMS delivery fails
-                      </p>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setShowFallback(!showFallback)}
-                      className="mb-3 text-sm text-purple-600 hover:text-purple-700 underline"
-                    >
-                      {showFallback ? 'Hide fallback option' : 'SMS not working? Use email instead'}
-                    </button>
-                  )}
-                  
-                  {showFallback && user?.phone && (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Enter Email for fallback OTP
-                      </label>
-                      <input
-                        type="email"
-                        value={fallbackEmail}
-                        onChange={(e) => setFallbackEmail(e.target.value)}
-                        placeholder="Enter your email"
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => handleSendOTP('phone')}
-                    disabled={sending.phone || resendTimer > 0 || (!user?.phone && !fallbackEmail)}
-                    className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {sending.phone ? 'Sending...' : resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Send OTP'}
-                  </button>
-
-                  {lastOtpMethod === 'email' && (
-                    <p className="text-xs text-orange-600 mt-2 text-center">
-                      OTP sent to email because SMS delivery failed
-                    </p>
-                  )}
-
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Enter OTP
-                    </label>
-                    <input
-                      type="text"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      placeholder="Enter 6-digit OTP"
-                      maxLength={6}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <button
-                    onClick={() => handleVerify('phone')}
-                    disabled={verifying.phone || otp.length !== 6}
-                    className="w-full mt-4 py-3 bg-pink-600 text-white rounded-lg font-medium hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {verifying.phone ? 'Verifying...' : 'Verify OTP'}
-                  </button>
-                </>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
