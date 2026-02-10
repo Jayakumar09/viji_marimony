@@ -50,7 +50,6 @@ model User {
   // Horoscope Fields
   raasi             String?  // Moon Sign (Raasi)
   natchathiram      String?  // Star/Nakshatra
-  lagnam            String?  // Ascendant
   dhosam            String?  // Dhosam (Yes/No/-details)
   birthDate         String?  @map("birth_date") // Birth date for horoscope
   birthTime         String?  @map("birth_time") // Birth time for horoscope

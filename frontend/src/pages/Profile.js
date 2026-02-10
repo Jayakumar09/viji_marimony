@@ -59,7 +59,6 @@ import { getImageUrl } from '../utils/imageUrl';
 import {
   RAASI_CHOICES,
   NATCHATHIRAM_CHOICES,
-  LAGNAM_CHOICES,
   DHOSAM_CHOICES,
   getNatchathiramForRasi,
   SUBSCRIPTION_TIERS
@@ -753,19 +752,7 @@ const Profile = () => {
                     </FormControl>
                   </Grid>
 
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth disabled={!editingHoroscope}>
-                      <InputLabel>Lagnam (Ascendant)</InputLabel>
-                      <Controller name="lagnam" control={control} defaultValue={profileData?.lagnam || ''} render={({ field }) => (
-                        <Select {...field} label="Lagnam (Ascendant)">
-                          <MenuItem value="">Select Lagnam</MenuItem>
-                          {LAGNAM_CHOICES.map(l => (
-                            <MenuItem key={l.value} value={l.value}>{l.label}</MenuItem>
-                          ))}
-                        </Select>
-                      )} />
-                    </FormControl>
-                  </Grid>
+                  
 
                   <Grid item xs={12} sm={6}>
                     <FormControl fullWidth disabled={!editingHoroscope}>

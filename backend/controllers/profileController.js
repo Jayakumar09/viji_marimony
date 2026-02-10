@@ -46,7 +46,6 @@ const getProfile = async (req, res) => {
         // Horoscope fields
         raasi: true,
         natchathiram: true,
-        lagnam: true,
         dhosam: true,
         birthDate: true,
         birthTime: true,
@@ -210,7 +209,6 @@ const updateHoroscope = async (req, res) => {
     const {
       raasi,
       natchathiram,
-      lagnam,
       dhosam,
       birthDate,
       birthTime,
@@ -220,7 +218,6 @@ const updateHoroscope = async (req, res) => {
     const updateData = {};
     if (raasi !== undefined) updateData.raasi = raasi;
     if (natchathiram !== undefined) updateData.natchathiram = natchathiram;
-    if (lagnam !== undefined) updateData.lagnam = lagnam;
     if (dhosam !== undefined) updateData.dhosam = dhosam;
     if (birthDate !== undefined) updateData.birthDate = birthDate;
     if (birthTime !== undefined) updateData.birthTime = birthTime;
@@ -233,7 +230,6 @@ const updateHoroscope = async (req, res) => {
         id: true,
         raasi: true,
         natchathiram: true,
-        lagnam: true,
         dhosam: true,
         birthDate: true,
         birthTime: true,
