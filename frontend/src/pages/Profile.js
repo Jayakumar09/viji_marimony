@@ -19,6 +19,7 @@ import {
   Avatar,
   IconButton,
   Card,
+  CardContent,
   CardMedia,
   CardActions,
   Dialog,
