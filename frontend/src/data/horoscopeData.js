@@ -24,59 +24,59 @@ export const NATCHATHIRAM_CHOICES = [
   { value: 'Karthigai', label: 'Karthigai', rasi: 'Mesham' },
   
   // Rishabam (Taurus) - 2nd Rasi
+  { value: 'Karthigai', label: 'Karthigai', rasi: 'Rishabam' },
   { value: 'Rohini', label: 'Rohini', rasi: 'Rishabam' },
   { value: 'Mrigashirsham', label: 'Mrigashirsham', rasi: 'Rishabam' },
-  { value: 'Thiruvaathirai', label: 'Thiruvaathirai (Ardra)', rasi: 'Rishabam' },
   
   // Mithunam (Gemini) - 3rd Rasi
+  { value: 'Mrigashirsham', label: 'Mrigashirsham', rasi: 'Mithunam' },
+  { value: 'Thiruvaathirai', label: 'Thiruvaathirai (Ardra)', rasi: 'Mithunam' },
   { value: 'Punarpusam', label: 'Punarpusam (Punarvasu)', rasi: 'Mithunam' },
-  { value: 'Poosam', label: 'Poosam (Pushya)', rasi: 'Mithunam' },
-  { value: 'Aayilyam', label: 'Aayilyam (Ashlesha)', rasi: 'Mithunam' },
   
   // Kadagam (Cancer) - 4th Rasi
-  { value: 'Magam', label: 'Magam (Magha)', rasi: 'Kadagam' },
-  { value: 'Pooram', label: 'Pooram (Purva Phalguni)', rasi: 'Kadagam' },
-  { value: 'Uthiram', label: 'Uthiram (Uttara Phalguni)', rasi: 'Kadagam' },
+  { value: 'Punarpusam', label: 'Punarpusam (Punarvasu)', rasi: 'Kadagam' },
+  { value: 'Poosam', label: 'Poosam (Pushya)', rasi: 'Kadagam' },
+  { value: 'Aayilyam', label: 'Aayilyam (Ashlesha)', rasi: 'Kadagam' },
   
   // Simmam (Leo) - 5th Rasi
-  { value: 'Hastham', label: 'Hastham (Hasta)', rasi: 'Simmam' },
-  { value: 'Chithirai', label: 'Chithirai (Chitra)', rasi: 'Simmam' },
-  { value: 'Swathi', label: 'Swathi', rasi: 'Simmam' },
+  { value: 'Magam', label: 'Magam (Magha)', rasi: 'Simmam' },
+  { value: 'Pooram', label: 'Pooram (Purva Phalguni)', rasi: 'Simmam' },
+  { value: 'Uthiram', label: 'Uthiram (Uttara Phalguni)', rasi: 'Simmam' },
   
   // Kanni (Virgo) - 6th Rasi
-  { value: 'Vishakam', label: 'Vishakam (Vishaka)', rasi: 'Kanni' },
-  { value: 'Anusham', label: 'Anusham (Anuradha)', rasi: 'Kanni' },
-  { value: 'Kettai', label: 'Kettai (Jyeshta)', rasi: 'Kanni' },
+  { value: 'Hastham', label: 'Hastham (Hasta)', rasi: 'Kanni' },
+  { value: 'Chithirai', label: 'Chithirai (Chitra)', rasi: 'Kanni' },
+  { value: 'Swathi', label: 'Swathi', rasi: 'Kanni' },
   
   // Thulam (Libra) - 7th Rasi
-  { value: 'Moolam', label: 'Moolam (Mula)', rasi: 'Thulam' },
-  { value: 'Pooraadam', label: 'Pooraadam (Purva Ashadha)', rasi: 'Thulam' },
-  { value: 'Uthiraadam', label: 'Uthiraadam (Uttara Ashadha)', rasi: 'Thulam' },
+  { value: 'Vishakam', label: 'Vishakam (Vishaka)', rasi: 'Thulam' },
+  { value: 'Anusham', label: 'Anusham (Anuradha)', rasi: 'Thulam' },
+  { value: 'Kettai', label: 'Kettai (Jyeshta)', rasi: 'Thulam' },
   
   // Vrischikam (Scorpio) - 8th Rasi
-  { value: 'Thiruvonam', label: 'Thiruvonam (Shravana)', rasi: 'Vrischikam' },
-  { value: 'Avittam', label: 'Avittam (Dhanishta)', rasi: 'Vrischikam' },
-  { value: 'Sathayam', label: 'Sathayam (Satabhisha)', rasi: 'Vrischikam' },
+  { value: 'Moolam', label: 'Moolam (Mula)', rasi: 'Vrischikam' },
+  { value: 'Pooraadam', label: 'Pooraadam (Purva Ashadha)', rasi: 'Vrischikam' },
+  { value: 'Uthiraadam', label: 'Uthiraadam (Uttara Ashadha)', rasi: 'Vrischikam' },
   
   // Dhanusu (Sagittarius) - 9th Rasi
-  { value: 'Poorattathi', label: 'Poorattathi (Purva Bhadrapada)', rasi: 'Dhanusu' },
-  { value: 'Uthirattathi', label: 'Uthirattathi (Uttara Bhadrapada)', rasi: 'Dhanusu' },
-  { value: 'Revathi', label: 'Revathi', rasi: 'Dhanusu' },
+  { value: 'Thiruvonam', label: 'Thiruvonam (Shravana)', rasi: 'Dhanusu' },
+  { value: 'Avittam', label: 'Avittam (Dhanishta)', rasi: 'Dhanusu' },
+  { value: 'Sathayam', label: 'Sathayam (Satabhisha)', rasi: 'Dhanusu' },
   
   // Makaram (Capricorn) - 10th Rasi
-  { value: 'Ashwini', label: 'Ashwini', rasi: 'Makaram' },
-  { value: 'Bharani', label: 'Bharani', rasi: 'Makaram' },
-  { value: 'Karthigai', label: 'Karthigai', rasi: 'Makaram' },
+  { value: 'Poorattathi', label: 'Poorattathi (Purva Bhadrapada)', rasi: 'Makaram' },
+  { value: 'Uthirattathi', label: 'Uthirattathi (Uttara Bhadrapada)', rasi: 'Makaram' },
+  { value: 'Revathi', label: 'Revathi', rasi: 'Makaram' },
   
   // Kumbam (Aquarius) - 11th Rasi
-  { value: 'Rohini', label: 'Rohini', rasi: 'Kumbam' },
-  { value: 'Mrigashirsham', label: 'Mrigashirsham', rasi: 'Kumbam' },
-  { value: 'Thiruvaathirai', label: 'Thiruvaathirai (Ardra)', rasi: 'Kumbam' },
+  { value: 'Ashwini', label: 'Ashwini', rasi: 'Kumbam' },
+  { value: 'Bharani', label: 'Bharani', rasi: 'Kumbam' },
+  { value: 'Karthigai', label: 'Karthigai', rasi: 'Kumbam' },
   
   // Meenam (Pisces) - 12th Rasi
-  { value: 'Punarpusam', label: 'Punarpusam (Punarvasu)', rasi: 'Meenam' },
-  { value: 'Poosam', label: 'Poosam (Pushya)', rasi: 'Meenam' },
-  { value: 'Aayilyam', label: 'Aayilyam (Ashlesha)', rasi: 'Meenam' }
+  { value: 'Rohini', label: 'Rohini', rasi: 'Meenam' },
+  { value: 'Mrigashirsham', label: 'Mrigashirsham', rasi: 'Meenam' },
+  { value: 'Thiruvaathirai', label: 'Thiruvaathirai (Ardra)', rasi: 'Meenam' }
 ];
 
 export const DHOSAM_CHOICES = [
