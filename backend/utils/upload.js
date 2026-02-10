@@ -28,7 +28,6 @@ const isCloudinaryConfigured = () => {
 // Try to use Cloudinary storage, fallback to local storage
 let storage;
 if (isCloudinaryConfigured()) {
-  console.log('✅ Using Cloudinary for file uploads');
   storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
@@ -39,7 +38,6 @@ if (isCloudinaryConfigured()) {
     },
   });
 } else {
-  console.log('⚠️  Cloudinary not configured. Using local file storage for development.');
   storage = multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, uploadDir);

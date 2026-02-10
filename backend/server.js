@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const cloudinary = require('cloudinary').v2;
 require('dotenv').config();
 
 // Database connection
@@ -89,6 +90,18 @@ app.use((err, req, res, next) => {
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
+
+// Configure Cloudinary
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+  console.log(`✅ Cloudinary configured: ${process.env.CLOUDINARY_CLOUD_NAME}`);
+} else {
+  console.log('⚠️  Cloudinary not configured. Using local file storage for development.');
+}
 
 // Start server after database connection
 async function startServer() {
