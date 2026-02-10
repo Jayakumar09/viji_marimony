@@ -111,6 +111,18 @@ const getProfile = async (req, res) => {
     });
     user.documents = documents;
 
+    // Sync isPremium with subscription status
+    if (user.subscriptionTier && user.subscriptionTier !== 'FREE') {
+      if (user.subscriptionEnd && new Date(user.subscriptionEnd) < new Date()) {
+        // Subscription expired - update isPremium to false
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { isPremium: false }
+        });
+        user.isPremium = false;
+      }
+    }
+
     res.json({ user });
 
   } catch (error) {

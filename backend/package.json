@@ -4,8 +4,8 @@
   "description": "Backend API for Vijayalakshmi Boyar Matrimony App",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node --no-deprecation server.js",
+    "dev": "nodemon --no-deprecation server.js",
     "test": "jest",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
