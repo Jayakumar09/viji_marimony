@@ -91,6 +91,38 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
+// Terminate any existing process on port 5001
+async function terminatePort5001() {
+  const { exec } = require('child_process');
+  
+  return new Promise((resolve, reject) => {
+    // Windows: Find and kill process on port 5001
+    exec(`netstat -ano | findstr :5001`, (error, stdout, stderr) => {
+      if (stdout) {
+        const lines = stdout.trim().split('\n');
+        const pids = new Set();
+        lines.forEach(line => {
+          const parts = line.trim().split(/\s+/);
+          if (parts.length >= 5) {
+            const pid = parts[4];
+            if (pid && !isNaN(pid) && pid !== '0') {
+              pids.add(pid);
+            }
+          }
+        });
+        pids.forEach(pid => {
+          console.log(`🛑 Terminating process ${pid} on port 5001...`);
+          exec(`taskkill /F /PID ${pid}`, (killErr) => {
+            // Ignore errors if process already terminated
+          });
+        });
+      }
+      // Give more time for the port to be released
+      setTimeout(resolve, 1500);
+    });
+  });
+}
+
 // Configure Cloudinary
 if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
   cloudinary.config({
@@ -105,22 +137,49 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && proce
 
 // Start server after database connection
 async function startServer() {
-  try {
-    // Connect to database first
-    await testConnection();
-    
-    // Only start server after successful DB connection
-    app.listen(PORT, () => {
-      console.log(`\n✅ Database: Connected Successfully`);
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📧 Admin contact: vijayalakshmijayakumar45@gmail.com`);
-      console.log(`🏠 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-      console.log(`\n✅ Frontend can now connect to the backend\n`);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error.message);
-    process.exit(1);
+  const http = require('http');
+  let retries = 0;
+  const maxRetries = 5;
+  
+  async function attemptStart() {
+    try {
+      // Terminate any existing process on port 5001
+      await terminatePort5001();
+      
+      // Connect to database first
+      await testConnection();
+      
+      // Create HTTP server and try to listen
+      const server = http.createServer(app);
+      
+      server.on('error', async (err) => {
+        if (err.code === 'EADDRINUSE' && retries < maxRetries) {
+          retries++;
+          console.log(`🔄 Port ${PORT} still in use, attempt ${retries}/${maxRetries} to free it...`);
+          await terminatePort5001();
+          await new Promise(r => setTimeout(r, 1000));
+          server.close();
+          attemptStart();
+        } else {
+          console.error(`❌ Failed to start server: ${err.message}`);
+          process.exit(1);
+        }
+      });
+      
+      server.listen(PORT, () => {
+        console.log(`\n✅ Database: Connected Successfully`);
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`📧 Admin contact: vijayalakshmijayakumar45@gmail.com`);
+        console.log(`🏠 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+        console.log(`\n✅ Frontend can now connect to the backend\n`);
+      });
+    } catch (error) {
+      console.error('❌ Failed to start server:', error.message);
+      process.exit(1);
+    }
   }
+  
+  attemptStart();
 }
 
 // Initialize server

@@ -270,6 +270,154 @@ const checkPhotoVerificationStatus = async (userId) => {
   }
 };
 
+// ============ SUBSCRIPTION MANAGEMENT ============
+
+// Subscription plans configuration
+const SUBSCRIPTION_PLANS = [
+  { id: 'FREE', name: 'Free', price: 0, duration: 0 },
+  { id: 'STANDARD', name: 'Standard', price: 999, duration: 365 },
+  { id: 'PREMIUM', name: 'Premium', price: 2499, duration: 365 },
+  { id: 'ELITE', name: 'Elite', price: 4999, duration: 365 }
+];
+
+// Create or update user subscription
+const createSubscription = async (req, res) => {
+  try {
+    const { userId, plan, paymentId, successFee } = req.body;
+    
+    if (!userId || !plan) {
+      return res.status(400).json({ error: 'User ID and plan are required' });
+    }
+    
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const planConfig = SUBSCRIPTION_PLANS.find(p => p.id === plan.toUpperCase());
+    if (!planConfig) {
+      return res.status(400).json({ error: 'Invalid subscription plan' });
+    }
+    
+    // Calculate subscription dates
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + planConfig.duration);
+    
+    // Create subscription record
+    const subscription = await prisma.subscription.create({
+      data: {
+        userId,
+        plan: plan.toUpperCase(),
+        amount: planConfig.price,
+        startDate,
+        endDate,
+        paymentId: paymentId || 'ADMIN_' + Date.now(),
+        successFee: successFee || planConfig.price * 0.1,
+        status: 'ACTIVE'
+      }
+    });
+    
+    // Sync user table with subscription data
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        subscriptionTier: plan.toUpperCase(),
+        subscriptionStart: startDate,
+        subscriptionEnd: endDate,
+        isPremium: plan.toUpperCase() !== 'FREE',
+        successFee: successFee || planConfig.price * 0.1
+      }
+    });
+    
+    res.json({
+      message: 'Subscription created successfully',
+      subscription,
+      user: {
+        id: user.id,
+        subscriptionTier: plan.toUpperCase(),
+        isPremium: plan.toUpperCase() !== 'FREE',
+        subscriptionStart: startDate,
+        subscriptionEnd: endDate
+      }
+    });
+    
+  } catch (error) {
+    console.error('Create subscription error:', error);
+    res.status(500).json({ error: 'Failed to create subscription' });
+  }
+};
+
+// Sync user subscription status (fixes Premium Member sync issue)
+const syncUserSubscription = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Check for active subscriptions
+    const activeSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        status: 'ACTIVE',
+        endDate: { gte: new Date() }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    let isPremium = false;
+    let subscriptionTier = user.subscriptionTier;
+    
+    if (activeSubscription) {
+      isPremium = true;
+      subscriptionTier = activeSubscription.plan.toUpperCase();
+      
+      // Sync user table
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          subscriptionTier,
+          subscriptionStart: activeSubscription.startDate,
+          subscriptionEnd: activeSubscription.endDate,
+          isPremium: true
+        }
+      });
+    } else {
+      // No active subscription - check if expired
+      if (user.subscriptionEnd && new Date(user.subscriptionEnd) < new Date()) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { isPremium: false }
+        });
+      }
+    }
+    
+    res.json({
+      message: 'Subscription synced successfully',
+      user: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isPremium,
+        subscriptionTier,
+        subscriptionStart: user.subscriptionStart,
+        subscriptionEnd: user.subscriptionEnd
+      }
+    });
+    
+  } catch (error) {
+    console.error('Sync user subscription error:', error);
+    res.status(500).json({ error: 'Failed to sync subscription' });
+  }
+};
+
 module.exports = {
   adminMiddleware,
   getPendingVerifications,
@@ -277,5 +425,7 @@ module.exports = {
   rejectPhoto,
   getAllUsers,
   updateUserVerification,
-  getDashboardStats
+  getDashboardStats,
+  createSubscription,
+  syncUserSubscription
 };

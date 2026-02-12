@@ -7,7 +7,9 @@ const {
   rejectPhoto,
   getAllUsers,
   updateUserVerification,
-  getDashboardStats
+  getDashboardStats,
+  createSubscription,
+  syncUserSubscription
 } = require('../controllers/adminController');
 
 // Admin authentication routes (simplified for demo)
@@ -61,5 +63,9 @@ router.put('/photos/:id/reject', rejectPhoto);
 // User management
 router.get('/users', getAllUsers);
 router.put('/users/:id/verification', updateUserVerification);
+
+// Subscription management
+router.post('/subscriptions', createSubscription);
+router.put('/subscriptions/sync/:userId', syncUserSubscription);
 
 module.exports = router;

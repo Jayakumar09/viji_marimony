@@ -39,7 +39,7 @@ const Footer = () => {
               <strong>Phone:</strong> +91 7639150271
             </Typography>
             <Typography variant="body2">
-              <strong>Address:</strong> Bangalore, Karnataka, India
+              <strong>Address:</strong> Tiruchirappalli, Tamilnadu, India
             </Typography>
           </Box>
         </Box>

@@ -112,7 +112,39 @@ const getProfile = async (req, res) => {
     user.documents = documents;
 
     // Sync isPremium with subscription status
-    if (user.subscriptionTier && user.subscriptionTier !== 'FREE') {
+    // Check both user fields and Subscription table for active subscriptions
+    const activeSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId: user.id,
+        status: 'ACTIVE',
+        endDate: { gte: new Date() }
+      }
+    });
+    
+    let shouldBePremium = false;
+    
+    // Check if user has active subscription in Subscription table
+    if (activeSubscription) {
+      shouldBePremium = true;
+      // Sync subscription tier from Subscription table to user if different
+      const planTier = activeSubscription.plan.toUpperCase();
+      if (planTier !== user.subscriptionTier) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            subscriptionTier: planTier,
+            isPremium: true,
+            subscriptionStart: activeSubscription.startDate,
+            subscriptionEnd: activeSubscription.endDate
+          }
+        });
+        user.subscriptionTier = planTier;
+        user.isPremium = true;
+        user.subscriptionStart = activeSubscription.startDate;
+        user.subscriptionEnd = activeSubscription.endDate;
+      }
+    } else if (user.subscriptionTier && user.subscriptionTier !== 'FREE') {
+      // Check if user subscription has expired
       if (user.subscriptionEnd && new Date(user.subscriptionEnd) < new Date()) {
         // Subscription expired - update isPremium to false
         await prisma.user.update({
@@ -120,8 +152,13 @@ const getProfile = async (req, res) => {
           data: { isPremium: false }
         });
         user.isPremium = false;
+      } else if (user.subscriptionEnd && new Date(user.subscriptionEnd) >= new Date()) {
+        // Subscription is still valid based on user fields
+        shouldBePremium = true;
       }
     }
+    
+    user.isPremium = shouldBePremium;
 
     res.json({ user });
 
@@ -666,6 +703,50 @@ const deletePhoto = async (req, res) => {
   }
 };
 
+// Helper function to sync user premium status from Subscription table
+const syncUserPremiumStatus = async (userId) => {
+  try {
+    const activeSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        status: 'ACTIVE',
+        endDate: { gte: new Date() }
+      }
+    });
+    
+    if (activeSubscription) {
+      // User has active subscription - sync to user table
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          subscriptionTier: activeSubscription.plan.toUpperCase(),
+          subscriptionStart: activeSubscription.startDate,
+          subscriptionEnd: activeSubscription.endDate,
+          isPremium: true
+        }
+      });
+    } else {
+      // No active subscription - check if user subscription has expired
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { subscriptionTier: true, subscriptionEnd: true }
+      });
+      
+      if (user && user.subscriptionTier && user.subscriptionTier !== 'FREE') {
+        if (user.subscriptionEnd && new Date(user.subscriptionEnd) < new Date()) {
+          // Expired - update isPremium to false
+          await prisma.user.update({
+            where: { id: userId },
+            data: { isPremium: false }
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Sync user premium status error:', error);
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -678,5 +759,6 @@ module.exports = {
   deleteDocument,
   uploadProfilePhoto,
   uploadGalleryPhotos,
-  deletePhoto
+  deletePhoto,
+  syncUserPremiumStatus
 };
