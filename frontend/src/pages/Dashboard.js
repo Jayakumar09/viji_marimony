@@ -36,8 +36,29 @@ const Dashboard = () => {
   ];
 
   const profileCompletion = () => {
-    const fields = ['education', 'profession', 'bio', 'height', 'weight'];
-    const completedFields = fields.filter(field => user?.[field]);
+    const fields = [
+      'profilePhoto',
+      'photos',
+      'education',
+      'profession',
+      'bio',
+      'height',
+      'weight',
+      'city',
+      'state',
+      'maritalStatus',
+      'familyValues',
+      'aboutFamily'
+    ];
+    
+    const completedFields = fields.filter(field => {
+      const value = user?.[field];
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
+      return value;
+    });
+    
     return Math.round((completedFields.length / fields.length) * 100);
   };
 
