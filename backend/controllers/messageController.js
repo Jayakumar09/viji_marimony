@@ -94,58 +94,82 @@ const getConversations = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get all users with whom there are messages
-    const conversations = await prisma.$queryRaw`
-      WITH last_messages AS (
-        SELECT DISTINCT ON (
-          CASE 
-            WHEN "senderId" = ${userId} THEN "receiverId"
-            ELSE "senderId"
-          END
-        )
-        CASE 
-          WHEN "senderId" = ${userId} THEN "receiverId"
-          ELSE "senderId"
-        END as other_user_id,
-        content,
-        "isRead",
-        "createdAt",
-        CASE 
-          WHEN "senderId" = ${userId} THEN 'sent'
-          ELSE 'received'
-        END as message_type
-        FROM messages
-        WHERE "senderId" = ${userId} OR "receiverId" = ${userId}
-        ORDER BY 
-          CASE 
-            WHEN "senderId" = ${userId} THEN "receiverId"
-            ELSE "senderId"
-          END,
-          "createdAt" DESC
-      )
-      SELECT 
-        lm.other_user_id as "userId",
-        u."firstName",
-        u."lastName",
-        u."profilePhoto",
-        u."isVerified",
-        u."isPremium",
-        lm.content as "lastMessage",
-        lm."isRead",
-        lm."createdAt" as "lastMessageTime",
-        lm.message_type,
-        (
-          SELECT COUNT(*)::int 
-          FROM messages 
-          WHERE "senderId" = lm.other_user_id 
-          AND "receiverId" = ${userId} 
-          AND "isRead" = false
-        ) as "unreadCount"
-      FROM last_messages lm
-      JOIN users u ON u.id = lm.other_user_id
-      WHERE u."isActive" = true
-      ORDER BY lm."createdAt" DESC
-    `;
+    // Get all messages involving the current user
+    const messages = await prisma.message.findMany({
+      where: {
+        OR: [
+          { senderId: userId },
+          { receiverId: userId }
+        ]
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profilePhoto: true,
+            isVerified: true,
+            isPremium: true,
+            isActive: true
+          }
+        },
+        receiver: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profilePhoto: true,
+            isVerified: true,
+            isPremium: true,
+            isActive: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    // Group messages by conversation partner
+    const conversationMap = new Map();
+    
+    for (const message of messages) {
+      const otherUser = message.senderId === userId ? message.receiver : message.sender;
+      
+      if (!otherUser || !otherUser.isActive) continue;
+      
+      const otherUserId = otherUser.id;
+      
+      if (!conversationMap.has(otherUserId)) {
+        // Count unread messages from this user
+        const unreadCount = await prisma.message.count({
+          where: {
+            senderId: otherUserId,
+            receiverId: userId,
+            isRead: false
+          }
+        });
+        
+        conversationMap.set(otherUserId, {
+          userId: otherUserId,
+          firstName: otherUser.firstName,
+          lastName: otherUser.lastName,
+          profilePhoto: otherUser.profilePhoto,
+          isVerified: otherUser.isVerified,
+          isPremium: otherUser.isPremium,
+          lastMessage: message.content,
+          isRead: message.isRead,
+          lastMessageTime: message.createdAt,
+          messageType: message.senderId === userId ? 'sent' : 'received',
+          unreadCount
+        });
+      }
+    }
+
+    // Convert map to array and sort by last message time
+    const conversations = Array.from(conversationMap.values())
+      .sort((a, b) => new Date(b.lastMessageTime) - new Date(a.lastMessageTime));
 
     res.json({ conversations });
 
