@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Container,
@@ -35,6 +36,7 @@ import { getImageUrl } from '../utils/imageUrl';
 const Messages = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messageInput, setMessageInput] = useState('');
   const [conversations, setConversations] = useState([]);
@@ -52,9 +54,15 @@ const Messages = () => {
       refetchInterval: 30000, // Refetch every 30 seconds
       onSuccess: (data) => {
         setConversations(data.conversations);
-        // Auto-select first conversation if none selected
+        // Auto-select first conversation or the one from URL params
         if (!selectedConversation && data.conversations.length > 0) {
-          setSelectedConversation(data.conversations[0]);
+          const userParam = searchParams.get('user');
+          if (userParam) {
+            const matchingConv = data.conversations.find(c => c.userId === userParam);
+            setSelectedConversation(matchingConv || data.conversations[0]);
+          } else {
+            setSelectedConversation(data.conversations[0]);
+          }
         }
       }
     }
