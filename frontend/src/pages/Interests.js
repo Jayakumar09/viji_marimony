@@ -23,7 +23,8 @@ import {
   CircularProgress,
   Alert,
   Grid,
-  Divider
+  Divider,
+  Badge
 } from '@mui/material';
 import {
   Person,
@@ -313,11 +314,10 @@ const Interests = () => {
           {tabLabels.map((label, index) => (
             <Tab 
               key={index} 
-              label={label}
-              badgeContent={
-                index === 0 && stats?.stats.received.pending > 0 
-                  ? stats.stats.received.pending 
-                  : 0
+              label={
+                index === 0 && stats?.stats.received.pending > 0
+                  ? <Badge badgeContent={stats.stats.received.pending} color="secondary">{label}</Badge>
+                  : label
               }
             />
           ))}
