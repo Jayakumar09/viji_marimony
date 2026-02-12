@@ -37,10 +37,11 @@ const Messages = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [messageInput, setMessageInput] = useState('');
   const [conversations, setConversations] = useState([]);
   const messagesEndRef = useRef(null);
+  const initialLoadRef = useRef(true);
 
   // Fetch conversations
   const { 
@@ -51,22 +52,25 @@ const Messages = () => {
     ['conversations'],
     messageService.getConversations,
     {
-      refetchInterval: 30000, // Refetch every 30 seconds
+      refetchInterval: 30000,
       onSuccess: (data) => {
         setConversations(data.conversations);
-        // Auto-select first conversation or the one from URL params
-        if (!selectedConversation && data.conversations.length > 0) {
+        // Auto-select first conversation or matching one on initial load
+        if (initialLoadRef.current && data.conversations.length > 0) {
+          initialLoadRef.current = false;
           const userParam = searchParams.get('user');
           if (userParam) {
             const matchingConv = data.conversations.find(c => c.userId === userParam);
-            setSelectedConversation(matchingConv || data.conversations[0]);
+            setSelectedConversationId(matchingConv?.userId || data.conversations[0].userId);
           } else {
-            setSelectedConversation(data.conversations[0]);
+            setSelectedConversationId(data.conversations[0].userId);
           }
         }
       }
     }
   );
+
+  const selectedConversation = conversations.find(c => c.userId === selectedConversationId);
 
   // Fetch messages for selected conversation
   const { 
@@ -74,11 +78,11 @@ const Messages = () => {
     isLoading: loadingMessages,
     refetch: refetchMessages
   } = useQuery(
-    ['messages', selectedConversation?.userId],
-    () => selectedConversation ? messageService.getMessages(selectedConversation.userId) : null,
+    ['messages', selectedConversationId],
+    () => selectedConversationId ? messageService.getMessages(selectedConversationId) : null,
     {
-      enabled: !!selectedConversation,
-      refetchInterval: 10000, // Refetch every 10 seconds for active conversation
+      enabled: !!selectedConversationId,
+      refetchInterval: 10000,
     }
   );
 
@@ -88,7 +92,7 @@ const Messages = () => {
     {
       onSuccess: (data) => {
         setMessageInput('');
-        queryClient.invalidateQueries(['messages', selectedConversation?.userId]);
+        queryClient.invalidateQueries(['messages', selectedConversationId]);
         queryClient.invalidateQueries('conversations');
         toast.success('Message sent');
       },
@@ -104,9 +108,9 @@ const Messages = () => {
   }, [messagesData?.messages]);
 
   const handleSendMessage = () => {
-    if (messageInput.trim() && selectedConversation) {
+    if (messageInput.trim() && selectedConversationId) {
       sendMessageMutation.mutate({
-        receiverId: selectedConversation.userId,
+        receiverId: selectedConversationId,
         content: messageInput.trim()
       });
     }
@@ -161,10 +165,10 @@ const Messages = () => {
                 <ListItem
                   key={conversation.userId}
                   button
-                  selected={selectedConversation?.userId === conversation.userId}
-                  onClick={() => setSelectedConversation(conversation)}
+                  selected={selectedConversationId === conversation.userId}
+                  onClick={() => setSelectedConversationId(conversation.userId)}
                   style={{
-                    backgroundColor: selectedConversation?.userId === conversation.userId ? '#f5f5f5' : 'transparent'
+                    backgroundColor: selectedConversationId === conversation.userId ? '#f5f5f5' : 'transparent'
                   }}
                 >
                   <ListItemAvatar>
