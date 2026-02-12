@@ -166,7 +166,7 @@ const ProfileView = () => {
                 color="primary"
                 startIcon={profile.interestStatus ? <Favorite /> : <FavoriteBorder />}
                 onClick={handleSendInterest}
-                disabled={profile.interestStatus || sendInterestMutation.isLoading}
+                disabled={!!profile.interestStatus || sendInterestMutation.isLoading}
               >
                 {sendInterestMutation.isLoading ? 'Sending...' : profile.interestStatus ? 'Interest Sent' : 'Send Interest'}
               </Button>
