@@ -9,7 +9,7 @@ const sendInterest = async (req, res) => {
       return res.status(400).json({ error: 'Cannot send interest to yourself' });
     }
 
-    // Check if receiver exists
+    // Check if receiver existsres
     const receiver = await prisma.user.findUnique({
       where: { id: receiverId },
       select: { id: true, isActive: true }
