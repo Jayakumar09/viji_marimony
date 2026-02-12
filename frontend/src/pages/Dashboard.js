@@ -6,8 +6,26 @@ import { useAuth } from '../hooks/useAuth';
 import { getImageUrl } from '../utils/imageUrl';
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg" style={{ marginTop: '2rem' }}>
+        <Box display="flex" justifyContent="center" alignItems="center" height="60vh">
+          <CircularProgress size={60} />
+        </Box>
+      </Container>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Container maxWidth="lg" style={{ marginTop: '2rem' }}>
+        <Typography variant="h5" align="center">Please login to view your dashboard</Typography>
+      </Container>
+    );
+  }
 
   const quickActions = [
     {
