@@ -728,7 +728,7 @@ const Profile = () => {
                   <Grid item xs={12} sm={6}>
                     <FormControl fullWidth disabled={!editingHoroscope}>
                       <InputLabel>Raasi (Moon Sign)</InputLabel>
-                      <Controller name="raasi" control={control} defaultValue={profileData?.raasi || ''} render={({ field }) => (
+                      <Controller name="raasi" control={control} defaultValue={profileData?.raasi ?? ''} render={({ field }) => (
                         <Select {...field} label="Raasi (Moon Sign)">
                           <MenuItem value="">Select Raasi</MenuItem>
                           {RAASI_CHOICES.map(rasi => (
@@ -742,7 +742,7 @@ const Profile = () => {
                   <Grid item xs={12} sm={6}>
                     <FormControl fullWidth disabled={!editingHoroscope || !selectedRasi}>
                       <InputLabel>Natchathiram (Star)</InputLabel>
-                      <Controller name="natchathiram" control={control} defaultValue={profileData?.natchathiram || ''} render={({ field }) => (
+                      <Controller name="natchathiram" control={control} defaultValue={profileData?.natchathiram ?? ''} render={({ field }) => (
                         <Select {...field} label="Natchathiram (Star)">
                           <MenuItem value="">Select Natchathiram</MenuItem>
                           {getNatchathiramForRasi(selectedRasi || profileData?.raasi).map(n => (
@@ -758,7 +758,7 @@ const Profile = () => {
                   <Grid item xs={12} sm={6}>
                     <FormControl fullWidth disabled={!editingHoroscope}>
                       <InputLabel>Dhosam</InputLabel>
-                      <Controller name="dhosam" control={control} defaultValue={profileData?.dhosam || ''} render={({ field }) => (
+                      <Controller name="dhosam" control={control} defaultValue={profileData?.dhosam ?? ''} render={({ field }) => (
                         <Select {...field} label="Dhosam">
                           <MenuItem value="">Select Dhosam</MenuItem>
                           {DHOSAM_CHOICES.map(d => (

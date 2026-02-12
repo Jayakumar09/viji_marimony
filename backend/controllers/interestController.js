@@ -88,7 +88,14 @@ const getReceivedInterests = async (req, res) => {
     const [interests, totalCount] = await Promise.all([
       prisma.interest.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          senderId: true,
+          receiverId: true,
+          status: true,
+          message: true,
+          createdAt: true,
+          updatedAt: true,
           sender: {
             select: {
               id: true,
@@ -144,7 +151,14 @@ const getSentInterests = async (req, res) => {
     const [interests, totalCount] = await Promise.all([
       prisma.interest.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          senderId: true,
+          receiverId: true,
+          status: true,
+          message: true,
+          createdAt: true,
+          updatedAt: true,
           receiver: {
             select: {
               id: true,

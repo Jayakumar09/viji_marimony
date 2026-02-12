@@ -50,6 +50,7 @@ const Interests = () => {
   const [selectedInterest, setSelectedInterest] = useState(null);
   const [responseMessage, setResponseMessage] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [sentStatusFilter, setSentStatusFilter] = useState('all');
 
   const tabLabels = ['Received Interests', 'Sent Interests'];
 
@@ -64,6 +65,8 @@ const Interests = () => {
     {
       enabled: activeTab === 0,
       keepPreviousData: true,
+      staleTime: 0, // Always fetch fresh data
+      cacheTime: 0, // Don't cache
     }
   );
 
@@ -73,11 +76,16 @@ const Interests = () => {
     isLoading: loadingSent,
     refetch: refetchSent
   } = useQuery(
-    ['sentInterests', currentPage],
-    () => interestService.getSentInterests({ page: currentPage }),
+    ['sentInterests', currentPage, sentStatusFilter],
+    () => interestService.getSentInterests({ 
+      page: currentPage,
+      status: sentStatusFilter !== 'all' ? sentStatusFilter : undefined 
+    }),
     {
       enabled: activeTab === 1,
       keepPreviousData: true,
+      staleTime: 0, // Always fetch fresh data
+      cacheTime: 0, // Don't cache
     }
   );
 
@@ -158,6 +166,7 @@ const Interests = () => {
                 
                 <Box flex={1}>
                   <Typography variant="h6">
+                    {type === 'received' ? 'From: ' : 'To: '} 
                     {user.firstName} {user.lastName}, {user.age}
                     {user.isPremium && (
                       <Star style={{ color: '#FFD700', marginLeft: '4px' }} />
@@ -197,8 +206,8 @@ const Interests = () => {
                 <Chip
                   label={interest.status.replace('_', ' ')}
                   color={
-                    isPending ? 'default' :
-                    isAccepted ? 'primary' : 'secondary'
+                    isPending ? 'warning' :
+                    isAccepted ? 'success' : 'error'
                   }
                   size="small"
                   style={{ marginBottom: '1rem' }}
@@ -323,6 +332,30 @@ const Interests = () => {
           ))}
         </Tabs>
 
+        {/* Sent Interests Filter */}
+        {activeTab === 1 && (
+          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+            <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+              Filter by Status:
+            </Typography>
+            <Box display="flex" gap={1}>
+              {['all', 'pending', 'accepted', 'rejected'].map((status) => (
+                <Chip
+                  key={status}
+                  label={status.charAt(0).toUpperCase() + status.slice(1)}
+                  onClick={() => {
+                    setSentStatusFilter(status);
+                    setCurrentPage(1);
+                  }}
+                  color={sentStatusFilter === status ? 'primary' : 'default'}
+                  variant={sentStatusFilter === status ? 'filled' : 'outlined'}
+                  size="small"
+                />
+              ))}
+            </Box>
+          </Box>
+        )}
+
         <div style={{ padding: '2rem' }}>
           {currentLoading ? (
             <Box display="flex" justifyContent="center" py={4}>
@@ -414,7 +447,7 @@ const Interests = () => {
         <DialogActions>
           <Button 
             onClick={() => setRespondDialog(false)} 
-            color="default"
+            variant="outlined"
           >
             Cancel
           </Button>

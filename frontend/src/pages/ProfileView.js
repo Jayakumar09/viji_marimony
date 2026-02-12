@@ -22,7 +22,12 @@ import {
   List,
   ListItem,
   ListItemIcon,
-  ListItemText
+  ListItemText,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField
 } from '@mui/material';
 import {
   Person,
@@ -40,7 +45,8 @@ import {
   Scale,
   Wc,
   FamilyRestroom,
-  Description
+  Description,
+  Close
 } from '@mui/icons-material';
 import searchService from '../services/searchService';
 import interestService from '../services/interestService';
@@ -69,13 +75,17 @@ const ProfileView = () => {
   );
 
   const profile = response?.profile;
+  const [interestDialog, setInterestDialog] = useState(false);
+  const [interestMessage, setInterestMessage] = useState('');
 
   // Send interest mutation
   const sendInterestMutation = useMutation(
-    (receiverId) => interestService.sendInterest(receiverId),
+    ({ receiverId, message }) => interestService.sendInterest(receiverId, message),
     {
       onSuccess: (data) => {
         toast.success(data.message || 'Interest sent successfully!');
+        setInterestDialog(false);
+        setInterestMessage('');
         queryClient.invalidateQueries(['profile', profileId]);
         queryClient.invalidateQueries(['interestStats']);
       },
@@ -87,7 +97,11 @@ const ProfileView = () => {
   );
 
   const handleSendInterest = () => {
-    sendInterestMutation.mutate(profileId);
+    setInterestDialog(true);
+  };
+
+  const confirmSendInterest = () => {
+    sendInterestMutation.mutate({ receiverId: profileId, message: interestMessage.trim() });
   };
 
   const handleSendMessage = () => {
@@ -380,6 +394,51 @@ const ProfileView = () => {
           </Grid>
         </Paper>
       )}
+
+      {/* Send Interest Dialog */}
+      <Dialog 
+        open={interestDialog} 
+        onClose={() => setInterestDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">Send Interest to {profile?.firstName}</Typography>
+            <IconButton onClick={() => setInterestDialog(false)}>
+              <Close />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" paragraph>
+            Adding a personal message increases your chances of getting a response!
+          </Typography>
+          <TextField
+            fullWidth
+            label="Message (Optional)"
+            multiline
+            rows={4}
+            value={interestMessage}
+            onChange={(e) => setInterestMessage(e.target.value)}
+            placeholder="Write a personal message..."
+            variant="outlined"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setInterestDialog(false)} variant="outlined">
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmSendInterest} 
+            color="primary" 
+            variant="contained"
+            disabled={sendInterestMutation.isLoading}
+          >
+            {sendInterestMutation.isLoading ? 'Sending...' : 'Send Interest'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };
