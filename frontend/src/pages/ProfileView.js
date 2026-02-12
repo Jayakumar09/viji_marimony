@@ -80,7 +80,8 @@ const ProfileView = () => {
         queryClient.invalidateQueries(['interestStats']);
       },
       onError: (error) => {
-        toast.error(error.response?.data?.error || 'Failed to send interest');
+        const errorMessage = error?.response?.data?.error || error?.message || 'Failed to send interest';
+        toast.error(errorMessage);
       }
     }
   );
