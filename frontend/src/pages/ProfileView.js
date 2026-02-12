@@ -42,7 +42,6 @@ import {
   FamilyRestroom,
   Description
 } from '@mui/icons-material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import searchService from '../services/searchService';
 import interestService from '../services/interestService';
 import toast from 'react-hot-toast';
