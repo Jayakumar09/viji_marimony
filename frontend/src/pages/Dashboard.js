@@ -1,8 +1,9 @@
 import React from 'react';
-import { Box, Typography, Container, Paper, Grid, Button } from '@mui/material';
+import { Box, Typography, Container, Paper, Grid, Button, Avatar, CircularProgress } from '@mui/material';
 import { Person, Search, Message, FavoriteBorder } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { getImageUrl } from '../utils/imageUrl';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -79,13 +80,23 @@ const Dashboard = () => {
               width={120}
               height={120}
               borderRadius="50%"
+              overflow="hidden"
               bgcolor="#FAF7FF"
               display="flex"
               alignItems="center"
               justifyContent="center"
               margin="0 auto 1rem"
+              border="3px solid #8B5CF6"
             >
-              <Person style={{ fontSize: 60, color: '#8B5CF6' }} />
+              {user?.profilePhoto ? (
+                <Avatar
+                  src={getImageUrl(user.profilePhoto)}
+                  alt={`${user.firstName} ${user.lastName}`}
+                  sx={{ width: '100%', height: '100%' }}
+                />
+              ) : (
+                <Person style={{ fontSize: 60, color: '#8B5CF6' }} />
+              )}
             </Box>
             <Typography variant="h5" gutterBottom>
               {user?.firstName} {user?.lastName}
