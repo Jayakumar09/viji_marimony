@@ -11,6 +11,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
+import ProfileView from './pages/ProfileView';
 import Search from './pages/Search';
 import Messages from './pages/Messages';
 import Interests from './pages/Interests';
@@ -42,6 +43,7 @@ function App() {
           {/* Protected Routes */}
           <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/login" />} />
           <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
+          <Route path="/profile/:profileId" element={user ? <ProfileView /> : <Navigate to="/login" />} />
           <Route path="/verification" element={user ? <Verification /> : <Navigate to="/login" />} />
           <Route path="/search" element={user ? <Search /> : <Navigate to="/login" />} />
           <Route path="/messages" element={user ? <Messages /> : <Navigate to="/login" />} />

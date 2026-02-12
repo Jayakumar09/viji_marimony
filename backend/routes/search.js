@@ -8,19 +8,16 @@ const {
 } = require('../controllers/searchController');
 const { authMiddleware } = require('../middleware/auth');
 
-// All routes are protected
-router.use(authMiddleware);
-
-// Search profiles with filters
+// Search profiles with filters - public route
 router.get('/', searchProfiles);
 
-// Get recommended profiles
-router.get('/recommended', getRecommendedProfiles);
+// Get recommended profiles - requires auth
+router.get('/recommended', authMiddleware, getRecommendedProfiles);
 
 // Get search filter options
 router.get('/filters', getSearchFilters);
 
-// Get specific profile by ID
-router.get('/:profileId', getProfileById);
+// Get specific profile by ID - requires auth
+router.get('/:profileId', authMiddleware, getProfileById);
 
 module.exports = router;

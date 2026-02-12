@@ -17,18 +17,17 @@ const searchProfiles = async (req, res) => {
       limit = 20
     } = req.query;
 
-    const currentUserId = req.user.id;
+    console.log('Search request received:', { gender, minAge, maxAge, community, subCaste, city, state, education, profession, maritalStatus, page, limit });
+
+    const currentUserId = req.user?.id;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Build where clause
+    // Build where clause - normalize gender to title case for SQLite
+    const normalizedGender = gender ? (gender.toLowerCase() === 'female' ? 'Female' : 'Male') : undefined;
+    
     const where = {
-      id: { not: currentUserId }, // Exclude current user
       isActive: true,
-      gender: gender ? { equals: gender } : undefined,
-      age: {
-        gte: minAge ? parseInt(minAge) : undefined,
-        lte: maxAge ? parseInt(maxAge) : undefined
-      },
+      gender: normalizedGender,
       community: community ? { equals: community } : undefined,
       subCaste: subCaste ? { contains: subCaste } : undefined,
       city: city ? { contains: city, mode: 'insensitive' } : undefined,
@@ -38,6 +37,14 @@ const searchProfiles = async (req, res) => {
       maritalStatus: maritalStatus ? { equals: maritalStatus } : undefined
     };
 
+    // Handle age filter separately
+    if (minAge || maxAge) {
+      where.age = {
+        gte: minAge ? parseInt(minAge) : undefined,
+        lte: maxAge ? parseInt(maxAge) : undefined
+      };
+    }
+
     // Remove undefined values
     Object.keys(where).forEach(key => {
       if (where[key] === undefined) {
@@ -45,8 +52,11 @@ const searchProfiles = async (req, res) => {
       }
     });
 
+    console.log('Final where clause:', JSON.stringify(where, null, 2));
+
     // Get total count for pagination
     const totalCount = await prisma.user.count({ where });
+    console.log('Total count:', totalCount);
 
     // Get profiles with pagination
     const profiles = await prisma.user.findMany({
@@ -83,23 +93,26 @@ const searchProfiles = async (req, res) => {
       take: parseInt(limit)
     });
 
-    // Get existing interests for current user
-    const existingInterests = await prisma.interest.findMany({
-      where: {
-        senderId: currentUserId,
-        receiverId: { in: profiles.map(p => p.id) }
-      },
-      select: {
-        receiverId: true,
-        status: true
-      }
-    });
+    // Get existing interests for current user (only if logged in)
+    let interestMap = {};
+    if (currentUserId) {
+      const existingInterests = await prisma.interest.findMany({
+        where: {
+          senderId: currentUserId,
+          receiverId: { in: profiles.map(p => p.id) }
+        },
+        select: {
+          receiverId: true,
+          status: true
+        }
+      });
 
-    // Map interests to profiles
-    const interestMap = existingInterests.reduce((acc, interest) => {
-      acc[interest.receiverId] = interest.status;
-      return acc;
-    }, {});
+      // Map interests to profiles
+      interestMap = existingInterests.reduce((acc, interest) => {
+        acc[interest.receiverId] = interest.status;
+        return acc;
+      }, {});
+    }
 
     // Add interest status to each profile
     const profilesWithInterestStatus = profiles.map(profile => ({
@@ -155,6 +168,7 @@ const getProfileById = async (req, res) => {
         bio: true,
         familyValues: true,
         aboutFamily: true,
+        isActive: true,
         isVerified: true,
         isPremium: true,
         createdAt: true
