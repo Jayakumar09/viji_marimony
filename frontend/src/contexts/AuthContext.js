@@ -76,8 +76,19 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const updateUser = (updatedUser) => {
-    setUser(updatedUser);
+  const updateUser = async (updatedUser) => {
+    if (updatedUser) {
+      // If specific user data is provided, merge it with existing user
+      setUser(prev => prev ? { ...prev, ...updatedUser } : updatedUser);
+    } else {
+      // Fetch fresh user data from server
+      try {
+        const response = await api.get('/auth/me');
+        setUser(response.data.user);
+      } catch (error) {
+        console.error('Failed to refresh user data:', error);
+      }
+    }
   };
 
   const value = {

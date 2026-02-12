@@ -106,7 +106,7 @@ const Verification = () => {
       setOtp('');
       setOtpSent(false);
       fetchStatus();
-      updateUser();
+      updateUser(); // Fetch fresh user data from server
     } catch (err) {
       setError(err.error || `Failed to verify ${activeTab}`);
     } finally {
