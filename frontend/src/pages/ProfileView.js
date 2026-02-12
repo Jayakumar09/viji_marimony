@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Container,
   Paper,
@@ -41,14 +42,16 @@ import {
   FamilyRestroom,
   Description
 } from '@mui/icons-material';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import searchService from '../services/searchService';
+import interestService from '../services/interestService';
 import toast from 'react-hot-toast';
 import { getImageUrl } from '../utils/imageUrl';
 
 const ProfileView = () => {
   const { profileId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState(0);
 
   // Fetch profile data
@@ -68,9 +71,23 @@ const ProfileView = () => {
 
   const profile = response?.profile;
 
-  const handleSendInterest = async () => {
-    toast.success('Interest sent successfully!');
-    refetch();
+  // Send interest mutation
+  const sendInterestMutation = useMutation(
+    (receiverId) => interestService.sendInterest(receiverId),
+    {
+      onSuccess: (data) => {
+        toast.success(data.message || 'Interest sent successfully!');
+        queryClient.invalidateQueries(['profile', profileId]);
+        queryClient.invalidateQueries(['interestStats']);
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.error || 'Failed to send interest');
+      }
+    }
+  );
+
+  const handleSendInterest = () => {
+    sendInterestMutation.mutate(profileId);
   };
 
   const handleSendMessage = () => {
@@ -147,10 +164,11 @@ const ProfileView = () => {
               <Button
                 variant="outlined"
                 color="primary"
-                startIcon={<FavoriteBorder />}
+                startIcon={profile.interestStatus ? <Favorite /> : <FavoriteBorder />}
                 onClick={handleSendInterest}
+                disabled={profile.interestStatus || sendInterestMutation.isLoading}
               >
-                Send Interest
+                {sendInterestMutation.isLoading ? 'Sending...' : profile.interestStatus ? 'Interest Sent' : 'Send Interest'}
               </Button>
               <Button
                 variant="contained"
