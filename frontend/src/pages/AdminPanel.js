@@ -14,9 +14,10 @@ const AdminPanel = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Simple admin check - in production, this should be server-side verified
-  // Only vijayalakshmijayakumar45@gmail.com is the admin
-  const isAdmin = user?.email === 'vijayalakshmijayakumar45@gmail.com';
+  // Check for admin access - either from admin login or user with admin email
+  const adminUser = JSON.parse(localStorage.getItem('adminUser') || 'null');
+  const isAdmin = user?.email === 'vijayalakshmijayakumar45@gmail.com' || 
+                  adminUser?.email === 'vijayalakshmijayakumar45@gmail.com';
 
   if (!isAdmin) {
     return (
