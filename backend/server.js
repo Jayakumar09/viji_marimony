@@ -29,25 +29,9 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// CORS configuration - allow localhost and any configured FRONTEND_URL
+// CORS configuration - allow ALL origins for development
 app.use(cors({
-  origin: function(origin, callback) {
-    // allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Allow any localhost origin (including different ports)
-    if (origin.match(/^http:\/\/localhost(:\d+)?$/)) {
-      return callback(null, true);
-    }
-    
-    // Check against allowed origins
-    const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',');
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    
-    callback(new Error('CORS policy: Origin not allowed'), false);
-  },
+  origin: true,
   credentials: true
 }));
 
