@@ -7,10 +7,22 @@ const {
   rejectPhoto,
   getAllUsers,
   updateUserVerification,
+  verifyUser,
+  getUserDetails,
   getDashboardStats,
   createSubscription,
   syncUserSubscription
 } = require('../controllers/adminController');
+const {
+  getAdminUserProfile,
+  blockUser,
+  unblockUser,
+  deleteUser,
+  getUserActivityLogs,
+  manualVerifyUser,
+  updateUserSubscription,
+  getVerificationDetails
+} = require('../controllers/adminUserProfileController');
 
 // Admin authentication routes (simplified for demo)
 router.post('/login', async (req, res) => {
@@ -63,9 +75,27 @@ router.put('/photos/:id/reject', rejectPhoto);
 // User management
 router.get('/users', getAllUsers);
 router.put('/users/:id/verification', updateUserVerification);
+router.put('/users/:id/verify', verifyUser);
+router.get('/users/:id', getUserDetails);
+
+// Admin User Profile - Full detailed view
+router.get('/users/:id/profile', getAdminUserProfile);
+
+// User status management
+router.put('/users/:id/block', blockUser);
+router.put('/users/:id/unblock', unblockUser);
+router.delete('/users/:id', deleteUser);
+
+// User verification
+router.put('/users/:id/manual-verify', manualVerifyUser);
+router.get('/users/:id/verifications', getVerificationDetails);
+
+// User activity logs
+router.get('/users/:id/activity-logs', getUserActivityLogs);
 
 // Subscription management
 router.post('/subscriptions', createSubscription);
 router.put('/subscriptions/sync/:userId', syncUserSubscription);
+router.put('/subscriptions/:id', updateUserSubscription);
 
 module.exports = router;

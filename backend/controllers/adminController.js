@@ -269,6 +269,72 @@ const updateUserVerification = async (req, res) => {
   }
 };
 
+// Quick verify user endpoint
+const verifyUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const user = await prisma.user.findUnique({ where: { id } });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    await prisma.user.update({
+      where: { id },
+      data: {
+        isVerified: true,
+        photosVerified: true
+      }
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'User verified successfully',
+      user: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isVerified: true
+      }
+    });
+  } catch (error) {
+    console.error('Verify user error:', error);
+    res.status(500).json({ error: 'Failed to verify user' });
+  }
+};
+
+// Get full user details
+const getUserDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        photos: {
+          take: 5,
+          orderBy: { createdAt: 'desc' }
+        },
+        subscription: {
+          where: { status: 'ACTIVE' },
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        }
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({ user });
+  } catch (error) {
+    console.error('Get user details error:', error);
+    res.status(500).json({ error: 'Failed to fetch user details' });
+  }
+};
+
 // ============ DASHBOARD STATS ============
 
 const getDashboardStats = async (req, res) => {
@@ -477,6 +543,8 @@ module.exports = {
   rejectPhoto,
   getAllUsers,
   updateUserVerification,
+  verifyUser,
+  getUserDetails,
   getDashboardStats,
   createSubscription,
   syncUserSubscription

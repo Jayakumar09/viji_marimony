@@ -17,6 +17,7 @@ import {
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import AdminUserProfile from './AdminUserProfile';
 
 // Sidebar width
 const DRAWER_WIDTH = 280;
@@ -260,6 +261,7 @@ const AdminPanel = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/photos" element={<PhotoApprovals />} />
           <Route path="/users" element={<UserManagement />} />
+          <Route path="/users/:id" element={<AdminUserProfile />} />
           <Route path="/subscriptions" element={<SubscriptionManagement />} />
           <Route path="/logs" element={<ActivityLogs />} />
           <Route path="/settings" element={<AdminSettings />} />
@@ -795,6 +797,7 @@ const PhotoApprovals = () => {
 
 // User Management Component
 const UserManagement = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -852,6 +855,17 @@ const UserManagement = () => {
       fetchUsers();
     } catch (error) {
       setSnackbar({ open: true, message: 'Failed to update status', severity: 'error' });
+    }
+  };
+
+  const handleVerifyUser = async (userId) => {
+    try {
+      await api.put(`/admin/users/${userId}/verify`);
+      setSnackbar({ open: true, message: 'User verified successfully!', severity: 'success' });
+      fetchUsers();
+    } catch (error) {
+      console.error('Failed to verify user:', error);
+      setSnackbar({ open: true, message: 'Failed to verify user', severity: 'error' });
     }
   };
 
@@ -1018,9 +1032,17 @@ const UserManagement = () => {
                         open={Boolean(actionMenu.anchor) && actionMenu.userId === user.id}
                         onClose={() => setActionMenu({ anchor: null, userId: null })}
                       >
-                        <MenuItem onClick={() => { setSelectedUser(user); setActionMenu({ anchor: null, userId: null }); }}>
-                          <Visibility sx={{ mr: 1, fontSize: 20 }} /> View Details
+                        <MenuItem onClick={() => { navigate(`/admin/users/${user.id}`); setActionMenu({ anchor: null, userId: null }); }}>
+                          <Visibility sx={{ mr: 1, fontSize: 20 }} /> View Full Profile
                         </MenuItem>
+                        {!user.isVerified && (
+                          <MenuItem 
+                            onClick={() => { handleVerifyUser(user.id); setActionMenu({ anchor: null, userId: null }); }}
+                            sx={{ color: 'success.main' }}
+                          >
+                            <VerifiedUser sx={{ mr: 1, fontSize: 20 }} /> Verify User
+                          </MenuItem>
+                        )}
                         <MenuItem onClick={() => { handleToggleStatus(user.id, user.isActive); setActionMenu({ anchor: null, userId: null }); }}>
                           {user.isActive ? (
                             <><Block sx={{ mr: 1, fontSize: 20, color: 'error.main' }} /> Block User</>

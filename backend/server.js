@@ -61,6 +61,7 @@ const interestRoutes = require('./routes/interest');
 const lookupRoutes = require('./routes/lookup');
 const verificationRoutes = require('./routes/verification');
 const adminRoutes = require('./routes/admin');
+const adminFileServeRoutes = require('./routes/adminFileServe');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -71,6 +72,7 @@ app.use('/api/interest', interestRoutes);
 app.use('/api/lookup', lookupRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminFileServeRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

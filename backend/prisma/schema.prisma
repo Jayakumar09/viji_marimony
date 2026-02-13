@@ -83,6 +83,7 @@ model User {
   receivedMessages  Message[] @relation("ReceivedMessages")
   photoVerifications PhotoVerification[] @relation("UserPhotos")
   documents         Document[] @relation("UserDocuments")
+  subscriptions     Subscription[] @relation("UserSubscriptions")
 
   @@map("users")
 }
@@ -183,6 +184,9 @@ model Subscription {
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
 
+  // Relations
+  user        User     @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("subscriptions")
 }
 
@@ -212,4 +216,22 @@ model RasiNakshatra {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("rasi_nakshatras")
+}
+
+// Admin Activity Log for audit trail
+model AdminActivityLog {
+  id          String   @id @default(cuid())
+  adminId     String   @map("admin_id")
+  action      String
+  targetUserId String? @map("target_user_id")
+  details     String?  // JSON string for additional details
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([adminId])
+  @@index([targetUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("admin_activity_logs")
 }
