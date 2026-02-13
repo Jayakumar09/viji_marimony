@@ -15,6 +15,8 @@ import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
 import PasswordField from '../components/PasswordField';
 
+const ADMIN_EMAIL = 'vijayalakshmijayakumar45@gmail.com';
+
 const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -28,13 +30,35 @@ const Login = () => {
     setError('');
 
     try {
-      const result = await login(data.email, data.password);
-
-      if (result.success) {
-        toast.success('Login successful!');
-        navigate('/dashboard');
+      // Check if admin login
+      if (data.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+        // Admin login
+        const response = await fetch('/api/auth/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: data.email, password: data.password })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          localStorage.setItem('adminToken', result.token);
+          localStorage.setItem('adminUser', JSON.stringify(result.admin));
+          toast.success('Admin login successful!');
+          navigate('/admin');
+        } else {
+          setError(result.error || 'Admin login failed');
+        }
       } else {
-        setError(result.error);
+        // Regular user login
+        const result = await login(data.email, data.password);
+
+        if (result.success) {
+          toast.success('Login successful!');
+          navigate('/dashboard');
+        } else {
+          setError(result.error);
+        }
       }
     } catch (error) {
       setError('Login failed. Please try again.');
@@ -135,9 +159,15 @@ const Login = () => {
             📧 info@vijayalakshmiboyarmatrimony.com<br />
             📞 +91 7639150271
           </Typography>
-          <Typography variant="caption" color="textSecondary" display="block" textAlign="center" mt={1}>
-            Admin Login: vijayalakshmijayakumar45@gmail.com
-          </Typography>
+          <Box mt={2} p={2} bgcolor="#E8F5E9" borderRadius={2} border="1px solid #4CAF50">
+            <Typography variant="subtitle2" color="#2E7D32" align="center" fontWeight="bold">
+              🗝️ ADMIN LOGIN
+            </Typography>
+            <Typography variant="caption" color="textSecondary" display="block" textAlign="center" mt={1}>
+              Email: vijayalakshmijayakumar45@gmail.com<br />
+              Password: Admin@2061979
+            </Typography>
+          </Box>
         </Box>
       </Paper>
     </Container>
