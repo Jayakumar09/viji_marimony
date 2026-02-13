@@ -268,9 +268,57 @@ const updateProfile = async (req, res) => {
   }
 };
 
+const adminLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Find admin
+    const admin = await prisma.admin.findUnique({
+      where: { email: email.toLowerCase() }
+    });
+    
+    if (!admin) {
+      return res.status(401).json({ error: 'Invalid admin credentials' });
+    }
+    
+    if (!admin.isActive) {
+      return res.status(401).json({ error: 'Admin account is deactivated' });
+    }
+    
+    // Check password
+    const isPasswordValid = await comparePassword(password, admin.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Invalid admin credentials' });
+    }
+    
+    // Update last login
+    await prisma.admin.update({
+      where: { id: admin.id },
+      data: { lastLogin: new Date() }
+    });
+    
+    // Generate token
+    const token = generateToken(admin.id);
+    
+    // Remove password from response
+    const { password: _, ...adminWithoutPassword } = admin;
+    
+    res.json({
+      message: 'Admin login successful',
+      token,
+      admin: adminWithoutPassword
+    });
+
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ error: 'Internal server error during admin login' });
+  }
+};
+
 module.exports = {
   register,
   login,
   getMe,
-  updateProfile
+  updateProfile,
+  adminLogin
 };

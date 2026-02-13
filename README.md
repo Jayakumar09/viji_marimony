@@ -337,11 +337,12 @@ Upload required documents for verification:
 4. Once both verified, get "Verified" badge
 
 ### Test Admin Panel (Admin users only)
-1. Login with admin email (info@vijayalakshmiboyarmatrimony.com)
-2. "Admin Panel" link appears in menu
-3. View dashboard stats
-4. Review pending photo approvals
-5. Approve/reject user photos
+1. Login with admin email: vijayalakshmijayakumar45@gmail.com
+2. Password: Admin@2024
+3. "Admin Panel" link appears in menu
+4. View dashboard stats
+5. Review pending photo approvals
+6. Approve/reject user photos
 
 ### Test Profile Features
 1. After login, click "Profile"
@@ -396,9 +397,16 @@ Upload required documents for verification:
 3. Check Cloudinary request → Image should be <50KB
 4. Verify quality is acceptable
 
-## 📝 Admin Contact
-- Email: info@vijayalakshmiboyarmatrimony.com
-- Phone: +91 7639150271
+## 📝 Admin & Contact Information
+
+### Admin Dashboard Access
+- **Admin Email**: vijayalakshmijayakumar45@gmail.com
+- **Admin Password**: Admin@2024 (set in database seed)
+- **Note**: Only this email has admin privileges. All other registered users are treated as clients.
+
+### User Contact Support
+- **Email**: info@vijayalakshmiboyarmatrimony.com (for user inquiries)
+- **Phone**: +91 7639150271
 
 ## 🆕 RECENT UPDATES (February 2025)
 

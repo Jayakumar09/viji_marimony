@@ -10,9 +10,8 @@ const Header = () => {
   const { user, logout } = useAuth();
   const [anchorEl, setAnchorEl] = React.useState(null);
 
-  // Simple admin check
-  const isAdmin = user?.email?.toLowerCase().includes('admin') || 
-                  user?.email === 'info@vijayalakshmiboyarmatrimony.com';
+  // Simple admin check - only vijayalakshmijayakumar45@gmail.com is the admin
+  const isAdmin = user?.email === 'vijayalakshmijayakumar45@gmail.com';
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);

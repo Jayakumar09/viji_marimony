@@ -15,8 +15,8 @@ const AdminPanel = () => {
   const navigate = useNavigate();
 
   // Simple admin check - in production, this should be server-side verified
-  const isAdmin = user?.email?.toLowerCase().includes('admin') || 
-                  user?.email === 'info@vijayalakshmiboyarmatrimony.com';
+  // Only vijayalakshmijayakumar45@gmail.com is the admin
+  const isAdmin = user?.email === 'vijayalakshmijayakumar45@gmail.com';
 
   if (!isAdmin) {
     return (

@@ -131,9 +131,12 @@ const Login = () => {
 
         <Box mt={4} p={2} bgcolor="#FAF7FF" borderRadius={2}>
           <Typography variant="body2" color="textSecondary" align="center">
-            <strong>Admin Contact:</strong><br />
+            <strong>Contact Support:</strong><br />
             📧 info@vijayalakshmiboyarmatrimony.com<br />
             📞 +91 7639150271
+          </Typography>
+          <Typography variant="caption" color="textSecondary" display="block" textAlign="center" mt={1}>
+            Admin Login: vijayalakshmijayakumar45@gmail.com
           </Typography>
         </Box>
       </Paper>
