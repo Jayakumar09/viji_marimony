@@ -35,7 +35,7 @@ router.post('/login', async (req, res) => {
     const jwt = require('jsonwebtoken');
     const token = jwt.sign(
       { id: admin.id, role: admin.role },
-      process.env.JWT_SECRET || 'admin-secret-key',
+      process.env.JWT_SECRET || 'boyar-matrimony-super-secret-key-change-in-production-2024',
       { expiresIn: '24h' }
     );
     

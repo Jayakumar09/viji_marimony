@@ -10,10 +10,28 @@ const adminMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: 'Access denied. No token provided.' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'admin-secret-key');
+    // Verify token with correct secret
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'boyar-matrimony-super-secret-key-change-in-production-2024');
+    } catch (err) {
+      // Try with fallback secret
+      try {
+        decoded = jwt.verify(token, 'admin-secret-key');
+      } catch (err2) {
+        return res.status(401).json({ error: 'Invalid or expired token' });
+      }
+    }
+    
+    if (!decoded || (!decoded.id && !decoded.adminId)) {
+      return res.status(401).json({ error: 'Invalid token payload' });
+    }
+    
+    // Use either id or adminId from decoded token
+    const adminId = decoded.id || decoded.adminId;
     
     const admin = await prisma.admin.findUnique({
-      where: { id: decoded.id }
+      where: { id: adminId }
     });
     
     if (!admin || !admin.isActive) {
@@ -24,13 +42,7 @@ const adminMiddleware = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Admin middleware error:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: 'Token expired' });
-    }
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error in admin authentication' });
   }
 };
 
