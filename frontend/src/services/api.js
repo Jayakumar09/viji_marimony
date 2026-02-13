@@ -14,9 +14,15 @@ const api = axios.create({
 // Add request interceptor to include auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Check for admin token first (for admin API calls)
+    const adminToken = localStorage.getItem('adminToken');
+    const userToken = localStorage.getItem('token');
+    
+    // Use admin token for admin API calls, user token for regular calls
+    if (adminToken && config.url.includes('/admin/')) {
+      config.headers.Authorization = `Bearer ${adminToken}`;
+    } else if (userToken) {
+      config.headers.Authorization = `Bearer ${userToken}`;
     }
     return config;
   },
