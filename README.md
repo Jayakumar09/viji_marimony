@@ -400,6 +400,32 @@ Upload required documents for verification:
 - Email: info@vijayalakshmiboyarmatrimony.com
 - Phone: +91 7639150271
 
+## 🆕 RECENT UPDATES (February 2025)
+
+### Profile Photo Zoom & Pan Adjustment (NEW!)
+Users can now adjust their profile photo after uploading:
+- **Zoom In/Out**: Use scroll wheel or +/- buttons (0.5x to 5x range)
+- **Pan Image**: Click and drag to reposition photo within the circle
+- **Save Button**: Only visible during "change photo" period
+- **Reset**: Restores default position (center, 1x scale)
+- **Cancel**: Discards unsaved changes
+
+**Database Changes**:
+- Added `profilePhotoScale`, `profilePhotoX`, `profilePhotoY` fields to users table
+- New API endpoint: `PUT /api/profile/photo/adjustments`
+
+### Subscription Page Improvements (NEW!)
+Enhanced subscription plan visibility:
+- **Plan Numbers**: Numbered circles (1, 2, 3, 4) for easy identification
+- **Current Plan Badge**: Green "CURRENT PLAN" badge on active plan
+- **Visual Highlighting**: Green border and scale animation for current plan
+- **Clear Status**: Always visible current plan chip at top
+- **FREE Plan Support**: Properly shows FREE as default current plan
+
+### Bug Fixes
+- Fixed console warnings for null values in Select components (raasi, natchathiram, dhosam)
+- Normalized horoscope fields to prevent null value errors
+
 ## 🎯 Community Focus
 Built specifically for the Boyar community with:
 - Community-specific profile fields

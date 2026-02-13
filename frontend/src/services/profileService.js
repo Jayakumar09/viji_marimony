@@ -96,6 +96,22 @@ export const profileService = {
   deleteDocument: async (documentId) => {
     const response = await api.delete(`${PROFILE_URL}/documents/${documentId}`);
     return response.data;
+  },
+
+  // Save profile photo adjustments
+  saveProfilePhotoAdjustments: async (adjustments) => {
+    const response = await api.put(`${PROFILE_URL}/photo/adjustments`, adjustments);
+    return response.data;
+  },
+
+  // Get profile photo adjustments
+  getProfilePhotoAdjustments: async () => {
+    const response = await api.get(PROFILE_URL);
+    return {
+      profilePhotoScale: response.data.user?.profilePhotoScale,
+      profilePhotoX: response.data.user?.profilePhotoX,
+      profilePhotoY: response.data.user?.profilePhotoY
+    };
   }
 };
 

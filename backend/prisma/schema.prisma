@@ -33,6 +33,9 @@ model User {
   weight            String?  // in kg
   complexion        String?
   profilePhoto      String?  @map("profile_photo")
+  profilePhotoScale Float?  @default(1.0) @map("profile_photo_scale")
+  profilePhotoX     Float?  @default(0) @map("profile_photo_x")
+  profilePhotoY     Float?  @default(0) @map("profile_photo_y")
   photos            String?  // JSON string for SQLite
   bio               String?
   familyValues      String?  @map("family_values")

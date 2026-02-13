@@ -35,6 +35,9 @@ const getProfile = async (req, res) => {
         weight: true,
         complexion: true,
         profilePhoto: true,
+        profilePhotoScale: true,
+        profilePhotoX: true,
+        profilePhotoY: true,
         photos: true,
         bio: true,
         familyValues: true,
@@ -747,6 +750,48 @@ const syncUserPremiumStatus = async (userId) => {
   }
 };
 
+// ============ PROFILE PHOTO ADJUSTMENTS ============
+const saveProfilePhotoAdjustments = async (req, res) => {
+  try {
+    const { scale, x, y } = req.body;
+
+    if (scale === undefined || x === undefined || y === undefined) {
+      return res.status(400).json({ error: 'Scale, x, and y values are required' });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        profilePhotoScale: parseFloat(scale),
+        profilePhotoX: parseFloat(x),
+        profilePhotoY: parseFloat(y)
+      },
+      select: {
+        id: true,
+        profilePhoto: true,
+        profilePhotoScale: true,
+        profilePhotoX: true,
+        profilePhotoY: true,
+        updatedAt: true
+      }
+    });
+
+    res.json({
+      message: 'Profile photo adjustments saved successfully',
+      user: {
+        profilePhoto: updatedUser.profilePhoto,
+        profilePhotoScale: updatedUser.profilePhotoScale,
+        profilePhotoX: updatedUser.profilePhotoX,
+        profilePhotoY: updatedUser.profilePhotoY
+      }
+    });
+
+  } catch (error) {
+    console.error('Save profile photo adjustments error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -760,5 +805,6 @@ module.exports = {
   uploadProfilePhoto,
   uploadGalleryPhotos,
   deletePhoto,
-  syncUserPremiumStatus
+  syncUserPremiumStatus,
+  saveProfilePhotoAdjustments
 };

@@ -34,7 +34,9 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  Chip,
+  Divider
 } from '@mui/material';
 import {
   CloudUpload,
@@ -112,6 +114,14 @@ const Profile = () => {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
 
+  // Profile photo zoom/pan adjustment states
+  const [isEditingPhoto, setIsEditingPhoto] = useState(false);
+  const [photoScale, setPhotoScale] = useState(1);
+  const [photoPosX, setPhotoPosX] = useState(0);
+  const [photoPosY, setPhotoPosY] = useState(0);
+  const [photoWrapper, setPhotoWrapper] = useState(null);
+  const [photoImg, setPhotoImg] = useState(null);
+
   const { register, handleSubmit, reset, watch, control, formState: { errors }, setValue } = useForm();
   
   // Watch state and rasi fields for dependent dropdowns
@@ -169,8 +179,11 @@ const Profile = () => {
       normalized.gender = GENDER_MAP[apiUser.gender] || (apiUser.gender || '');
       normalized.maritalStatus = MARITAL_MAP[apiUser.maritalStatus] || (apiUser.maritalStatus || '');
       normalized.dateOfBirth = formatDateToInput(apiUser.dateOfBirth);
+      
+      // Ensure subscriptionTier defaults to FREE if null/undefined
+      normalized.subscriptionTier = apiUser.subscriptionTier || 'FREE';
 
-      ['income', 'complexion', 'familyValues', 'education', 'profession', 'country', 'city', 'state', 'bio', 'aboutFamily'].forEach(key => {
+      ['income', 'complexion', 'familyValues', 'education', 'profession', 'country', 'city', 'state', 'bio', 'aboutFamily', 'raasi', 'natchathiram', 'dhosam', 'birthDate', 'birthTime', 'birthPlace'].forEach(key => {
         if (normalized[key] === null || typeof normalized[key] === 'undefined') normalized[key] = '';
       });
 
@@ -369,13 +382,163 @@ const Profile = () => {
       
       setIsCropDialogOpen(false);
       setImageToCrop(null);
-      toast.success('Profile photo updated successfully!');
+      setIsEditingPhoto(true);
+      setPhotoScale(1);
+      setPhotoPosX(0);
+      setPhotoPosY(0);
+      toast.success('Profile photo updated! Adjust zoom and position as needed.');
     } catch (error) {
       setError(error.response?.data?.error || 'Failed to upload photo');
       toast.error('Failed to upload photo');
     } finally {
       setUploading(false);
     }
+  };
+
+  // ============ PROFILE PHOTO ZOOM/PAN ADJUSTMENTS ============
+  const minScale = 0.5;
+  const maxScale = 5;
+  const zoomIntensity = 0.1;
+  
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+
+  const handleZoomIn = () => {
+    setPhotoScale(prev => Math.min(prev + zoomIntensity, maxScale));
+  };
+
+  const handleZoomOut = () => {
+    setPhotoScale(prev => Math.max(prev - zoomIntensity, minScale));
+  };
+
+  const handleWheel = (e) => {
+    if (!isEditingPhoto) return;
+    e.preventDefault();
+    
+    const rect = photoWrapper.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    const prevScale = photoScale;
+    let newScale = photoScale;
+    
+    if (e.deltaY < 0) {
+      newScale = Math.min(photoScale + zoomIntensity, maxScale);
+    } else {
+      newScale = Math.max(photoScale - zoomIntensity, minScale);
+    }
+    
+    const scaleFactor = newScale / prevScale;
+    
+    setPhotoPosX(prevX => mouseX - (mouseX - prevX) * scaleFactor);
+    setPhotoPosY(prevY => mouseY - (mouseY - prevY) * scaleFactor);
+    setPhotoScale(newScale);
+  };
+
+  const handleMouseDown = (e) => {
+    if (!isEditingPhoto) return;
+    isDragging = true;
+    startX = e.clientX - photoPosX;
+    startY = e.clientY - photoPosY;
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging || !isEditingPhoto) return;
+    setPhotoPosX(e.clientX - startX);
+    setPhotoPosY(e.clientY - startY);
+  };
+
+  const handleMouseUp = () => {
+    isDragging = false;
+  };
+
+  const resetPhotoAdjustments = () => {
+    setPhotoScale(1);
+    setPhotoPosX(0);
+    setPhotoPosY(0);
+  };
+
+  const savePhotoAdjustments = async () => {
+    try {
+      setUploading(true);
+      const response = await profileService.saveProfilePhotoAdjustments({
+        scale: photoScale,
+        x: photoPosX,
+        y: photoPosY
+      });
+      
+      setProfileData(prev => ({
+        ...prev,
+        profilePhotoScale: response.user.profilePhotoScale,
+        profilePhotoX: response.user.profilePhotoX,
+        profilePhotoY: response.user.profilePhotoY
+      }));
+      
+      setIsEditingPhoto(false);
+      toast.success('Photo adjustments saved successfully!');
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to save adjustments');
+      toast.error('Failed to save adjustments');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Initialize photo adjustments from profile data
+  useEffect(() => {
+    if (profileData?.profilePhotoScale !== undefined) {
+      setPhotoScale(profileData.profilePhotoScale || 1);
+    }
+    if (profileData?.profilePhotoX !== undefined) {
+      setPhotoPosX(profileData.profilePhotoX || 0);
+    }
+    if (profileData?.profilePhotoY !== undefined) {
+      setPhotoPosY(profileData.profilePhotoY || 0);
+    }
+  }, [profileData]);
+
+  // Add/remove event listeners for photo editing
+  useEffect(() => {
+    if (photoWrapper) {
+      if (isEditingPhoto) {
+        photoWrapper.addEventListener('wheel', handleWheel, { passive: false });
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      } else {
+        photoWrapper.removeEventListener('wheel', handleWheel);
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      }
+    }
+    
+    return () => {
+      if (photoWrapper) {
+        photoWrapper.removeEventListener('wheel', handleWheel);
+      }
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isEditingPhoto, photoWrapper, photoPosX, photoPosY, photoScale]);
+
+  // Handle photo upload - enable editing mode
+  const handleNewPhotoUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImageToCrop(e.target.result);
+        setCrop({ x: 0, y: 0 });
+        setZoom(1);
+        setIsCropDialogOpen(true);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Override handleProfilePhotoSelect to enable editing mode after upload
+  const handleProfilePhotoSelectWrapper = (event) => {
+    handleNewPhotoUpload(event);
   };
 
   const handleGalleryUpload = async (event) => {
@@ -502,9 +665,11 @@ const Profile = () => {
             <Box mb={2}>
               {profileData?.profilePhoto ? (
                 <Box
+                  id="photo-wrapper"
+                  ref={setPhotoWrapper}
                   sx={{
-                    width: 150,
-                    height: 150,
+                    width: 180,
+                    height: 180,
                     margin: '0 auto',
                     borderRadius: '50%',
                     border: '4px solid #8B5CF6',
@@ -512,13 +677,25 @@ const Profile = () => {
                     bgcolor: '#f5f5f5',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    cursor: isEditingPhoto ? 'grab' : 'default',
+                    position: 'relative',
+                    '&:active': {
+                      cursor: isEditingPhoto ? 'grabbing' : 'default'
+                    }
                   }}
                 >
                   <img
+                    id="profileImage"
+                    ref={setPhotoImg}
                     src={getImageUrl(profileData.profilePhoto)}
                     alt={profileData.firstName}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    style={{
+                      maxWidth: 'none',
+                      transformOrigin: '0 0',
+                      transform: `translate(${photoPosX}px, ${photoPosY}px) scale(${photoScale})`
+                    }}
+                    draggable={false}
                   />
                 </Box>
               ) : (
@@ -530,24 +707,95 @@ const Profile = () => {
               )}
             </Box>
 
+            {/* Zoom Controls - Only visible when editing */}
+            {isEditingPhoto && (
+              <Box mb={2} display="flex" justifyContent="center" gap={1}>
+                <IconButton 
+                  onClick={() => handleZoomOut()}
+                  size="small"
+                  sx={{ bgcolor: '#8B5CF6', color: 'white', '&:hover': { bgcolor: '#7C3AED' } }}
+                >
+                  <ZoomOut />
+                </IconButton>
+                <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center' }}>
+                  {Math.round(photoScale * 100)}%
+                </Typography>
+                <IconButton 
+                  onClick={() => handleZoomIn()}
+                  size="small"
+                  sx={{ bgcolor: '#8B5CF6', color: 'white', '&:hover': { bgcolor: '#7C3AED' } }}
+                >
+                  <ZoomIn />
+                </IconButton>
+              </Box>
+            )}
+
             <input
               accept="image/*"
               id="profile-photo-upload"
               type="file"
               hidden
-              onChange={handleProfilePhotoSelect}
+              onChange={handleProfilePhotoSelectWrapper}
             />
-            <label htmlFor="profile-photo-upload">
+            {!isEditingPhoto ? (
+              <label htmlFor="profile-photo-upload">
+                <Button
+                  variant="contained"
+                  component="span"
+                  startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : <CameraAlt />}
+                  fullWidth
+                  sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
+                  disabled={uploading}
+                >
+                  {uploading ? 'Uploading...' : 'Change Photo'}
+                </Button>
+              </label>
+            ) : (
               <Button
-                variant="contained"
-                component="span"
-                startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : <CameraAlt />}
+                variant="outlined"
                 fullWidth
-                sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
+                onClick={() => {
+                  setIsEditingPhoto(false);
+                  // Reset to saved values from profileData
+                  if (profileData?.profilePhotoScale !== undefined) {
+                    setPhotoScale(profileData.profilePhotoScale || 1);
+                  }
+                  if (profileData?.profilePhotoX !== undefined) {
+                    setPhotoPosX(profileData.profilePhotoX || 0);
+                  }
+                  if (profileData?.profilePhotoY !== undefined) {
+                    setPhotoPosY(profileData.profilePhotoY || 0);
+                  }
+                }}
+                disabled={uploading}
               >
-                {uploading ? 'Uploading...' : 'Change Photo'}
+                Cancel
               </Button>
-            </label>
+            )}
+
+            {/* Save/Reset Buttons - Only visible when editing */}
+            {isEditingPhoto && (
+              <Box mt={2} display="flex" gap={1}>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  onClick={resetPhotoAdjustments}
+                  size="small"
+                >
+                  Reset
+                </Button>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  onClick={savePhotoAdjustments}
+                  disabled={uploading}
+                  sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
+                  startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                >
+                  {uploading ? 'Saving...' : 'Save'}
+                </Button>
+              </Box>
+            )}
 
             {/* Verification Status */}
             <Box mt={3}>
@@ -728,7 +976,7 @@ const Profile = () => {
                   <Grid item xs={12} sm={6}>
                     <FormControl fullWidth disabled={!editingHoroscope}>
                       <InputLabel>Raasi (Moon Sign)</InputLabel>
-                      <Controller name="raasi" control={control} defaultValue={profileData?.raasi ?? ''} render={({ field }) => (
+                      <Controller name="raasi" control={control} defaultValue={profileData?.raasi || ''} render={({ field }) => (
                         <Select {...field} label="Raasi (Moon Sign)">
                           <MenuItem value="">Select Raasi</MenuItem>
                           {RAASI_CHOICES.map(rasi => (
@@ -742,7 +990,7 @@ const Profile = () => {
                   <Grid item xs={12} sm={6}>
                     <FormControl fullWidth disabled={!editingHoroscope || !selectedRasi}>
                       <InputLabel>Natchathiram (Star)</InputLabel>
-                      <Controller name="natchathiram" control={control} defaultValue={profileData?.natchathiram ?? ''} render={({ field }) => (
+                      <Controller name="natchathiram" control={control} defaultValue={profileData?.natchathiram || ''} render={({ field }) => (
                         <Select {...field} label="Natchathiram (Star)">
                           <MenuItem value="">Select Natchathiram</MenuItem>
                           {getNatchathiramForRasi(selectedRasi || profileData?.raasi).map(n => (
@@ -758,7 +1006,7 @@ const Profile = () => {
                   <Grid item xs={12} sm={6}>
                     <FormControl fullWidth disabled={!editingHoroscope}>
                       <InputLabel>Dhosam</InputLabel>
-                      <Controller name="dhosam" control={control} defaultValue={profileData?.dhosam ?? ''} render={({ field }) => (
+                      <Controller name="dhosam" control={control} defaultValue={profileData?.dhosam || ''} render={({ field }) => (
                         <Select {...field} label="Dhosam">
                           <MenuItem value="">Select Dhosam</MenuItem>
                           {DHOSAM_CHOICES.map(d => (
@@ -836,49 +1084,131 @@ const Profile = () => {
             <Paper elevation={3} style={{ padding: '2rem' }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Typography variant="h6">Subscription Plans</Typography>
+                <Chip 
+                  label={`Current: ${profileData?.subscriptionTier || 'FREE'}`} 
+                  color="success" 
+                  size="small" 
+                  icon={<CheckCircle />}
+                  variant="outlined"
+                />
               </Box>
+
+              {profileData?.subscriptionEnd && profileData?.subscriptionTier !== 'FREE' && (
+                <Alert severity="success" sx={{ mb: 3 }}>
+                  Your <strong>{profileData.subscriptionTier}</strong> plan is active until {new Date(profileData.subscriptionEnd).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}.
+                </Alert>
+              )}
 
               <Alert severity="info" sx={{ mb: 3 }}>
                 Success fee is applicable only when marriage is fixed through our platform. This follows the guidelines set by the Government of India for matrimonial services.
               </Alert>
 
               <Grid container spacing={3}>
-                {SUBSCRIPTION_TIERS.map((plan) => (
-                  <Grid item xs={12} sm={6} key={plan.id}>
-                    <Card 
-                      elevation={profileData?.subscriptionTier === plan.id ? 6 : 2}
-                      sx={{ border: profileData?.subscriptionTier === plan.id ? '2px solid #8B5CF6' : 'none' }}
-                    >
-                      <CardContent>
-                        <Typography variant="h6" color={profileData?.subscriptionTier === plan.id ? 'primary' : 'inherit'}>
-                          {plan.name}
-                        </Typography>
-                        <Typography variant="h4" fontWeight="bold">
-                          ₹{plan.price}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Success Fee: ₹{plan.successFee.toLocaleString()}
-                        </Typography>
-                        <Box mt={2}>
-                          {plan.features.map((feature, index) => (
-                            <Typography key={index} variant="body2" display="flex" alignItems="center" gap={1}>
-                              <CheckCircle fontSize="small" color="success" /> {feature}
+                {SUBSCRIPTION_TIERS.map((plan, index) => {
+                  const isCurrentPlan = (profileData?.subscriptionTier || 'FREE') === plan.id;
+                  const planNumber = index + 1;
+                  return (
+                    <Grid item xs={12} sm={6} key={plan.id}>
+                      <Card 
+                        elevation={isCurrentPlan ? 8 : 2}
+                        sx={{ 
+                          border: isCurrentPlan ? '3px solid #4CAF50' : '1px solid #e0e0e0',
+                          position: 'relative',
+                          overflow: 'visible',
+                          transition: 'all 0.3s ease',
+                          transform: isCurrentPlan ? 'scale(1.02)' : 'scale(1)',
+                          '&:hover': {
+                            transform: 'scale(1.02)',
+                            boxShadow: 6
+                          }
+                        }}
+                      >
+                        {isCurrentPlan && (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              top: -12,
+                              right: 16,
+                              bgcolor: '#4CAF50',
+                              color: 'white',
+                              px: 2,
+                              py: 0.5,
+                              borderRadius: 2,
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              boxShadow: 2,
+                              zIndex: 1
+                            }}
+                          >
+                            CURRENT PLAN
+                          </Box>
+                        )}
+                        <CardContent sx={{ pt: isCurrentPlan ? 3 : 2 }}>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Box
+                              sx={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: '50%',
+                                bgcolor: isCurrentPlan ? '#4CAF50' : '#8B5CF6',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 'bold',
+                                fontSize: '0.875rem',
+                                mr: 1
+                              }}
+                            >
+                              {planNumber}
+                            </Box>
+                            <Typography 
+                              variant="h5" 
+                              fontWeight="bold"
+                              color={isCurrentPlan ? 'success.main' : 'inherit'}
+                            >
+                              {plan.name}
                             </Typography>
-                          ))}
-                        </Box>
-                        <Button
-                          fullWidth
-                          variant={profileData?.subscriptionTier === plan.id ? "contained" : "outlined"}
-                          sx={{ mt: 2 }}
-                          onClick={() => handleUpdateSubscription(plan.id)}
-                          disabled={uploading || profileData?.subscriptionTier === plan.id}
-                        >
-                          {profileData?.subscriptionTier === plan.id ? 'Current Plan' : (uploading ? 'Updating...' : 'Select Plan')}
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
+                            {isCurrentPlan && <CheckCircle color="success" />}
+                          </Box>
+                          <Typography variant="h4" fontWeight="bold" sx={{ mt: 1, ml: 5 }}>
+                            ₹{plan.price}
+                            <Typography component="span" variant="body2" color="textSecondary" fontWeight="normal">/year</Typography>
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary" sx={{ ml: 5 }}>
+                            Success Fee: ₹{plan.successFee.toLocaleString()}
+                          </Typography>
+                          <Divider sx={{ my: 2 }} />
+                          <Box>
+                            {plan.features.map((feature, idx) => (
+                              <Typography key={idx} variant="body2" display="flex" alignItems="center" gap={1} sx={{ mb: 0.5 }}>
+                                <CheckCircle fontSize="small" color="success" /> {feature}
+                              </Typography>
+                            ))}
+                          </Box>
+                          <Button
+                            fullWidth
+                            variant={isCurrentPlan ? "contained" : "outlined"}
+                            color={isCurrentPlan ? "success" : "primary"}
+                            sx={{ 
+                              mt: 2,
+                              py: 1.5,
+                              bgcolor: isCurrentPlan ? '#4CAF50' : undefined,
+                              '&:hover': {
+                                bgcolor: isCurrentPlan ? '#388E3C' : undefined
+                              }
+                            }}
+                            onClick={() => handleUpdateSubscription(plan.id)}
+                            disabled={uploading || isCurrentPlan}
+                            startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : (isCurrentPlan ? <CheckCircle /> : null)}
+                          >
+                            {uploading ? 'Updating...' : (isCurrentPlan ? 'Current Plan' : 'Select Plan')}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  );
+                })}
               </Grid>
             </Paper>
           )}

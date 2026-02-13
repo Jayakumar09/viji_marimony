@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { 
-  getProfile, 
+const {
+  getProfile,
   updateProfile,
   updateHoroscope,
   updateFamilyBackground,
@@ -10,9 +10,10 @@ const {
   uploadDocument,
   getDocuments,
   deleteDocument,
-  uploadProfilePhoto, 
+  uploadProfilePhoto,
   uploadGalleryPhotos,
-  deletePhoto 
+  deletePhoto,
+  saveProfilePhotoAdjustments
 } = require('../controllers/profileController');
 const { authMiddleware } = require('../middleware/auth');
 const { 
@@ -87,5 +88,8 @@ router.post('/photos', (req, res, next) => {
 
 // Delete photo
 router.delete('/photo', deletePhoto);
+
+// Save profile photo adjustments
+router.put('/photo/adjustments', saveProfilePhotoAdjustments);
 
 module.exports = router;
