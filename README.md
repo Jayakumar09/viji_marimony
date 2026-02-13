@@ -401,7 +401,7 @@ Upload required documents for verification:
 
 ### Admin Dashboard Access
 - **Admin Email**: vijayalakshmijayakumar45@gmail.com
-- **Admin Password**: Admin@2024 (set in database seed)
+- **Admin Password**: Admin@2061979 (set in database seed)
 - **Note**: Only this email has admin privileges. All other registered users are treated as clients.
 
 ### User Contact Support
