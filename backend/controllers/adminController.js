@@ -3,8 +3,17 @@ const { prisma } = require('../utils/database');
 // Admin middleware
 const adminMiddleware = async (req, res, next) => {
   try {
+    const jwt = require('jsonwebtoken');
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ error: 'Access denied. No token provided.' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'admin-secret-key');
+    
     const admin = await prisma.admin.findUnique({
-      where: { id: req.admin.id }
+      where: { id: decoded.id }
     });
     
     if (!admin || !admin.isActive) {
@@ -15,6 +24,12 @@ const adminMiddleware = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Admin middleware error:', error);
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token expired' });
+    }
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -140,16 +155,40 @@ const rejectPhoto = async (req, res) => {
 // Get all users with verification status
 const getAllUsers = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search = '' } = req.query;
+    const { page = 1, limit = 20, search = '', status = 'all' } = req.query;
     const skip = (page - 1) * limit;
     
-    const where = search ? {
-      OR: [
+    // Build where clause
+    let where = {};
+    
+    // Search filter
+    if (search) {
+      where.OR = [
         { firstName: { contains: search } },
         { lastName: { contains: search } },
         { email: { contains: search } }
-      ]
-    } : {};
+      ];
+    }
+    
+    // Status filter
+    if (status && status !== 'all') {
+      switch (status) {
+        case 'active':
+          where.isActive = true;
+          break;
+        case 'inactive':
+          where.isActive = false;
+          break;
+        case 'verified':
+          where.isVerified = true;
+          break;
+        case 'premium':
+          where.isPremium = true;
+          break;
+        default:
+          break;
+      }
+    }
     
     const users = await prisma.user.findMany({
       where,
@@ -169,6 +208,7 @@ const getAllUsers = async (req, res) => {
         emailVerified: true,
         phoneVerified: true,
         isActive: true,
+        isPremium: true,
         createdAt: true
       }
     });
