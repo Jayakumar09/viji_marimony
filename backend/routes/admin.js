@@ -20,8 +20,7 @@ const {
   deleteUser,
   getUserActivityLogs,
   manualVerifyUser,
-  updateUserSubscription,
-  getVerificationDetails
+  updateUserSubscription
 } = require('../controllers/adminUserProfileController');
 
 // Admin authentication routes (simplified for demo)
@@ -88,7 +87,6 @@ router.delete('/users/:id', deleteUser);
 
 // User verification
 router.put('/users/:id/manual-verify', manualVerifyUser);
-router.get('/users/:id/verifications', getVerificationDetails);
 
 // User activity logs
 router.get('/users/:id/activity-logs', getUserActivityLogs);
