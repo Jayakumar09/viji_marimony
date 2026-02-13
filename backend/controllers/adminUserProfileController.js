@@ -5,10 +5,10 @@
  * Handles full user details, photos, gallery, documents, verifications
  * Includes block/unblock and delete user actions with activity logging
  * 
- * Security: JWT authenticated, Admin role required, Parameterized queries via Prisma
+ * Security: JWT authenticated, Admin role required, Parameterized queries via mssql
  */
 
-const { prisma } = require('../utils/database');
+const { sql, poolPromise } = require('../config/db');
 const path = require('path');
 const fs = require('fs');
 
@@ -26,70 +26,106 @@ const getAdminUserProfile = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
+    const pool = await poolPromise;
+
     // Fetch complete user profile with all related data
-    const user = await prisma.user.findUnique({
-      where: { id },
-      include: {
-        // Use photoVerifications for profile and gallery photos
-        photoVerifications: {
-          orderBy: { createdAt: 'desc' }
-        },
-        // Documents relation
-        documents: {
-          orderBy: { uploadedAt: 'desc' }
-        },
-        // Subscription relation
-        subscriptions: {
-          where: { status: 'ACTIVE' },
-          orderBy: { createdAt: 'desc' },
-          take: 1
-        },
-        // Activity counts
-        _count: {
-          select: {
-            sentInterests: true,
-            receivedInterests: true,
-            sentMessages: true,
-            receivedMessages: true
-          }
-        }
-      }
-    });
+    const userResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query(`
+        SELECT 
+          id, firstName, lastName, email, phone, gender, dateOfBirth, age,
+          community, subCaste, maritalStatus, height, weight, complexion, bio,
+          city, state, country, education, profession, income,
+          fatherName, fatherOccupation, fatherCaste, motherName, motherOccupation, motherCaste,
+          familyValues, aboutFamily, raasi, natchathiram, dhosam, birthDate, birthTime, birthPlace,
+          isVerified, emailVerified, phoneVerified, photosVerified,
+          manualVerificationStatus, manualVerificationNotes,
+          isActive, isPremium, subscriptionTier, profilePhoto,
+          createdAt, updatedAt, lastLoginAt
+        FROM Users
+        WHERE id = @UserId
+      `);
+
+    const user = userResult.recordset[0];
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Separate profile photo and gallery photos from photoVerifications
-    // First check if user has a profilePhoto URL stored directly
-    const profilePhotoUrl = user.profilePhoto;
-    const profilePhoto = profilePhotoUrl ? {
-      id: 'profile',
-      photoUrl: profilePhotoUrl,
-      photoType: 'PROFILE',
-      status: 'APPROVED',
-      createdAt: user.createdAt
-    } : (user.photoVerifications.find(photo => photo.photoType === 'PROFILE') || null);
-    
-    const galleryPhotos = user.photoVerifications.filter(photo => photo.photoType === 'PHOTO_GALLERY');
+    // Fetch profile photo (IsProfilePhoto = 1)
+    const profilePhotoResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query(`
+        SELECT TOP 1 PhotoPath, Status, UploadedAt
+        FROM UserPhotos
+        WHERE UserId = @UserId AND IsProfilePhoto = 1
+        ORDER BY UploadedAt DESC
+      `);
 
-    // Transform documents with masked ID numbers
-    const maskedDocuments = user.documents.map(doc => ({
-      ...doc,
-      // Never expose full file paths
-      documentUrl: doc.documentUrl ? `/api/admin/files/${encodeURIComponent(doc.documentUrl)}` : null
+    // Fetch gallery images
+    const galleryResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query(`
+        SELECT ImagePath, Status, UploadedAt
+        FROM UserGallery
+        WHERE UserId = @UserId
+        ORDER BY UploadedAt DESC
+      `);
+
+    // Fetch documents
+    const documentsResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query(`
+        SELECT DocumentType, DocumentPath, Status, UploadedAt
+        FROM UserDocuments
+        WHERE UserId = @UserId
+        ORDER BY UploadedAt DESC
+      `);
+
+    // Fetch subscription
+    const subscriptionResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query(`
+        SELECT TOP 1 Plan, Amount, StartDate, EndDate, Status, PaymentId
+        FROM Subscriptions
+        WHERE UserId = @UserId AND Status = 'ACTIVE'
+        ORDER BY CreatedAt DESC
+      `);
+
+    // Fetch activity counts
+    const activityResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query(`
+        SELECT 
+          (SELECT COUNT(*) FROM Interests WHERE SenderId = @UserId) as interestsSent,
+          (SELECT COUNT(*) FROM Interests WHERE ReceiverId = @UserId) as interestsReceived,
+          (SELECT COUNT(*) FROM Messages WHERE SenderId = @UserId) as messagesSent,
+          (SELECT COUNT(*) FROM Messages WHERE ReceiverId = @UserId) as messagesReceived
+      `);
+
+    // Transform profile photo
+    const profilePhoto = profilePhotoResult.recordset[0] ? {
+      id: 'profile',
+      url: profilePhotoResult.recordset[0].PhotoPath,
+      status: profilePhotoResult.recordset[0].Status || 'APPROVED',
+      createdAt: profilePhotoResult.recordset[0].UploadedAt
+    } : null;
+
+    // Transform gallery photos
+    const galleryPhotos = galleryResult.recordset.map((photo, index) => ({
+      id: `gallery_${index}`,
+      url: photo.ImagePath,
+      status: photo.Status || 'PENDING',
+      createdAt: photo.UploadedAt
     }));
 
-    // Transform photo verifications for display
-    const photoVerifications = user.photoVerifications.map(pv => ({
-      id: pv.id,
-      photoUrl: pv.photoUrl ? `/api/admin/files/${encodeURIComponent(pv.photoUrl)}` : null,
-      photoType: pv.photoType,
-      status: pv.status,
-      rejectedReason: pv.rejectedReason,
-      reviewedBy: pv.reviewedBy,
-      reviewedAt: pv.reviewedAt,
-      createdAt: pv.createdAt
+    // Transform documents with masked paths
+    const documents = documentsResult.recordset.map((doc, index) => ({
+      id: `doc_${index}`,
+      documentType: doc.DocumentType,
+      documentUrl: doc.DocumentPath,
+      status: doc.Status || 'PENDING',
+      uploadedAt: doc.UploadedAt
     }));
 
     // Build comprehensive response
@@ -118,7 +154,7 @@ const getAdminUserProfile = async (req, res) => {
         city: user.city,
         state: user.state,
         country: user.country,
-        fullLocation: `${user.city}, ${user.state}, ${user.country}`
+        fullLocation: `${user.city || ''}, ${user.state || ''}, ${user.country || ''}`
       },
 
       // Professional Details
@@ -151,45 +187,33 @@ const getAdminUserProfile = async (req, res) => {
       },
 
       // Profile Photo
-      profilePhoto: profilePhoto ? {
-        id: profilePhoto.id,
-        url: `/api/admin/files/${encodeURIComponent(profilePhoto.photoUrl)}`,
-        photoType: profilePhoto.photoType,
-        status: profilePhoto.status,
-        createdAt: profilePhoto.createdAt
-      } : null,
+      profilePhoto: profilePhoto,
 
       // Gallery Photos (grid layout ready)
-      galleryPhotos: galleryPhotos.map(photo => ({
-        id: photo.id,
-        url: `/api/admin/files/${encodeURIComponent(photo.photoUrl)}`,
-        photoType: photo.photoType,
-        status: photo.status,
-        createdAt: photo.createdAt
-      })),
+      galleryPhotos: galleryPhotos,
 
       // Documents
-      documents: maskedDocuments,
+      documents: documents,
 
       // Verification Details
       verificationDetails: {
-        isVerified: user.isVerified,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
-        photosVerified: user.photosVerified,
-        manualVerificationStatus: user.manualVerificationStatus,
-        manualVerificationNotes: user.manualVerificationNotes,
-        photoVerifications: photoVerifications
+        isVerified: user.isVerified || false,
+        emailVerified: user.emailVerified || false,
+        phoneVerified: user.phoneVerified || false,
+        photosVerified: user.photosVerified || false,
+        manualVerificationStatus: user.manualVerificationStatus || null,
+        manualVerificationNotes: user.manualVerificationNotes || null,
+        photoVerifications: []
       },
 
       // Subscription Details
-      subscriptionDetails: user.subscriptions.length > 0 ? {
-        tier: user.subscriptions[0].plan,
-        amount: user.subscriptions[0].amount,
-        startDate: user.subscriptions[0].startDate,
-        endDate: user.subscriptions[0].endDate,
-        status: user.subscriptions[0].status,
-        paymentId: user.subscriptions[0].paymentId
+      subscriptionDetails: subscriptionResult.recordset.length > 0 ? {
+        tier: subscriptionResult.recordset[0].Plan,
+        amount: subscriptionResult.recordset[0].Amount,
+        startDate: subscriptionResult.recordset[0].StartDate,
+        endDate: subscriptionResult.recordset[0].EndDate,
+        status: subscriptionResult.recordset[0].Status,
+        paymentId: subscriptionResult.recordset[0].PaymentId
       } : {
         tier: 'FREE',
         amount: 0,
@@ -211,10 +235,10 @@ const getAdminUserProfile = async (req, res) => {
 
       // Activity Stats
       activityStats: {
-        interestsSent: user._count.sentInterests,
-        interestsReceived: user._count.receivedInterests,
-        messagesSent: user._count.sentMessages,
-        messagesReceived: user._count.receivedMessages
+        interestsSent: activityResult.recordset[0].interestsSent,
+        interestsReceived: activityResult.recordset[0].interestsReceived,
+        messagesSent: activityResult.recordset[0].messagesSent,
+        messagesReceived: activityResult.recordset[0].messagesReceived
       }
     };
 
@@ -238,6 +262,53 @@ const getAdminUserProfile = async (req, res) => {
 };
 
 /**
+ * Get user photos (profile + gallery)
+ */
+const getUserPhotos = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || id === 'undefined') {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+
+    const pool = await poolPromise;
+
+    // Get profile photo
+    const profilePhotoResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query(`
+        SELECT TOP 1 PhotoPath, Status, UploadedAt
+        FROM UserPhotos
+        WHERE UserId = @UserId AND IsProfilePhoto = 1
+        ORDER BY UploadedAt DESC
+      `);
+
+    // Get gallery images
+    const galleryResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query(`
+        SELECT ImagePath, Status, UploadedAt
+        FROM UserGallery
+        WHERE UserId = @UserId
+        ORDER BY UploadedAt DESC
+      `);
+
+    res.json({
+      success: true,
+      data: {
+        profilePhoto: profilePhotoResult.recordset[0] || null,
+        gallery: galleryResult.recordset
+      }
+    });
+
+  } catch (error) {
+    console.error('Get user photos error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+/**
  * Block user account
  */
 const blockUser = async (req, res) => {
@@ -250,7 +321,14 @@ const blockUser = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const user = await prisma.user.findUnique({ where: { id } });
+    const pool = await poolPromise;
+
+    // Check if user exists
+    const userResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query('SELECT * FROM Users WHERE id = @UserId');
+
+    const user = userResult.recordset[0];
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -262,14 +340,15 @@ const blockUser = async (req, res) => {
     }
 
     // Update user status
-    await prisma.user.update({
-      where: { id },
-      data: {
-        isActive: false,
-        // Clear verification status on block
-        isVerified: false
-      }
-    });
+    await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .input('IsActive', sql.Bit, 0)
+      .input('IsVerified', sql.Bit, 0)
+      .query(`
+        UPDATE Users
+        SET isActive = @IsActive, isVerified = @IsVerified
+        WHERE id = @UserId
+      `);
 
     // Log the blocking activity
     await logAdminActivity({
@@ -311,7 +390,14 @@ const unblockUser = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const user = await prisma.user.findUnique({ where: { id } });
+    const pool = await poolPromise;
+
+    // Check if user exists
+    const userResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query('SELECT * FROM Users WHERE id = @UserId');
+
+    const user = userResult.recordset[0];
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -323,12 +409,14 @@ const unblockUser = async (req, res) => {
     }
 
     // Update user status
-    await prisma.user.update({
-      where: { id },
-      data: {
-        isActive: true
-      }
-    });
+    await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .input('IsActive', sql.Bit, 1)
+      .query(`
+        UPDATE Users
+        SET isActive = @IsActive
+        WHERE id = @UserId
+      `);
 
     // Log the unblocking activity
     await logAdminActivity({
@@ -370,7 +458,14 @@ const deleteUser = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const user = await prisma.user.findUnique({ where: { id } });
+    const pool = await poolPromise;
+
+    // Check if user exists
+    const userResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query('SELECT * FROM Users WHERE id = @UserId');
+
+    const user = userResult.recordset[0];
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -392,9 +487,9 @@ const deleteUser = async (req, res) => {
       });
 
       // Delete user (cascade will delete related records)
-      await prisma.user.delete({
-        where: { id }
-      });
+      await pool.request()
+        .input('UserId', sql.VarChar(50), id)
+        .query('DELETE FROM Users WHERE id = @UserId');
 
       res.json({
         success: true,
@@ -406,15 +501,18 @@ const deleteUser = async (req, res) => {
         }
       });
     } else {
-      // Soft delete - just mark as inactive
-      await prisma.user.update({
-        where: { id },
-        data: {
-          isActive: false,
-          // Anonymize email for GDPR compliance
-          email: `deleted_${Date.now()}_${user.id}@anonymized.com`
-        }
-      });
+      // Soft delete - just mark as inactive and anonymize email
+      const anonymizedEmail = `deleted_${Date.now()}_${user.id}@anonymized.com`;
+
+      await pool.request()
+        .input('UserId', sql.VarChar(50), id)
+        .input('Email', sql.VarChar(255), anonymizedEmail)
+        .input('IsActive', sql.Bit, 0)
+        .query(`
+          UPDATE Users
+          SET email = @Email, isActive = @IsActive
+          WHERE id = @UserId
+        `);
 
       // Log the soft deletion
       await logAdminActivity({
@@ -454,34 +552,43 @@ const getUserActivityLogs = async (req, res) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 50 } = req.query;
-    const skip = (page - 1) * limit;
 
     if (!id) {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    // Fetch admin activity logs for this user
-    const logs = await prisma.adminActivityLog.findMany({
-      where: {
-        targetUserId: id
-      },
-      skip,
-      take: parseInt(limit),
-      orderBy: { createdAt: 'desc' }
-    });
+    const pool = await poolPromise;
+    const offset = (page - 1) * limit;
 
-    const total = await prisma.adminActivityLog.count({
-      where: { targetUserId: id }
-    });
+    // Fetch admin activity logs for this user
+    const logsResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .input('Limit', sql.Int, parseInt(limit))
+      .input('Offset', sql.Int, offset)
+      .query(`
+        SELECT *
+        FROM AdminActivityLog
+        WHERE targetUserId = @UserId
+        ORDER BY createdAt DESC
+        OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
+      `);
+
+    const totalResult = await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query(`
+        SELECT COUNT(*) as total
+        FROM AdminActivityLog
+        WHERE targetUserId = @UserId
+      `);
 
     res.json({
       success: true,
-      logs,
+      logs: logsResult.recordset,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / limit)
+        total: totalResult.recordset[0].total,
+        pages: Math.ceil(totalResult.recordset[0].total / limit)
       }
     });
 
@@ -500,30 +607,28 @@ const manualVerifyUser = async (req, res) => {
     const { status, notes } = req.body;
     const adminId = req.admin.id;
 
-    if (!id || !status) {
-      return res.status(400).json({ error: 'User ID and status are required' });
+    if (!id) {
+      return res.status(400).json({ error: 'User ID is required' });
     }
 
-    // Validate status
-    if (!['APPROVED', 'REJECTED'].includes(status)) {
-      return res.status(400).json({ error: 'Status must be APPROVED or REJECTED' });
-    }
-
-    const user = await prisma.user.findUnique({ where: { id } });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const pool = await poolPromise;
 
     // Update user verification status
-    await prisma.user.update({
-      where: { id },
-      data: {
-        manualVerificationStatus: status,
-        manualVerificationNotes: notes || null,
-        isVerified: status === 'APPROVED'
-      }
-    });
+    await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .input('IsVerified', sql.Bit, status === 'APPROVED')
+      .input('ManualStatus', sql.VarChar(50), status)
+      .input('ManualNotes', sql.Text, notes || null)
+      .input('ReviewedBy', sql.VarChar(50), adminId)
+      .query(`
+        UPDATE Users
+        SET isVerified = @IsVerified, 
+            manualVerificationStatus = @ManualStatus,
+            manualVerificationNotes = @ManualNotes,
+            reviewedBy = @ReviewedBy,
+            reviewedAt = GETDATE()
+        WHERE id = @UserId
+      `);
 
     // Log the verification action
     await logAdminActivity({
@@ -531,20 +636,15 @@ const manualVerifyUser = async (req, res) => {
       action: 'MANUAL_VERIFY_USER',
       targetUserId: id,
       details: {
-        verificationStatus: status,
-        notes: notes || null,
+        status: status,
+        notes: notes,
         verifiedAt: new Date()
       }
     });
 
     res.json({
       success: true,
-      message: `User verification ${status.toLowerCase()}`,
-      user: {
-        id: user.id,
-        name: `${user.firstName} ${user.lastName}`,
-        verificationStatus: status
-      }
+      message: `User verification ${status.toLowerCase()} successfully`
     });
 
   } catch (error) {
@@ -554,77 +654,76 @@ const manualVerifyUser = async (req, res) => {
 };
 
 /**
- * Update user subscription (upgrade/downgrade)
+ * Update user subscription
  */
-const updateUserSubscription = async (req, res) => {
+const updateSubscription = async (req, res) => {
   try {
     const { id } = req.params;
-    const { plan, reason } = req.body;
+    const { plan } = req.body;
     const adminId = req.admin.id;
 
-    if (!id || !plan) {
-      return res.status(400).json({ error: 'User ID and plan are required' });
+    if (!id) {
+      return res.status(400).json({ error: 'User ID is required' });
     }
 
-    // Valid plans
-    const VALID_PLANS = ['FREE', 'STANDARD', 'PREMIUM', 'ELITE'];
-    if (!VALID_PLANS.includes(plan.toUpperCase())) {
-      return res.status(400).json({ error: 'Invalid subscription plan' });
-    }
+    const pool = await poolPromise;
 
-    const user = await prisma.user.findUnique({ where: { id } });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Calculate dates
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setFullYear(endDate.getFullYear() + 1); // 1 year subscription
-
-    const planPrices = {
-      FREE: 0,
-      STANDARD: 999,
-      PREMIUM: 2499,
-      ELITE: 4999
+    // Get plan amount
+    const planAmounts = {
+      'FREE': 0,
+      'STANDARD': 999,
+      'PREMIUM': 1999,
+      'ELITE': 3999
     };
 
-    // Create new subscription record
-    const subscription = await prisma.subscription.create({
-      data: {
-        userId: id,
-        plan: plan.toUpperCase(),
-        amount: planPrices[plan.toUpperCase()],
-        startDate,
-        endDate,
-        paymentId: `ADMIN_${Date.now()}`,
-        successFee: planPrices[plan.toUpperCase()] * 0.1,
-        status: 'ACTIVE'
-      }
-    });
+    const amount = planAmounts[plan] || 0;
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setMonth(endDate.getMonth() + (plan === 'FREE' ? 0 : 3));
 
-    // Update user subscription fields
-    await prisma.user.update({
-      where: { id },
-      data: {
-        subscriptionTier: plan.toUpperCase(),
-        subscriptionStart: startDate,
-        subscriptionEnd: endDate,
-        isPremium: plan.toUpperCase() !== 'FREE',
-        successFee: planPrices[plan.toUpperCase()] * 0.1
-      }
-    });
+    // Deactivate old subscription
+    await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .query(`
+        UPDATE Subscriptions
+        SET status = 'INACTIVE'
+        WHERE UserId = @UserId AND status = 'ACTIVE'
+      `);
 
-    // Log subscription update
+    // Create new subscription
+    await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .input('Plan', sql.VarChar(50), plan)
+      .input('Amount', sql.Decimal(10, 2), amount)
+      .input('StartDate', sql.DateTime, startDate)
+      .input('EndDate', sql.DateTime, endDate)
+      .input('Status', sql.VarChar(50), 'ACTIVE')
+      .input('PaymentId', sql.VarChar(100), `ADMIN_${Date.now()}`)
+      .query(`
+        INSERT INTO Subscriptions (UserId, Plan, Amount, StartDate, EndDate, Status, PaymentId, CreatedAt)
+        VALUES (@UserId, @Plan, @Amount, @StartDate, @EndDate, @Status, @PaymentId, GETDATE())
+      `);
+
+    // Update user subscription tier
+    const isPremium = plan !== 'FREE';
+    await pool.request()
+      .input('UserId', sql.VarChar(50), id)
+      .input('IsPremium', sql.Bit, isPremium)
+      .input('SubscriptionTier', sql.VarChar(50), plan)
+      .query(`
+        UPDATE Users
+        SET isPremium = @IsPremium, subscriptionTier = @SubscriptionTier
+        WHERE id = @UserId
+      `);
+
+    // Log the subscription update
     await logAdminActivity({
       adminId,
-      action: 'UPDATE_USER_SUBSCRIPTION',
+      action: 'UPDATE_SUBSCRIPTION',
       targetUserId: id,
       details: {
-        previousPlan: user.subscriptionTier || 'FREE',
-        newPlan: plan.toUpperCase(),
-        reason: reason || 'Admin update',
+        plan: plan,
+        amount: amount,
         updatedAt: new Date()
       }
     });
@@ -633,116 +732,46 @@ const updateUserSubscription = async (req, res) => {
       success: true,
       message: 'Subscription updated successfully',
       subscription: {
-        plan: plan.toUpperCase(),
-        startDate,
-        endDate,
-        amount: planPrices[plan.toUpperCase()]
+        plan: plan,
+        amount: amount,
+        startDate: startDate,
+        endDate: endDate
       }
     });
 
   } catch (error) {
-    console.error('Update user subscription error:', error);
+    console.error('Update subscription error:', error);
     res.status(500).json({ error: 'Failed to update subscription' });
   }
 };
 
 /**
- * Helper function to log admin activities
- * Creates activity log entries for audit trail
+ * Log admin activity
  */
 const logAdminActivity = async ({ adminId, action, targetUserId, details }) => {
   try {
-    await prisma.adminActivityLog.create({
-      data: {
-        adminId,
-        action,
-        targetUserId,
-        details: JSON.stringify(details),
-        ipAddress: 'ADMIN_PANEL', // In production, capture actual IP
-        userAgent: 'ADMIN_PANEL'
-      }
-    });
+    const pool = await poolPromise;
+    await pool.request()
+      .input('AdminId', sql.VarChar(50), adminId)
+      .input('Action', sql.VarChar(100), action)
+      .input('TargetUserId', sql.VarChar(50), targetUserId)
+      .input('Details', sql.Text, JSON.stringify(details))
+      .query(`
+        INSERT INTO AdminActivityLog (adminId, action, targetUserId, details, createdAt)
+        VALUES (@AdminId, @Action, @TargetUserId, @Details, GETDATE())
+      `);
   } catch (error) {
     console.error('Log admin activity error:', error);
-    // Don't throw - logging failure shouldn't break main operation
-  }
-};
-
-/**
- * Get verification document details
- */
-const getVerificationDetails = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    // Fetch photo verifications
-    const photoVerifications = await prisma.photoVerification.findMany({
-      where: { userId: id },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    // Fetch documents
-    const documents = await prisma.document.findMany({
-      where: { userId: id },
-      orderBy: { uploadedAt: 'desc' }
-    });
-
-    // Calculate verification stats
-    const pendingPhotos = photoVerifications.filter(pv => pv.status === 'PENDING').length;
-    const approvedPhotos = photoVerifications.filter(pv => pv.status === 'APPROVED').length;
-    const rejectedPhotos = photoVerifications.filter(pv => pv.status === 'REJECTED').length;
-
-    const pendingDocs = documents.filter(d => d.status === 'PENDING').length;
-    const approvedDocs = documents.filter(d => d.status === 'APPROVED').length;
-    const rejectedDocs = documents.filter(d => d.status === 'REJECTED').length;
-
-    res.json({
-      success: true,
-      data: {
-        photoVerifications: photoVerifications.map(pv => ({
-          id: pv.id,
-          photoUrl: pv.photoUrl ? `/api/admin/files/${encodeURIComponent(pv.photoUrl)}` : null,
-          photoType: pv.photoType,
-          status: pv.status,
-          rejectedReason: pv.rejectedReason,
-          reviewedBy: pv.reviewedBy,
-          reviewedAt: pv.reviewedAt,
-          createdAt: pv.createdAt
-        })),
-        documents: documents.map(doc => ({
-          id: doc.id,
-          documentType: doc.documentType,
-          documentUrl: doc.documentUrl ? `/api/admin/files/${encodeURIComponent(doc.documentUrl)}` : null,
-          status: doc.status,
-          rejectedReason: doc.rejectedReason,
-          reviewedBy: doc.reviewedBy,
-          reviewedAt: doc.reviewedAt,
-          uploadedAt: doc.uploadedAt
-        })),
-        stats: {
-          photos: { pending: pendingPhotos, approved: approvedPhotos, rejected: rejectedPhotos },
-          documents: { pending: pendingDocs, approved: approvedDocs, rejected: rejectedDocs }
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error('Get verification details error:', error);
-    res.status(500).json({ error: 'Failed to fetch verification details' });
   }
 };
 
 module.exports = {
   getAdminUserProfile,
+  getUserPhotos,
   blockUser,
   unblockUser,
   deleteUser,
   getUserActivityLogs,
   manualVerifyUser,
-  updateUserSubscription,
-  getVerificationDetails
+  updateSubscription
 };

@@ -204,12 +204,45 @@ const AdminUserProfile = () => {
     });
   };
 
+  // Helper function to get full image URL
+  const getFullImageUrl = (url) => {
+    if (!url) return '';
+    
+    // If already a full URL (Cloudinary or external), return as-is
+    if (url.startsWith('http')) return url;
+    
+    // If it's a file:// URL, extract the filename
+    if (url.startsWith('file://')) {
+      const filename = url.split('/').pop();
+      return `http://localhost:5001/uploads/${filename}`;
+    }
+    
+    // If contains Windows path
+    if (url.includes('D:/') || url.includes('D:\\')) {
+      const filename = url.split(/[\\/]/).pop();
+      return `http://localhost:5001/uploads/${filename}`;
+    }
+    
+    // If it's a path starting with /uploads/
+    if (url.startsWith('/uploads/')) {
+      return `http://localhost:5001${url}`;
+    }
+    
+    // If it's just a filename
+    if (!url.includes('/') && !url.includes('\\')) {
+      return `http://localhost:5001/uploads/${url}`;
+    }
+    
+    // Otherwise use as-is
+    return url;
+  };
+
   // Loading state
   if (loading) {
     return (
       <Box sx={{ width: '100%', p: 3 }}>
         <LinearProgress />
-        <Typography sx={{ mt: 2, textAlign: 'center' }}>Loading user profile...</Typography>
+        <Typography sx={{ mt: 2, textAlign: 'center', color: 'white' }}>Loading user profile...</Typography>
       </Box>
     );
   }
@@ -219,7 +252,7 @@ const AdminUserProfile = () => {
     return (
       <Box sx={{ p: 3 }}>
         <Alert severity="error">{error}</Alert>
-        <Button startIcon={<ArrowBack />} onClick={() => navigate('/admin/users')} sx={{ mt: 2 }}>
+        <Button startIcon={<ArrowBack />} onClick={() => navigate('/admin/users')} sx={{ mt: 2, color: 'white' }}>
           Back to Users
         </Button>
       </Box>
@@ -231,7 +264,7 @@ const AdminUserProfile = () => {
     return (
       <Box sx={{ p: 3 }}>
         <Alert severity="warning">User profile not found</Alert>
-        <Button startIcon={<ArrowBack />} onClick={() => navigate('/admin/users')} sx={{ mt: 2 }}>
+        <Button startIcon={<ArrowBack />} onClick={() => navigate('/admin/users')} sx={{ mt: 2, color: 'white' }}>
           Back to Users
         </Button>
       </Box>
@@ -249,7 +282,7 @@ const AdminUserProfile = () => {
         <IconButton onClick={() => navigate('/admin/users')} sx={{ color: 'white' }}>
           <ArrowBack />
         </IconButton>
-        <Typography variant="h5" fontWeight="bold" sx={{ flex: 1 }}>
+        <Typography variant="h5" fontWeight="bold" sx={{ flex: 1, color: 'white' }}>
           User Profile Details
         </Typography>
         <Chip
@@ -271,16 +304,16 @@ const AdminUserProfile = () => {
           <Grid container spacing={3} alignItems="center">
             <Grid item xs={12} md={3} sx={{ textAlign: 'center' }}>
               <Avatar
-                src={profilePhoto?.url || undefined}
+                src={getFullImageUrl(profilePhoto?.url) || undefined}
                 sx={{ width: 120, height: 120, mx: 'auto', mb: 2, bgcolor: '#8B5CF6', fontSize: 48 }}
               >
                 {personalDetails.firstName?.charAt(0)}
               </Avatar>
-              <Typography variant="h5" fontWeight="bold">
+              <Typography variant="h5" fontWeight="bold" sx={{ color: 'white' }}>
                 {personalDetails.firstName} {personalDetails.lastName}
               </Typography>
               <Typography variant="body2" sx={{ color: '#94a3b8' }}>
-                ID: {personalDetails.id.slice(-8)}
+                ID: {personalDetails.id?.slice(-8)}
               </Typography>
               <Chip
                 label={verificationDetails.isVerified ? 'Verified' : 'Unverified'}
@@ -294,45 +327,45 @@ const AdminUserProfile = () => {
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6} md={4}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Email sx={{ color: '#8B5CF6', fontSize: 20 }} />
-                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>Email</Typography>
+                    <Email sx={{ color: '#a78bfa', fontSize: 20 }} />
+                    <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Email</Typography>
                   </Box>
-                  <Typography>{personalDetails.email}</Typography>
+                  <Typography sx={{ color: 'white' }}>{personalDetails.email}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Phone sx={{ color: '#8B5CF6', fontSize: 20 }} />
-                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>Phone</Typography>
+                    <Phone sx={{ color: '#a78bfa', fontSize: 20 }} />
+                    <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Phone</Typography>
                   </Box>
-                  <Typography>{personalDetails.phone}</Typography>
+                  <Typography sx={{ color: 'white' }}>{personalDetails.phone}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <CalendarToday sx={{ color: '#8B5CF6', fontSize: 20 }} />
-                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>DOB / Age</Typography>
+                    <CalendarToday sx={{ color: '#a78bfa', fontSize: 20 }} />
+                    <Typography variant="body2" sx={{ color: '#cbd5e1' }}>DOB / Age</Typography>
                   </Box>
-                  <Typography>{formatDate(personalDetails.dateOfBirth)} ({personalDetails.age} years)</Typography>
+                  <Typography sx={{ color: 'white' }}>{formatDate(personalDetails.dateOfBirth)} ({personalDetails.age} years)</Typography>
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <LocationOn sx={{ color: '#8B5CF6', fontSize: 20 }} />
-                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>Location</Typography>
+                    <LocationOn sx={{ color: '#a78bfa', fontSize: 20 }} />
+                    <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Location</Typography>
                   </Box>
-                  <Typography>{locationDetails.fullLocation}</Typography>
+                  <Typography sx={{ color: 'white' }}>{locationDetails.fullLocation}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Person sx={{ color: '#8B5CF6', fontSize: 20 }} />
-                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>Gender / Marital</Typography>
+                    <Person sx={{ color: '#a78bfa', fontSize: 20 }} />
+                    <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Gender / Marital</Typography>
                   </Box>
-                  <Typography>{personalDetails.gender} / {personalDetails.maritalStatus}</Typography>
+                  <Typography sx={{ color: 'white' }}>{personalDetails.gender} / {personalDetails.maritalStatus}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <BadgeIcon sx={{ color: '#8B5CF6', fontSize: 20 }} />
-                    <Typography variant="body2" sx={{ color: '#94a3b8' }}>Community</Typography>
+                    <BadgeIcon sx={{ color: '#a78bfa', fontSize: 20 }} />
+                    <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Community</Typography>
                   </Box>
-                  <Typography>{personalDetails.community} {personalDetails.subCaste && `/ ${personalDetails.subCaste}`}</Typography>
+                  <Typography sx={{ color: 'white' }}>{personalDetails.community} {personalDetails.subCaste && `/ ${personalDetails.subCaste}`}</Typography>
                 </Grid>
               </Grid>
             </Grid>
@@ -415,7 +448,7 @@ const AdminUserProfile = () => {
             <Grid container spacing={3}>
               {/* Professional Details */}
               <Grid item xs={12} md={6}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: 'white' }}>
                   <Work sx={{ color: '#8B5CF6' }} /> Professional Details
                 </Typography>
                 <TableContainer component={Paper} sx={{ bgcolor: '#1e293b' }}>
@@ -423,15 +456,15 @@ const AdminUserProfile = () => {
                     <TableBody>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Education</TableCell>
-                        <TableCell>{professionalDetails.education}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{professionalDetails.education}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Profession</TableCell>
-                        <TableCell>{professionalDetails.profession}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{professionalDetails.profession}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Income</TableCell>
-                        <TableCell>{professionalDetails.income}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{professionalDetails.income}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -440,7 +473,7 @@ const AdminUserProfile = () => {
 
               {/* Physical Attributes */}
               <Grid item xs={12} md={6}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: 'white' }}>
                   <Person sx={{ color: '#8B5CF6' }} /> Physical Attributes
                 </Typography>
                 <TableContainer component={Paper} sx={{ bgcolor: '#1e293b' }}>
@@ -448,15 +481,15 @@ const AdminUserProfile = () => {
                     <TableBody>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Height</TableCell>
-                        <TableCell>{personalDetails.height}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{personalDetails.height}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Weight</TableCell>
-                        <TableCell>{personalDetails.weight}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{personalDetails.weight}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Complexion</TableCell>
-                        <TableCell>{personalDetails.complexion}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{personalDetails.complexion}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -465,7 +498,7 @@ const AdminUserProfile = () => {
 
               {/* Family Details */}
               <Grid item xs={12} md={6}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: 'white' }}>
                   <FamilyRestroom sx={{ color: '#8B5CF6' }} /> Family Details
                 </Typography>
                 <TableContainer component={Paper} sx={{ bgcolor: '#1e293b' }}>
@@ -473,23 +506,23 @@ const AdminUserProfile = () => {
                     <TableBody>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Father Name</TableCell>
-                        <TableCell>{familyDetails.fatherName}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{familyDetails.fatherName}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Father Occupation</TableCell>
-                        <TableCell>{familyDetails.fatherOccupation}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{familyDetails.fatherOccupation}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Mother Name</TableCell>
-                        <TableCell>{familyDetails.motherName}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{familyDetails.motherName}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Family Values</TableCell>
-                        <TableCell>{familyDetails.familyValues}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{familyDetails.familyValues}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>About Family</TableCell>
-                        <TableCell>{familyDetails.aboutFamily}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{familyDetails.aboutFamily}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -498,7 +531,7 @@ const AdminUserProfile = () => {
 
               {/* Horoscope Details */}
               <Grid item xs={12} md={6}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: 'white' }}>
                   <Star sx={{ color: '#8B5CF6' }} /> Horoscope Details
                 </Typography>
                 <TableContainer component={Paper} sx={{ bgcolor: '#1e293b' }}>
@@ -506,23 +539,23 @@ const AdminUserProfile = () => {
                     <TableBody>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Raasi</TableCell>
-                        <TableCell>{horoscopeDetails.raasi}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{horoscopeDetails.raasi}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Natchathiram</TableCell>
-                        <TableCell>{horoscopeDetails.natchathiram}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{horoscopeDetails.natchathiram}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Dhosam</TableCell>
-                        <TableCell>{horoscopeDetails.dhosam}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{horoscopeDetails.dhosam}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Birth Time</TableCell>
-                        <TableCell>{horoscopeDetails.birthTime}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{horoscopeDetails.birthTime}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>Birth Place</TableCell>
-                        <TableCell>{horoscopeDetails.birthPlace}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{horoscopeDetails.birthPlace}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -531,9 +564,9 @@ const AdminUserProfile = () => {
 
               {/* Bio */}
               <Grid item xs={12}>
-                <Typography variant="h6" sx={{ mb: 2 }}>Bio</Typography>
+                <Typography variant="h6" sx={{ mb: 2, color: 'white' }}>Bio</Typography>
                 <Paper sx={{ p: 2, bgcolor: '#1e293b' }}>
-                  <Typography>{personalDetails.bio || 'No bio provided'}</Typography>
+                  <Typography sx={{ color: 'white' }}>{personalDetails.bio || 'No bio provided'}</Typography>
                 </Paper>
               </Grid>
             </Grid>
@@ -541,46 +574,52 @@ const AdminUserProfile = () => {
 
           {/* Photos Tab */}
           <TabPanel value={activeTab} index={1}>
-            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <PhotoCamera sx={{ color: '#8B5CF6' }} /> Profile Photo
+            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: 'white' }}>
+              <PhotoCamera sx={{ color: '#a78bfa' }} /> Profile Photo
             </Typography>
             {profilePhoto ? (
-              <Card sx={{ maxWidth: 400, mb: 4, bgcolor: '#1e293b' }}>
+              <Card sx={{ maxWidth: 400, mb: 4, bgcolor: '#334155', borderRadius: 2 }}>
                 <CardMedia
                   component="img"
-                  image={profilePhoto.url}
+                  image={getFullImageUrl(profilePhoto.url)}
                   alt="Profile photo"
                   sx={{ height: 300, objectFit: 'cover' }}
+                  onError={(e) => {
+                    e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"%3E%3Cpath d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/%3E%3C/svg%3E';
+                  }}
                 />
                 <CardContent>
-                  <Chip label={profilePhoto.status} color={getVerificationBadgeColor(profilePhoto.status)} size="small" />
-                  <Typography variant="caption" sx={{ ml: 1, color: '#94a3b8' }}>
+                  <Chip label={profilePhoto.status} color={getVerificationBadgeColor(profilePhoto.status)} size="small" sx={{ color: 'white' }} />
+                  <Typography variant="caption" sx={{ ml: 1, color: '#cbd5e1' }}>
                     Uploaded: {formatDate(profilePhoto.createdAt)}
                   </Typography>
                 </CardContent>
               </Card>
             ) : (
-              <Alert severity="warning" sx={{ mb: 4 }}>No profile photo uploaded</Alert>
+              <Alert severity="warning" sx={{ mb: 4, bgcolor: '#334155', color: '#fbbf24' }}>No profile photo uploaded</Alert>
             )}
 
-            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <PhotoCamera sx={{ color: '#8B5CF6' }} /> Gallery Photos ({galleryPhotos?.length || 0})
+            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: 'white' }}>
+              <PhotoCamera sx={{ color: '#a78bfa' }} /> Gallery Photos ({galleryPhotos?.length || 0})
             </Typography>
             {galleryPhotos && galleryPhotos.length > 0 ? (
               <Grid container spacing={2}>
                 {galleryPhotos.map((photo) => (
                   <Grid item xs={12} sm={6} md={4} lg={3} key={photo.id}>
-                    <Card sx={{ bgcolor: '#1e293b', overflow: 'hidden' }}>
+                    <Card sx={{ bgcolor: '#334155', borderRadius: 2, overflow: 'hidden' }}>
                       <CardMedia
                         component="img"
-                        image={photo.url}
+                        image={getFullImageUrl(photo.url)}
                         alt="Gallery photo"
                         sx={{ height: 200, objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"%3E%3Cpath d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/%3E%3C/svg%3E';
+                        }}
                       />
-                      <CardContent sx={{ p: 1 }}>
+                      <CardContent sx={{ p: 1.5 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Chip label={photo.status} color={getVerificationBadgeColor(photo.status)} size="small" />
-                          <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                          <Chip label={photo.status} color={getVerificationBadgeColor(photo.status)} size="small" sx={{ color: 'white' }} />
+                          <Typography variant="caption" sx={{ color: '#cbd5e1' }}>
                             {formatDate(photo.createdAt)}
                           </Typography>
                         </Box>
@@ -590,41 +629,42 @@ const AdminUserProfile = () => {
                 ))}
               </Grid>
             ) : (
-              <Alert severity="info">No gallery photos uploaded</Alert>
+              <Alert severity="info" sx={{ bgcolor: '#334155', color: '#60a5fa' }}>No gallery photos uploaded</Alert>
             )}
           </TabPanel>
 
           {/* Documents Tab */}
           <TabPanel value={activeTab} index={2}>
-            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Description sx={{ color: '#8B5CF6' }} /> Uploaded Documents ({documents?.length || 0})
+            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: 'white' }}>
+              <Description sx={{ color: '#a78bfa' }} /> Uploaded Documents ({documents?.length || 0})
             </Typography>
             {documents && documents.length > 0 ? (
-              <TableContainer component={Paper} sx={{ bgcolor: '#1e293b' }}>
+              <TableContainer component={Paper} sx={{ bgcolor: '#334155', borderRadius: 2 }}>
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ color: '#94a3b8' }}>Type</TableCell>
-                      <TableCell sx={{ color: '#94a3b8' }}>Status</TableCell>
-                      <TableCell sx={{ color: '#94a3b8' }}>Uploaded</TableCell>
-                      <TableCell sx={{ color: '#94a3b8' }}>Actions</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Type</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Status</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Uploaded</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {documents.map((doc) => (
                       <TableRow key={doc.id}>
-                        <TableCell>{doc.documentType}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{doc.documentType}</TableCell>
                         <TableCell>
-                          <Chip label={doc.status} color={getVerificationBadgeColor(doc.status)} size="small" />
+                          <Chip label={doc.status} color={getVerificationBadgeColor(doc.status)} size="small" sx={{ color: 'white' }} />
                         </TableCell>
-                        <TableCell>{formatDate(doc.uploadedAt)}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{formatDate(doc.uploadedAt)}</TableCell>
                         <TableCell>
                           {doc.documentUrl && (
                             <Button
                               size="small"
                               variant="outlined"
-                              href={doc.documentUrl}
+                              href={getFullImageUrl(doc.documentUrl)}
                               target="_blank"
+                              sx={{ color: '#a78bfa', borderColor: '#a78bfa' }}
                             >
                               Preview
                             </Button>
@@ -636,7 +676,7 @@ const AdminUserProfile = () => {
                 </Table>
               </TableContainer>
             ) : (
-              <Alert severity="info">No documents uploaded</Alert>
+              <Alert severity="info" sx={{ bgcolor: '#334155', color: '#60a5fa' }}>No documents uploaded</Alert>
             )}
           </TabPanel>
 
@@ -644,55 +684,55 @@ const AdminUserProfile = () => {
           <TabPanel value={activeTab} index={3}>
             <Grid container spacing={3}>
               <Grid item xs={12}>
-                <Typography variant="h6" sx={{ mb: 2 }}>Verification Status</Typography>
+                <Typography variant="h6" sx={{ mb: 2, color: 'white' }}>Verification Status</Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={6} sm={3}>
-                    <Card sx={{ bgcolor: '#1e293b', p: 2, textAlign: 'center' }}>
+                    <Card sx={{ bgcolor: '#334155', p: 2, textAlign: 'center', borderRadius: 2 }}>
                       <Typography variant="h4" color={verificationDetails.emailVerified ? 'success' : 'error'}>
                         {verificationDetails.emailVerified ? <Check /> : <Close />}
                       </Typography>
-                      <Typography variant="body2">Email Verified</Typography>
+                      <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Email Verified</Typography>
                     </Card>
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <Card sx={{ bgcolor: '#1e293b', p: 2, textAlign: 'center' }}>
+                    <Card sx={{ bgcolor: '#334155', p: 2, textAlign: 'center', borderRadius: 2 }}>
                       <Typography variant="h4" color={verificationDetails.phoneVerified ? 'success' : 'error'}>
                         {verificationDetails.phoneVerified ? <Check /> : <Close />}
                       </Typography>
-                      <Typography variant="body2">Phone Verified</Typography>
+                      <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Phone Verified</Typography>
                     </Card>
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <Card sx={{ bgcolor: '#1e293b', p: 2, textAlign: 'center' }}>
+                    <Card sx={{ bgcolor: '#334155', p: 2, textAlign: 'center', borderRadius: 2 }}>
                       <Typography variant="h4" color={verificationDetails.photosVerified ? 'success' : 'error'}>
                         {verificationDetails.photosVerified ? <Check /> : <Close />}
                       </Typography>
-                      <Typography variant="body2">Photos Verified</Typography>
+                      <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Photos Verified</Typography>
                     </Card>
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <Card sx={{ bgcolor: '#1e293b', p: 2, textAlign: 'center' }}>
+                    <Card sx={{ bgcolor: '#334155', p: 2, textAlign: 'center', borderRadius: 2 }}>
                       <Typography variant="h4" color={verificationDetails.isVerified ? 'success' : 'warning'}>
                         {verificationDetails.isVerified ? <VerifiedUser /> : <Warning />}
                       </Typography>
-                      <Typography variant="body2">Overall Status</Typography>
+                      <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Overall Status</Typography>
                     </Card>
                   </Grid>
                 </Grid>
               </Grid>
 
               <Grid item xs={12}>
-                <Typography variant="h6" sx={{ mb: 2 }}>Photo Verification History</Typography>
+                <Typography variant="h6" sx={{ mb: 2, color: 'white' }}>Photo Verification History</Typography>
                 {verificationDetails.photoVerifications && verificationDetails.photoVerifications.length > 0 ? (
-                  <TableContainer component={Paper} sx={{ bgcolor: '#1e293b' }}>
+                  <TableContainer component={Paper} sx={{ bgcolor: '#334155', borderRadius: 2 }}>
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell sx={{ color: '#94a3b8' }}>Photo</TableCell>
-                          <TableCell sx={{ color: '#94a3b8' }}>Type</TableCell>
-                          <TableCell sx={{ color: '#94a3b8' }}>Status</TableCell>
-                          <TableCell sx={{ color: '#94a3b8' }}>Reviewed By</TableCell>
-                          <TableCell sx={{ color: '#94a3b8' }}>Date</TableCell>
+                          <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Photo</TableCell>
+                          <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Type</TableCell>
+                          <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Status</TableCell>
+                          <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Reviewed By</TableCell>
+                          <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Date</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -701,47 +741,50 @@ const AdminUserProfile = () => {
                             <TableCell>
                               {pv.photoUrl && (
                                 <Avatar
-                                  src={pv.photoUrl}
+                                  src={getFullImageUrl(pv.photoUrl)}
                                   variant="rounded"
                                   sx={{ width: 50, height: 50 }}
+                                  onError={(e) => {
+                                    e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"%3E%3Cpath d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/%3E%3C/svg%3E';
+                                  }}
                                 />
                               )}
                             </TableCell>
-                            <TableCell>{pv.photoType}</TableCell>
+                            <TableCell sx={{ color: 'white' }}>{pv.photoType}</TableCell>
                             <TableCell>
-                              <Chip label={pv.status} color={getVerificationBadgeColor(pv.status)} size="small" />
+                              <Chip label={pv.status} color={getVerificationBadgeColor(pv.status)} size="small" sx={{ color: 'white' }} />
                             </TableCell>
-                            <TableCell>{pv.reviewedBy || 'N/A'}</TableCell>
-                            <TableCell>{pv.reviewedAt ? formatDate(pv.reviewedAt) : 'Pending'}</TableCell>
+                            <TableCell sx={{ color: 'white' }}>{pv.reviewedBy || 'N/A'}</TableCell>
+                            <TableCell sx={{ color: 'white' }}>{pv.reviewedAt ? formatDate(pv.reviewedAt) : 'Pending'}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   </TableContainer>
                 ) : (
-                  <Alert severity="info">No photo verification records</Alert>
+                  <Alert severity="info" sx={{ bgcolor: '#334155', color: '#60a5fa' }}>No photo verification records</Alert>
                 )}
               </Grid>
 
               <Grid item xs={12}>
-                <Typography variant="h6" sx={{ mb: 2 }}>Subscription Details</Typography>
-                <Card sx={{ bgcolor: '#1e293b', p: 2 }}>
+                <Typography variant="h6" sx={{ mb: 2, color: 'white' }}>Subscription Details</Typography>
+                <Card sx={{ bgcolor: '#334155', p: 2, borderRadius: 2 }}>
                   <Grid container spacing={2}>
                     <Grid item xs={6}>
-                      <Typography variant="body2" sx={{ color: '#94a3b8' }}>Plan</Typography>
-                      <Typography variant="h6">{subscriptionDetails.tier}</Typography>
+                      <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Plan</Typography>
+                      <Typography variant="h6" sx={{ color: 'white' }}>{subscriptionDetails.tier}</Typography>
                     </Grid>
                     <Grid item xs={6}>
-                      <Typography variant="body2" sx={{ color: '#94a3b8' }}>Amount</Typography>
-                      <Typography variant="h6">₹{subscriptionDetails.amount}</Typography>
+                      <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Amount</Typography>
+                      <Typography variant="h6" sx={{ color: 'white' }}>₹{subscriptionDetails.amount}</Typography>
                     </Grid>
                     <Grid item xs={6}>
-                      <Typography variant="body2" sx={{ color: '#94a3b8' }}>Start Date</Typography>
-                      <Typography>{subscriptionDetails.startDate ? formatDate(subscriptionDetails.startDate) : 'N/A'}</Typography>
+                      <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Start Date</Typography>
+                      <Typography sx={{ color: 'white' }}>{subscriptionDetails.startDate ? formatDate(subscriptionDetails.startDate) : 'N/A'}</Typography>
                     </Grid>
                     <Grid item xs={6}>
-                      <Typography variant="body2" sx={{ color: '#94a3b8' }}>End Date</Typography>
-                      <Typography>{subscriptionDetails.endDate ? formatDate(subscriptionDetails.endDate) : 'N/A'}</Typography>
+                      <Typography variant="body2" sx={{ color: '#cbd5e1' }}>End Date</Typography>
+                      <Typography sx={{ color: 'white' }}>{subscriptionDetails.endDate ? formatDate(subscriptionDetails.endDate) : 'N/A'}</Typography>
                     </Grid>
                   </Grid>
                 </Card>
@@ -751,51 +794,51 @@ const AdminUserProfile = () => {
 
           {/* Activity Tab */}
           <TabPanel value={activeTab} index={4}>
-            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <History sx={{ color: '#8B5CF6' }} /> Activity Statistics
+            <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: 'white' }}>
+              <History sx={{ color: '#a78bfa' }} /> Activity Statistics
             </Typography>
             <Grid container spacing={2} sx={{ mb: 4 }}>
               <Grid item xs={6} sm={3}>
-                <Card sx={{ bgcolor: '#1e293b', p: 2, textAlign: 'center' }}>
-                  <Typography variant="h4" color="primary">{activityStats.interestsSent}</Typography>
-                  <Typography variant="body2">Interests Sent</Typography>
+                <Card sx={{ bgcolor: '#334155', p: 2, textAlign: 'center', borderRadius: 2 }}>
+                  <Typography variant="h4" sx={{ color: '#a78bfa' }}>{activityStats.interestsSent}</Typography>
+                  <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Interests Sent</Typography>
                 </Card>
               </Grid>
               <Grid item xs={6} sm={3}>
-                <Card sx={{ bgcolor: '#1e293b', p: 2, textAlign: 'center' }}>
-                  <Typography variant="h4" color="primary">{activityStats.interestsReceived}</Typography>
-                  <Typography variant="body2">Interests Received</Typography>
+                <Card sx={{ bgcolor: '#334155', p: 2, textAlign: 'center', borderRadius: 2 }}>
+                  <Typography variant="h4" sx={{ color: '#a78bfa' }}>{activityStats.interestsReceived}</Typography>
+                  <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Interests Received</Typography>
                 </Card>
               </Grid>
               <Grid item xs={6} sm={3}>
-                <Card sx={{ bgcolor: '#1e293b', p: 2, textAlign: 'center' }}>
-                  <Typography variant="h4" color="primary">{activityStats.messagesSent}</Typography>
-                  <Typography variant="body2">Messages Sent</Typography>
+                <Card sx={{ bgcolor: '#334155', p: 2, textAlign: 'center', borderRadius: 2 }}>
+                  <Typography variant="h4" sx={{ color: '#a78bfa' }}>{activityStats.messagesSent}</Typography>
+                  <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Messages Sent</Typography>
                 </Card>
               </Grid>
               <Grid item xs={6} sm={3}>
-                <Card sx={{ bgcolor: '#1e293b', p: 2, textAlign: 'center' }}>
-                  <Typography variant="h4" color="primary">{activityStats.messagesReceived}</Typography>
-                  <Typography variant="body2">Messages Received</Typography>
+                <Card sx={{ bgcolor: '#334155', p: 2, textAlign: 'center', borderRadius: 2 }}>
+                  <Typography variant="h4" sx={{ color: '#a78bfa' }}>{activityStats.messagesReceived}</Typography>
+                  <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Messages Received</Typography>
                 </Card>
               </Grid>
             </Grid>
 
-            <Typography variant="h6" sx={{ mb: 2 }}>Account Timeline</Typography>
-            <TableContainer component={Paper} sx={{ bgcolor: '#1e293b' }}>
+            <Typography variant="h6" sx={{ mb: 2, color: 'white' }}>Account Timeline</Typography>
+            <TableContainer component={Paper} sx={{ bgcolor: '#334155', borderRadius: 2 }}>
               <Table size="small">
                 <TableBody>
                   <TableRow>
-                    <TableCell sx={{ color: '#94a3b8' }}>Account Created</TableCell>
-                    <TableCell>{formatDate(accountStatus.createdAt)}</TableCell>
+                    <TableCell sx={{ color: '#cbd5e1' }}>Account Created</TableCell>
+                    <TableCell sx={{ color: 'white' }}>{formatDate(accountStatus.createdAt)}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell sx={{ color: '#94a3b8' }}>Last Login</TableCell>
-                    <TableCell>{accountStatus.lastLoginAt ? formatDate(accountStatus.lastLoginAt) : 'Never'}</TableCell>
+                    <TableCell sx={{ color: '#cbd5e1' }}>Last Login</TableCell>
+                    <TableCell sx={{ color: 'white' }}>{accountStatus.lastLoginAt ? formatDate(accountStatus.lastLoginAt) : 'Never'}</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell sx={{ color: '#94a3b8' }}>Last Updated</TableCell>
-                    <TableCell>{formatDate(accountStatus.updatedAt)}</TableCell>
+                    <TableCell sx={{ color: '#cbd5e1' }}>Last Updated</TableCell>
+                    <TableCell sx={{ color: 'white' }}>{formatDate(accountStatus.updatedAt)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -819,10 +862,12 @@ const AdminUserProfile = () => {
             value={blockDialog.reason}
             onChange={(e) => setBlockDialog({ ...blockDialog, reason: e.target.value })}
             sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#334155' } }}
+            InputLabelProps={{ sx: { color: '#94a3b8' } }}
+            InputProps={{ sx: { color: 'white' } }}
           />
         </DialogContent>
         <DialogActions sx={{ bgcolor: '#1e293b' }}>
-          <Button onClick={() => setBlockDialog({ open: false, reason: '' })}>Cancel</Button>
+          <Button onClick={() => setBlockDialog({ open: false, reason: '' })} sx={{ color: 'white' }}>Cancel</Button>
           <Button variant="contained" color="error" onClick={handleBlockUser}>Block User</Button>
         </DialogActions>
       </Dialog>
@@ -842,6 +887,8 @@ const AdminUserProfile = () => {
             value={deleteDialog.reason}
             onChange={(e) => setDeleteDialog({ ...deleteDialog, reason: e.target.value })}
             sx={{ mb: 2, '& .MuiOutlinedInput-root': { bgcolor: '#334155' } }}
+            InputLabelProps={{ sx: { color: '#94a3b8' } }}
+            InputProps={{ sx: { color: 'white' } }}
           />
           <FormControlLabel
             control={
@@ -855,7 +902,7 @@ const AdminUserProfile = () => {
           />
         </DialogContent>
         <DialogActions sx={{ bgcolor: '#1e293b' }}>
-          <Button onClick={() => setDeleteDialog({ open: false, reason: '', permanent: false })}>Cancel</Button>
+          <Button onClick={() => setDeleteDialog({ open: false, reason: '', permanent: false })} sx={{ color: 'white' }}>Cancel</Button>
           <Button variant="contained" color="error" onClick={handleDeleteUser}>
             {deleteDialog.permanent ? 'Permanently Delete' : 'Delete'}
           </Button>
@@ -887,10 +934,12 @@ const AdminUserProfile = () => {
             value={verifyDialog.notes}
             onChange={(e) => setVerifyDialog({ ...verifyDialog, notes: e.target.value })}
             sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#334155' } }}
+            InputLabelProps={{ sx: { color: '#94a3b8' } }}
+            InputProps={{ sx: { color: 'white' } }}
           />
         </DialogContent>
         <DialogActions sx={{ bgcolor: '#1e293b' }}>
-          <Button onClick={() => setVerifyDialog({ open: false, status: '', notes: '' })}>Cancel</Button>
+          <Button onClick={() => setVerifyDialog({ open: false, status: '', notes: '' })} sx={{ color: 'white' }}>Cancel</Button>
           <Button variant="contained" color="success" onClick={handleManualVerify}>
             {verifyDialog.status === 'APPROVED' ? 'Approve' : 'Reject'}
           </Button>
@@ -917,7 +966,7 @@ const AdminUserProfile = () => {
           </Box>
         </DialogContent>
         <DialogActions sx={{ bgcolor: '#1e293b' }}>
-          <Button onClick={() => setSubscriptionDialog({ open: false, plan: 'FREE' })}>Cancel</Button>
+          <Button onClick={() => setSubscriptionDialog({ open: false, plan: 'FREE' })} sx={{ color: 'white' }}>Cancel</Button>
           <Button variant="contained" color="primary" onClick={handleUpdateSubscription}>
             Update to {subscriptionDialog.plan}
           </Button>
