@@ -12,6 +12,9 @@ const { testConnection } = require('./utils/database');
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// Trust proxy for rate limiter (fixes X-Forwarded-For warning)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
@@ -21,21 +24,29 @@ app.use(compression());
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 100, // limit each IP to 100 requests per windowMs
+  trustProxy: true
 });
 app.use(limiter);
 
-// CORS configuration
-// Configure CORS to allow frontend dev servers (3000 and 3001) and any configured FRONTEND_URL
-const allowedOrigins = [process.env.FRONTEND_URL || 'http://localhost:3000', 'http://localhost:3001'];
+// CORS configuration - allow localhost and any configured FRONTEND_URL
 app.use(cors({
-  origin: (origin, callback) => {
-    // allow requests with no origin (like mobile apps or curl)
+  origin: function(origin, callback) {
+    // allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    
+    // Allow any localhost origin (including different ports)
+    if (origin.match(/^http:\/\/localhost(:\d+)?$/)) {
       return callback(null, true);
     }
-    return callback(new Error('CORS policy: Origin not allowed'), false);
+    
+    // Check against allowed origins
+    const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',');
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    callback(new Error('CORS policy: Origin not allowed'), false);
   },
   credentials: true
 }));
