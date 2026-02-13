@@ -84,8 +84,84 @@ model User {
   photoVerifications PhotoVerification[] @relation("UserPhotos")
   documents         Document[] @relation("UserDocuments")
   subscriptions     Subscription[] @relation("UserSubscriptions")
+  userPhotos        UserPhoto[] @relation("UserProfilePhotos")
+  userGallery       UserGalleryImage[] @relation("UserGallery")
+  userDocuments     UserDocument[] @relation("UserNewDocuments")
+  verifications     Verification[] @relation("UserVerifications")
 
   @@map("users")
+}
+
+// User Photos Model (Profile + Gallery)
+model UserPhoto {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  photoUrl      String   @map("photo_url")
+  isProfilePhoto Boolean  @default(false) @map("is_profile_photo")
+  isApproved    Boolean  @default(false) @map("is_approved")
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User     @relation("UserProfilePhotos", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_photos")
+}
+
+// User Gallery Model
+model UserGalleryImage {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  imageUrl      String   @map("image_url")
+  caption       String?
+  isPrivate     Boolean  @default(false) @map("is_private")
+  isApproved    Boolean  @default(false) @map("is_approved")
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User     @relation("UserGallery", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_gallery_images")
+}
+
+// User Documents Model
+model UserDocument {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  documentType  String   @map("document_type") // GOVERNMENT_ID, PASSPORT, DRIVING_LICENSE, etc.
+  documentNumber String? @map("document_number") // Encrypted
+  documentUrl   String?  @map("document_url")
+  isVerified    Boolean  @default(false) @map("is_verified")
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User     @relation("UserNewDocuments", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_documents")
+}
+
+// Verification Model for ID verification details
+model Verification {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  idType        String   @map("id_type") // AADHAR, PAN, PASSPORT, etc.
+  idNumber      String?  @map("id_number") // Masked - only last 4 digits visible
+  faceMatchScore Float?  @map("face_match_score")
+  isTampered    Boolean  @default(false) @map("is_tampered")
+  formatValid   Boolean  @default(true) @map("format_valid")
+  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  verifiedBy    String?  @map("verified_by")
+  verifiedAt    DateTime? @map("verified_at")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User     @relation("UserVerifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("verifications")
 }
 
 model Document {

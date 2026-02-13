@@ -5,12 +5,10 @@
  * Handles full user details, photos, gallery, documents, verifications
  * Includes block/unblock and delete user actions with activity logging
  * 
- * Security: JWT authenticated, Admin role required, Parameterized queries via mssql
+ * Security: JWT authenticated, Admin role required
  */
 
-const { sql, poolPromise } = require('../config/db');
-const path = require('path');
-const fs = require('fs');
+const { prisma } = require('../utils/database');
 
 /**
  * Get complete user profile for admin view
@@ -26,111 +24,166 @@ const getAdminUserProfile = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const pool = await poolPromise;
-
     // Fetch complete user profile with all related data
-    const userResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query(`
-        SELECT 
-          id, firstName, lastName, email, phone, gender, dateOfBirth, age,
-          community, subCaste, maritalStatus, height, weight, complexion, bio,
-          city, state, country, education, profession, income,
-          fatherName, fatherOccupation, fatherCaste, motherName, motherOccupation, motherCaste,
-          familyValues, aboutFamily, raasi, natchathiram, dhosam, birthDate, birthTime, birthPlace,
-          isVerified, emailVerified, phoneVerified, photosVerified,
-          manualVerificationStatus, manualVerificationNotes,
-          isActive, isPremium, subscriptionTier, profilePhoto,
-          createdAt, updatedAt, lastLoginAt
-        FROM Users
-        WHERE id = @UserId
-      `);
-
-    const user = userResult.recordset[0];
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        // Profile photos and gallery (legacy PhotoVerification model)
+        photoVerifications: {
+          orderBy: { createdAt: 'desc' }
+        },
+        // New UserPhoto model for profile photos
+        userPhotos: {
+          where: { isProfilePhoto: true },
+          orderBy: { uploadedAt: 'desc' },
+          take: 1
+        },
+        // New UserGalleryImage model for gallery photos
+        userGallery: {
+          orderBy: { uploadedAt: 'desc' }
+        },
+        // Legacy documents
+        documents: {
+          orderBy: { uploadedAt: 'desc' }
+        },
+        // New UserDocument model
+        userDocuments: {
+          orderBy: { uploadedAt: 'desc' }
+        },
+        // New Verification model for ID verification details
+        verifications: {
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        },
+        // Subscription
+        subscriptions: {
+          where: { status: 'ACTIVE' },
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        },
+        // Activity counts
+        _count: {
+          select: {
+            sentInterests: true,
+            receivedInterests: true,
+            sentMessages: true,
+            receivedMessages: true
+          }
+        }
+      }
+    });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Fetch profile photo (IsProfilePhoto = 1)
-    const profilePhotoResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query(`
-        SELECT TOP 1 PhotoPath, Status, UploadedAt
-        FROM UserPhotos
-        WHERE UserId = @UserId AND IsProfilePhoto = 1
-        ORDER BY UploadedAt DESC
-      `);
+    // Parse photos from users table (stored as JSON string)
+    let userGalleryPhotos = [];
+    try {
+      if (user.photos) {
+        const parsedPhotos = typeof user.photos === 'string' 
+          ? JSON.parse(user.photos) 
+          : user.photos;
+        userGalleryPhotos = parsedPhotos.map((url, index) => ({
+          id: `gallery_${index}`,
+          url: url,
+          isFromUsersTable: true
+        }));
+      }
+    } catch (e) {
+      console.error('Error parsing photos JSON:', e);
+    }
 
-    // Fetch gallery images
-    const galleryResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query(`
-        SELECT ImagePath, Status, UploadedAt
-        FROM UserGallery
-        WHERE UserId = @UserId
-        ORDER BY UploadedAt DESC
-      `);
-
-    // Fetch documents
-    const documentsResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query(`
-        SELECT DocumentType, DocumentPath, Status, UploadedAt
-        FROM UserDocuments
-        WHERE UserId = @UserId
-        ORDER BY UploadedAt DESC
-      `);
-
-    // Fetch subscription
-    const subscriptionResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query(`
-        SELECT TOP 1 Plan, Amount, StartDate, EndDate, Status, PaymentId
-        FROM Subscriptions
-        WHERE UserId = @UserId AND Status = 'ACTIVE'
-        ORDER BY CreatedAt DESC
-      `);
-
-    // Fetch activity counts
-    const activityResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query(`
-        SELECT 
-          (SELECT COUNT(*) FROM Interests WHERE SenderId = @UserId) as interestsSent,
-          (SELECT COUNT(*) FROM Interests WHERE ReceiverId = @UserId) as interestsReceived,
-          (SELECT COUNT(*) FROM Messages WHERE SenderId = @UserId) as messagesSent,
-          (SELECT COUNT(*) FROM Messages WHERE ReceiverId = @UserId) as messagesReceived
-      `);
-
-    // Transform profile photo
-    const profilePhoto = profilePhotoResult.recordset[0] ? {
-      id: 'profile',
-      url: profilePhotoResult.recordset[0].PhotoPath,
-      status: profilePhotoResult.recordset[0].Status || 'APPROVED',
-      createdAt: profilePhotoResult.recordset[0].UploadedAt
+    // Get profile photo from users table profilePhoto field
+    const usersProfilePhoto = user.profilePhoto ? {
+      id: 'profile_from_users',
+      url: user.profilePhoto,
+      isFromUsersTable: true
     } : null;
 
-    // Transform gallery photos
-    const galleryPhotos = galleryResult.recordset.map((photo, index) => ({
-      id: `gallery_${index}`,
-      url: photo.ImagePath,
-      status: photo.Status || 'PENDING',
-      createdAt: photo.UploadedAt
+    // Separate profile photo and gallery photos from photoVerifications (legacy)
+    const profilePhoto = user.photoVerifications.find(photo => photo.photoType === 'PROFILE') || null;
+    const galleryPhotos = user.photoVerifications.filter(photo => photo.photoType === 'PHOTO_GALLERY');
+
+    // Get profile photo from new UserPhoto model
+    const newProfilePhoto = user.userPhotos.length > 0 ? user.userPhotos[0] : null;
+    
+    // Get gallery from new UserGalleryImage model
+    const newGalleryPhotos = user.userGallery.map(photo => ({
+      id: photo.id,
+      url: photo.imageUrl,
+      caption: photo.caption,
+      isPrivate: photo.isPrivate,
+      isApproved: photo.isApproved,
+      uploadedAt: photo.uploadedAt
     }));
 
-    // Transform documents with masked paths
-    const documents = documentsResult.recordset.map((doc, index) => ({
-      id: `doc_${index}`,
-      documentType: doc.DocumentType,
-      documentUrl: doc.DocumentPath,
-      status: doc.Status || 'PENDING',
-      uploadedAt: doc.UploadedAt
+    // Combine all sources: prefer users table data, then new models, then legacy
+    const finalProfilePhoto = usersProfilePhoto || (newProfilePhoto ? {
+      id: newProfilePhoto.id,
+      url: newProfilePhoto.photoUrl,
+      isProfilePhoto: newProfilePhoto.isProfilePhoto,
+      isApproved: newProfilePhoto.isApproved,
+      uploadedAt: newProfilePhoto.uploadedAt
+    } : profilePhoto);
+
+    const finalGalleryPhotos = userGalleryPhotos.length > 0 
+      ? userGalleryPhotos 
+      : (newGalleryPhotos.length > 0 
+          ? newGalleryPhotos 
+          : galleryPhotos.map(photo => ({
+              id: photo.id,
+              url: photo.photoUrl,
+              status: photo.status,
+              createdAt: photo.createdAt
+            })));
+
+    // Transform photo verifications for display
+    const photoVerifications = user.photoVerifications.map(pv => ({
+      id: pv.id,
+      photoUrl: pv.photoUrl,
+      photoType: pv.photoType,
+      status: pv.status,
+      rejectedReason: pv.rejectedReason,
+      reviewedBy: pv.reviewedBy,
+      reviewedAt: pv.reviewedAt,
+      createdAt: pv.createdAt
     }));
+
+    // Transform user documents for display (new UserDocument model)
+    const userDocuments = user.userDocuments.map(doc => ({
+      id: doc.id,
+      documentType: doc.documentType,
+      documentNumber: doc.documentNumber, // Already masked - only last 4 digits
+      documentUrl: doc.documentUrl,
+      isVerified: doc.isVerified,
+      uploadedAt: doc.uploadedAt
+    }));
+
+    // Transform verification details for display (new Verification model)
+    const verification = user.verifications.length > 0 ? user.verifications[0] : null;
+    const verificationDetails = {
+      isVerified: user.isVerified || false,
+      emailVerified: user.emailVerified || false,
+      phoneVerified: user.phoneVerified || false,
+      photosVerified: user.photosVerified || false,
+      manualVerificationStatus: user.manualVerificationStatus || null,
+      manualVerificationNotes: user.manualVerificationNotes || null,
+      photoVerifications: photoVerifications,
+      // New Verification model data
+      idType: verification?.idType || null,
+      idNumber: verification?.idNumber || null, // Masked - only last 4 digits visible
+      faceMatchScore: verification?.faceMatchScore || null,
+      isTampered: verification?.isTampered || false,
+      formatValid: verification?.formatValid !== undefined ? verification.formatValid : true,
+      verificationStatus: verification?.status || 'PENDING',
+      verifiedBy: verification?.verifiedBy || null,
+      verifiedAt: verification?.verifiedAt || null,
+      verificationNotes: verification?.notes || null
+    };
 
     // Build comprehensive response
     const responseData = {
-      // Personal Details
       personalDetails: {
         id: user.id,
         firstName: user.firstName,
@@ -148,23 +201,17 @@ const getAdminUserProfile = async (req, res) => {
         complexion: user.complexion || 'Not provided',
         bio: user.bio || 'Not provided'
       },
-
-      // Location Details
       locationDetails: {
         city: user.city,
         state: user.state,
         country: user.country,
         fullLocation: `${user.city || ''}, ${user.state || ''}, ${user.country || ''}`
       },
-
-      // Professional Details
       professionalDetails: {
         education: user.education || 'Not provided',
         profession: user.profession || 'Not provided',
         income: user.income || 'Not provided'
       },
-
-      // Family Details
       familyDetails: {
         fatherName: user.fatherName || 'Not provided',
         fatherOccupation: user.fatherOccupation || 'Not provided',
@@ -175,8 +222,6 @@ const getAdminUserProfile = async (req, res) => {
         familyValues: user.familyValues || 'Not provided',
         aboutFamily: user.aboutFamily || 'Not provided'
       },
-
-      // Horoscope Details
       horoscopeDetails: {
         raasi: user.raasi || 'Not provided',
         natchathiram: user.natchathiram || 'Not provided',
@@ -185,35 +230,24 @@ const getAdminUserProfile = async (req, res) => {
         birthTime: user.birthTime || 'Not provided',
         birthPlace: user.birthPlace || 'Not provided'
       },
-
-      // Profile Photo
-      profilePhoto: profilePhoto,
-
-      // Gallery Photos (grid layout ready)
-      galleryPhotos: galleryPhotos,
-
-      // Documents
-      documents: documents,
-
-      // Verification Details
-      verificationDetails: {
-        isVerified: user.isVerified || false,
-        emailVerified: user.emailVerified || false,
-        phoneVerified: user.phoneVerified || false,
-        photosVerified: user.photosVerified || false,
-        manualVerificationStatus: user.manualVerificationStatus || null,
-        manualVerificationNotes: user.manualVerificationNotes || null,
-        photoVerifications: []
-      },
-
-      // Subscription Details
-      subscriptionDetails: subscriptionResult.recordset.length > 0 ? {
-        tier: subscriptionResult.recordset[0].Plan,
-        amount: subscriptionResult.recordset[0].Amount,
-        startDate: subscriptionResult.recordset[0].StartDate,
-        endDate: subscriptionResult.recordset[0].EndDate,
-        status: subscriptionResult.recordset[0].Status,
-        paymentId: subscriptionResult.recordset[0].PaymentId
+      profilePhoto: finalProfilePhoto,
+      galleryPhotos: finalGalleryPhotos,
+      documents: user.documents.map(doc => ({
+        id: doc.id,
+        documentType: doc.documentType,
+        documentUrl: doc.documentUrl,
+        status: doc.status,
+        uploadedAt: doc.uploadedAt
+      })),
+      userDocuments: userDocuments,
+      verificationDetails: verificationDetails,
+      subscriptionDetails: user.subscriptions.length > 0 ? {
+        tier: user.subscriptions[0].plan,
+        amount: user.subscriptions[0].amount,
+        startDate: user.subscriptions[0].startDate,
+        endDate: user.subscriptions[0].endDate,
+        status: user.subscriptions[0].status,
+        paymentId: user.subscriptions[0].paymentId
       } : {
         tier: 'FREE',
         amount: 0,
@@ -222,8 +256,6 @@ const getAdminUserProfile = async (req, res) => {
         status: null,
         paymentId: null
       },
-
-      // Account Status
       accountStatus: {
         isActive: user.isActive,
         isPremium: user.isPremium,
@@ -232,17 +264,15 @@ const getAdminUserProfile = async (req, res) => {
         updatedAt: user.updatedAt,
         lastLoginAt: user.lastLoginAt
       },
-
-      // Activity Stats
       activityStats: {
-        interestsSent: activityResult.recordset[0].interestsSent,
-        interestsReceived: activityResult.recordset[0].interestsReceived,
-        messagesSent: activityResult.recordset[0].messagesSent,
-        messagesReceived: activityResult.recordset[0].messagesReceived
+        interestsSent: user._count.sentInterests,
+        interestsReceived: user._count.receivedInterests,
+        messagesSent: user._count.sentMessages,
+        messagesReceived: user._count.receivedMessages
       }
     };
 
-    // Log admin access to user profile
+    // Log admin access
     await logAdminActivity({
       adminId,
       action: 'VIEW_USER_PROFILE',
@@ -262,53 +292,6 @@ const getAdminUserProfile = async (req, res) => {
 };
 
 /**
- * Get user photos (profile + gallery)
- */
-const getUserPhotos = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!id || id === 'undefined') {
-      return res.status(400).json({ message: 'Invalid user ID' });
-    }
-
-    const pool = await poolPromise;
-
-    // Get profile photo
-    const profilePhotoResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query(`
-        SELECT TOP 1 PhotoPath, Status, UploadedAt
-        FROM UserPhotos
-        WHERE UserId = @UserId AND IsProfilePhoto = 1
-        ORDER BY UploadedAt DESC
-      `);
-
-    // Get gallery images
-    const galleryResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query(`
-        SELECT ImagePath, Status, UploadedAt
-        FROM UserGallery
-        WHERE UserId = @UserId
-        ORDER BY UploadedAt DESC
-      `);
-
-    res.json({
-      success: true,
-      data: {
-        profilePhoto: profilePhotoResult.recordset[0] || null,
-        gallery: galleryResult.recordset
-      }
-    });
-
-  } catch (error) {
-    console.error('Get user photos error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-/**
  * Block user account
  */
 const blockUser = async (req, res) => {
@@ -321,34 +304,24 @@ const blockUser = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const pool = await poolPromise;
-
-    // Check if user exists
-    const userResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query('SELECT * FROM Users WHERE id = @UserId');
-
-    const user = userResult.recordset[0];
+    const user = await prisma.user.findUnique({ where: { id } });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Prevent blocking if already blocked
     if (!user.isActive) {
       return res.status(400).json({ error: 'User is already blocked' });
     }
 
     // Update user status
-    await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .input('IsActive', sql.Bit, 0)
-      .input('IsVerified', sql.Bit, 0)
-      .query(`
-        UPDATE Users
-        SET isActive = @IsActive, isVerified = @IsVerified
-        WHERE id = @UserId
-      `);
+    await prisma.user.update({
+      where: { id },
+      data: {
+        isActive: false,
+        isVerified: false
+      }
+    });
 
     // Log the blocking activity
     await logAdminActivity({
@@ -390,33 +363,23 @@ const unblockUser = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const pool = await poolPromise;
-
-    // Check if user exists
-    const userResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query('SELECT * FROM Users WHERE id = @UserId');
-
-    const user = userResult.recordset[0];
+    const user = await prisma.user.findUnique({ where: { id } });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Prevent unblocking if already active
     if (user.isActive) {
       return res.status(400).json({ error: 'User is already active' });
     }
 
     // Update user status
-    await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .input('IsActive', sql.Bit, 1)
-      .query(`
-        UPDATE Users
-        SET isActive = @IsActive
-        WHERE id = @UserId
-      `);
+    await prisma.user.update({
+      where: { id },
+      data: {
+        isActive: true
+      }
+    });
 
     // Log the unblocking activity
     await logAdminActivity({
@@ -446,7 +409,7 @@ const unblockUser = async (req, res) => {
 };
 
 /**
- * Delete user account (soft delete - marks as inactive)
+ * Delete user account
  */
 const deleteUser = async (req, res) => {
   try {
@@ -458,22 +421,14 @@ const deleteUser = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const pool = await poolPromise;
-
-    // Check if user exists
-    const userResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query('SELECT * FROM Users WHERE id = @UserId');
-
-    const user = userResult.recordset[0];
+    const user = await prisma.user.findUnique({ where: { id } });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Permanent deletion - remove from database
     if (permanent === true) {
-      // Log before deletion
+      // Permanent deletion
       await logAdminActivity({
         adminId,
         action: 'PERMANENT_DELETE_USER',
@@ -486,35 +441,24 @@ const deleteUser = async (req, res) => {
         }
       });
 
-      // Delete user (cascade will delete related records)
-      await pool.request()
-        .input('UserId', sql.VarChar(50), id)
-        .query('DELETE FROM Users WHERE id = @UserId');
+      await prisma.user.delete({
+        where: { id }
+      });
 
       res.json({
         success: true,
-        message: 'User permanently deleted',
-        deletedUser: {
-          id: user.id,
-          name: `${user.firstName} ${user.lastName}`,
-          email: user.email
-        }
+        message: 'User permanently deleted'
       });
     } else {
-      // Soft delete - just mark as inactive and anonymize email
-      const anonymizedEmail = `deleted_${Date.now()}_${user.id}@anonymized.com`;
+      // Soft delete
+      await prisma.user.update({
+        where: { id },
+        data: {
+          isActive: false,
+          email: `deleted_${Date.now()}_${user.id}@anonymized.com`
+        }
+      });
 
-      await pool.request()
-        .input('UserId', sql.VarChar(50), id)
-        .input('Email', sql.VarChar(255), anonymizedEmail)
-        .input('IsActive', sql.Bit, 0)
-        .query(`
-          UPDATE Users
-          SET email = @Email, isActive = @IsActive
-          WHERE id = @UserId
-        `);
-
-      // Log the soft deletion
       await logAdminActivity({
         adminId,
         action: 'DELETE_USER',
@@ -530,12 +474,7 @@ const deleteUser = async (req, res) => {
 
       res.json({
         success: true,
-        message: 'User deleted successfully (soft delete)',
-        deletedUser: {
-          id: user.id,
-          name: `${user.firstName} ${user.lastName}`,
-          email: user.email
-        }
+        message: 'User deleted successfully (soft delete)'
       });
     }
 
@@ -552,43 +491,33 @@ const getUserActivityLogs = async (req, res) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 50 } = req.query;
+    const skip = (page - 1) * limit;
 
     if (!id) {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const pool = await poolPromise;
-    const offset = (page - 1) * limit;
+    const logs = await prisma.adminActivityLog.findMany({
+      where: {
+        targetUserId: id
+      },
+      skip,
+      take: parseInt(limit),
+      orderBy: { createdAt: 'desc' }
+    });
 
-    // Fetch admin activity logs for this user
-    const logsResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .input('Limit', sql.Int, parseInt(limit))
-      .input('Offset', sql.Int, offset)
-      .query(`
-        SELECT *
-        FROM AdminActivityLog
-        WHERE targetUserId = @UserId
-        ORDER BY createdAt DESC
-        OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
-      `);
-
-    const totalResult = await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query(`
-        SELECT COUNT(*) as total
-        FROM AdminActivityLog
-        WHERE targetUserId = @UserId
-      `);
+    const total = await prisma.adminActivityLog.count({
+      where: { targetUserId: id }
+    });
 
     res.json({
       success: true,
-      logs: logsResult.recordset,
+      logs,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total: totalResult.recordset[0].total,
-        pages: Math.ceil(totalResult.recordset[0].total / limit)
+        total,
+        pages: Math.ceil(total / limit)
       }
     });
 
@@ -611,26 +540,17 @@ const manualVerifyUser = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const pool = await poolPromise;
+    await prisma.user.update({
+      where: { id },
+      data: {
+        isVerified: status === 'APPROVED',
+        manualVerificationStatus: status,
+        manualVerificationNotes: notes,
+        reviewedBy: adminId,
+        reviewedAt: new Date()
+      }
+    });
 
-    // Update user verification status
-    await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .input('IsVerified', sql.Bit, status === 'APPROVED')
-      .input('ManualStatus', sql.VarChar(50), status)
-      .input('ManualNotes', sql.Text, notes || null)
-      .input('ReviewedBy', sql.VarChar(50), adminId)
-      .query(`
-        UPDATE Users
-        SET isVerified = @IsVerified, 
-            manualVerificationStatus = @ManualStatus,
-            manualVerificationNotes = @ManualNotes,
-            reviewedBy = @ReviewedBy,
-            reviewedAt = GETDATE()
-        WHERE id = @UserId
-      `);
-
-    // Log the verification action
     await logAdminActivity({
       adminId,
       action: 'MANUAL_VERIFY_USER',
@@ -666,9 +586,6 @@ const updateSubscription = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    const pool = await poolPromise;
-
-    // Get plan amount
     const planAmounts = {
       'FREE': 0,
       'STANDARD': 999,
@@ -682,41 +599,34 @@ const updateSubscription = async (req, res) => {
     endDate.setMonth(endDate.getMonth() + (plan === 'FREE' ? 0 : 3));
 
     // Deactivate old subscription
-    await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .query(`
-        UPDATE Subscriptions
-        SET status = 'INACTIVE'
-        WHERE UserId = @UserId AND status = 'ACTIVE'
-      `);
+    await prisma.subscription.updateMany({
+      where: { userId: id, status: 'ACTIVE' },
+      data: { status: 'INACTIVE' }
+    });
 
     // Create new subscription
-    await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .input('Plan', sql.VarChar(50), plan)
-      .input('Amount', sql.Decimal(10, 2), amount)
-      .input('StartDate', sql.DateTime, startDate)
-      .input('EndDate', sql.DateTime, endDate)
-      .input('Status', sql.VarChar(50), 'ACTIVE')
-      .input('PaymentId', sql.VarChar(100), `ADMIN_${Date.now()}`)
-      .query(`
-        INSERT INTO Subscriptions (UserId, Plan, Amount, StartDate, EndDate, Status, PaymentId, CreatedAt)
-        VALUES (@UserId, @Plan, @Amount, @StartDate, @EndDate, @Status, @PaymentId, GETDATE())
-      `);
+    await prisma.subscription.create({
+      data: {
+        userId: id,
+        plan: plan,
+        amount: amount,
+        startDate: startDate,
+        endDate: endDate,
+        status: 'ACTIVE',
+        paymentId: `ADMIN_${Date.now()}`
+      }
+    });
 
     // Update user subscription tier
     const isPremium = plan !== 'FREE';
-    await pool.request()
-      .input('UserId', sql.VarChar(50), id)
-      .input('IsPremium', sql.Bit, isPremium)
-      .input('SubscriptionTier', sql.VarChar(50), plan)
-      .query(`
-        UPDATE Users
-        SET isPremium = @IsPremium, subscriptionTier = @SubscriptionTier
-        WHERE id = @UserId
-      `);
+    await prisma.user.update({
+      where: { id },
+      data: {
+        isPremium: isPremium,
+        subscriptionTier: plan
+      }
+    });
 
-    // Log the subscription update
     await logAdminActivity({
       adminId,
       action: 'UPDATE_SUBSCRIPTION',
@@ -750,16 +660,14 @@ const updateSubscription = async (req, res) => {
  */
 const logAdminActivity = async ({ adminId, action, targetUserId, details }) => {
   try {
-    const pool = await poolPromise;
-    await pool.request()
-      .input('AdminId', sql.VarChar(50), adminId)
-      .input('Action', sql.VarChar(100), action)
-      .input('TargetUserId', sql.VarChar(50), targetUserId)
-      .input('Details', sql.Text, JSON.stringify(details))
-      .query(`
-        INSERT INTO AdminActivityLog (adminId, action, targetUserId, details, createdAt)
-        VALUES (@AdminId, @Action, @TargetUserId, @Details, GETDATE())
-      `);
+    await prisma.adminActivityLog.create({
+      data: {
+        adminId,
+        action,
+        targetUserId,
+        details: JSON.stringify(details)
+      }
+    });
   } catch (error) {
     console.error('Log admin activity error:', error);
   }
@@ -767,7 +675,6 @@ const logAdminActivity = async ({ adminId, action, targetUserId, details }) => {
 
 module.exports = {
   getAdminUserProfile,
-  getUserPhotos,
   blockUser,
   unblockUser,
   deleteUser,

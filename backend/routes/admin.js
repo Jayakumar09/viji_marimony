@@ -20,7 +20,7 @@ const {
   deleteUser,
   getUserActivityLogs,
   manualVerifyUser,
-  updateUserSubscription
+  updateSubscription
 } = require('../controllers/adminUserProfileController');
 
 // Admin authentication routes (simplified for demo)
@@ -94,6 +94,6 @@ router.get('/users/:id/activity-logs', getUserActivityLogs);
 // Subscription management
 router.post('/subscriptions', createSubscription);
 router.put('/subscriptions/sync/:userId', syncUserSubscription);
-router.put('/subscriptions/:id', updateUserSubscription);
+router.put('/subscriptions/:id', updateSubscription);
 
 module.exports = router;
