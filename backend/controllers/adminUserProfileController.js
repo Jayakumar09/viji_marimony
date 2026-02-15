@@ -140,6 +140,7 @@ const getAdminUserProfile = async (req, res) => {
     const usersProfilePhoto = user.profilePhoto ? {
       id: 'profile_from_users',
       url: user.profilePhoto,
+      status: 'PENDING', // Default status for photos from users table
       isFromUsersTable: true
     } : null;
 
@@ -157,6 +158,7 @@ const getAdminUserProfile = async (req, res) => {
       caption: photo.caption,
       isPrivate: photo.isPrivate,
       isApproved: photo.isApproved,
+      status: photo.isApproved ? 'APPROVED' : 'PENDING', // Convert isApproved to status
       uploadedAt: photo.uploadedAt
     }));
 
@@ -166,17 +168,21 @@ const getAdminUserProfile = async (req, res) => {
       url: newProfilePhoto.photoUrl,
       isProfilePhoto: newProfilePhoto.isProfilePhoto,
       isApproved: newProfilePhoto.isApproved,
+      status: newProfilePhoto.isApproved ? 'APPROVED' : 'PENDING', // Convert isApproved to status
       uploadedAt: newProfilePhoto.uploadedAt
     } : profilePhoto);
 
     const finalGalleryPhotos = userGalleryPhotos.length > 0 
-      ? userGalleryPhotos 
+      ? userGalleryPhotos.map(photo => ({
+          ...photo,
+          status: photo.status || 'PENDING' // Ensure status is set
+        }))
       : (newGalleryPhotos.length > 0 
           ? newGalleryPhotos 
           : galleryPhotos.map(photo => ({
               id: photo.id,
               url: photo.photoUrl,
-              status: photo.status,
+              status: photo.status || 'PENDING',
               createdAt: photo.createdAt
             })));
 
