@@ -126,21 +126,31 @@ const getAdminUserProfile = async (req, res) => {
         const parsedPhotos = typeof user.photos === 'string' 
           ? JSON.parse(user.photos) 
           : user.photos;
-        userGalleryPhotos = parsedPhotos.map((url, index) => ({
-          id: `gallery_${index}`,
-          url: url,
-          isFromUsersTable: true
-        }));
+        // Look up verification status for each gallery photo
+        userGalleryPhotos = parsedPhotos.map((url, index) => {
+          // Find matching photo verification record
+          const verification = user.photoVerifications.find(pv => pv.photoUrl === url && pv.photoType === 'PHOTO_GALLERY');
+          return {
+            id: verification?.id || `gallery_${index}`,
+            url: url,
+            status: verification?.status || 'PENDING',
+            createdAt: verification?.createdAt,
+            isFromUsersTable: true
+          };
+        });
       }
     } catch (e) {
       console.error('Error parsing photos JSON:', e);
     }
 
     // Get profile photo from users table profilePhoto field
+    // Look up verification status
+    const profileVerification = user.photoVerifications.find(pv => pv.photoUrl === user.profilePhoto && pv.photoType === 'PROFILE');
     const usersProfilePhoto = user.profilePhoto ? {
-      id: 'profile_from_users',
+      id: profileVerification?.id || 'profile_from_users',
       url: user.profilePhoto,
-      status: 'PENDING', // Default status for photos from users table
+      status: profileVerification?.status || 'PENDING',
+      createdAt: profileVerification?.createdAt,
       isFromUsersTable: true
     } : null;
 
@@ -173,10 +183,7 @@ const getAdminUserProfile = async (req, res) => {
     } : profilePhoto);
 
     const finalGalleryPhotos = userGalleryPhotos.length > 0 
-      ? userGalleryPhotos.map(photo => ({
-          ...photo,
-          status: photo.status || 'PENDING' // Ensure status is set
-        }))
+      ? userGalleryPhotos // Already has status from verification lookup
       : (newGalleryPhotos.length > 0 
           ? newGalleryPhotos 
           : galleryPhotos.map(photo => ({
