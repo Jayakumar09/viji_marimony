@@ -732,6 +732,130 @@ const updateSubscription = async (req, res) => {
 };
 
 /**
+ * Verify user photo (profile or gallery)
+ * Creates a PhotoVerification record if not exists, then approves it
+ */
+const verifyUserPhoto = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { photoUrl, photoType, action, reason } = req.body;
+    const adminId = req.admin.id;
+
+    if (!userId || !photoUrl) {
+      return res.status(400).json({ error: 'User ID and photo URL are required' });
+    }
+
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Action must be "approve" or "reject"' });
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if PhotoVerification record exists for this photo
+    let photoVerification = await prisma.photoVerification.findFirst({
+      where: {
+        userId,
+        photoUrl
+      }
+    });
+
+    if (!photoVerification) {
+      // Create a new PhotoVerification record
+      photoVerification = await prisma.photoVerification.create({
+        data: {
+          userId,
+          photoUrl,
+          photoType: photoType || 'PROFILE',
+          status: 'PENDING'
+        }
+      });
+    }
+
+    // Update the PhotoVerification status
+    const status = action === 'approve' ? 'APPROVED' : 'REJECTED';
+    await prisma.photoVerification.update({
+      where: { id: photoVerification.id },
+      data: {
+        status,
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+        rejectedReason: action === 'reject' ? reason : null
+      }
+    });
+
+    // Check if all photos are verified and update user's photosVerified status
+    await checkAllPhotosVerified(userId);
+
+    // Log the action
+    await logAdminActivity({
+      adminId,
+      action: action === 'approve' ? 'APPROVE_PHOTO' : 'REJECT_PHOTO',
+      targetUserId: userId,
+      details: {
+        photoId: photoVerification.id,
+        photoUrl,
+        photoType: photoType || 'PROFILE',
+        reason: action === 'reject' ? reason : null,
+        reviewedAt: new Date()
+      }
+    });
+
+    res.json({
+      success: true,
+      message: action === 'approve' ? 'Photo approved successfully' : 'Photo rejected',
+      photoVerification: {
+        id: photoVerification.id,
+        status
+      }
+    });
+
+  } catch (error) {
+    console.error('Verify user photo error:', error);
+    res.status(500).json({ error: 'Failed to verify photo' });
+  }
+};
+
+/**
+ * Check if all user photos are verified and update photosVerified status
+ */
+const checkAllPhotosVerified = async (userId) => {
+  try {
+    // Count photos by status
+    const pendingPhotos = await prisma.photoVerification.count({
+      where: { userId, status: 'PENDING' }
+    });
+
+    const approvedPhotos = await prisma.photoVerification.count({
+      where: { userId, status: 'APPROVED' }
+    });
+
+    const totalPhotos = await prisma.photoVerification.count({
+      where: { userId }
+    });
+
+    // If there's at least one approved photo and no pending photos, mark as verified
+    if (approvedPhotos > 0 && pendingPhotos === 0) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { photosVerified: true }
+      });
+    } else if (pendingPhotos > 0 || totalPhotos === 0) {
+      // If there are pending photos or no photos, mark as not verified
+      await prisma.user.update({
+        where: { id: userId },
+        data: { photosVerified: false }
+      });
+    }
+  } catch (error) {
+    console.error('Check all photos verified error:', error);
+  }
+};
+
+/**
  * Log admin activity
  */
 const logAdminActivity = async ({ adminId, action, targetUserId, details }) => {
@@ -756,5 +880,6 @@ module.exports = {
   deleteUser,
   getUserActivityLogs,
   manualVerifyUser,
-  updateSubscription
+  updateSubscription,
+  verifyUserPhoto
 };

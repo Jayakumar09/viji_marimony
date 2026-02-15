@@ -62,6 +62,7 @@ const AdminUserProfile = () => {
   const [deleteDialog, setDeleteDialog] = useState({ open: false, reason: '', permanent: false });
   const [verifyDialog, setVerifyDialog] = useState({ open: false, status: '', notes: '' });
   const [subscriptionDialog, setSubscriptionDialog] = useState({ open: false, plan: 'FREE' });
+  const [photoRejectDialog, setPhotoRejectDialog] = useState({ open: false, photoId: null, reason: '' });
 
   // Snackbar state
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -184,6 +185,67 @@ const AdminUserProfile = () => {
       }
     } catch (err) {
       setSnackbar({ open: true, message: err.response?.data?.error || 'Failed to update subscription', severity: 'error' });
+    }
+  };
+
+  // Approve photo handler - supports both PhotoVerification ID and direct photo URL
+  const handleApprovePhoto = async (photoId, photoUrl, photoType) => {
+    try {
+      let response;
+      
+      // If photoId looks like a cuid (from PhotoVerification table), use the old endpoint
+      if (photoId && photoId.startsWith('cm') && photoId.length > 20) {
+        response = await api.put(`/admin/photos/${photoId}/approve`);
+      } else {
+        // Otherwise use the new endpoint that creates PhotoVerification record
+        response = await api.post(`/admin/users/${id}/photos/verify`, {
+          photoUrl,
+          photoType: photoType || 'PROFILE',
+          action: 'approve'
+        });
+      }
+      
+      if (response.data.message || response.data.success) {
+        setSnackbar({ open: true, message: 'Photo approved successfully', severity: 'success' });
+        fetchUserProfile();
+      } else {
+        setSnackbar({ open: true, message: response.data.error || 'Failed to approve photo', severity: 'error' });
+      }
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.error || 'Failed to approve photo', severity: 'error' });
+    }
+  };
+
+  // Reject photo handler - supports both PhotoVerification ID and direct photo URL
+  const handleRejectPhoto = async () => {
+    try {
+      const { photoId, photoUrl, photoType } = photoRejectDialog;
+      let response;
+      
+      // If photoId looks like a cuid (from PhotoVerification table), use the old endpoint
+      if (photoId && photoId.startsWith('cm') && photoId.length > 20) {
+        response = await api.put(`/admin/photos/${photoId}/reject`, {
+          reason: photoRejectDialog.reason
+        });
+      } else {
+        // Otherwise use the new endpoint that creates PhotoVerification record
+        response = await api.post(`/admin/users/${id}/photos/verify`, {
+          photoUrl,
+          photoType: photoType || 'PROFILE',
+          action: 'reject',
+          reason: photoRejectDialog.reason
+        });
+      }
+      
+      if (response.data.message || response.data.success) {
+        setSnackbar({ open: true, message: 'Photo rejected', severity: 'warning' });
+        fetchUserProfile();
+        setPhotoRejectDialog({ open: false, photoId: null, reason: '', photoUrl: null, photoType: null });
+      } else {
+        setSnackbar({ open: true, message: response.data.error || 'Failed to reject photo', severity: 'error' });
+      }
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.error || 'Failed to reject photo', severity: 'error' });
     }
   };
 
@@ -594,10 +656,36 @@ const AdminUserProfile = () => {
                   }}
                 />
                 <CardContent>
-                  <Chip label={profilePhoto.status} color={getVerificationBadgeColor(profilePhoto.status)} size="small" sx={{ color: 'white' }} />
-                  <Typography variant="caption" sx={{ ml: 1, color: '#cbd5e1' }}>
-                    Uploaded: {formatDate(profilePhoto.createdAt)}
-                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Chip label={profilePhoto.status || 'PENDING'} color={getVerificationBadgeColor(profilePhoto.status)} size="small" sx={{ color: 'white' }} />
+                      <Typography variant="caption" sx={{ color: '#cbd5e1' }}>
+                        Uploaded: {formatDate(profilePhoto.createdAt)}
+                      </Typography>
+                    </Box>
+                    {profilePhoto.url && (!profilePhoto.status || profilePhoto.status === 'PENDING') && (
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="success"
+                          startIcon={<Check />}
+                          onClick={() => handleApprovePhoto(profilePhoto.id, profilePhoto.url, 'PROFILE')}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="error"
+                          startIcon={<Close />}
+                          onClick={() => setPhotoRejectDialog({ open: true, photoId: profilePhoto.id, photoUrl: profilePhoto.url, photoType: 'PROFILE', reason: '' })}
+                        >
+                          Reject
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
                 </CardContent>
               </Card>
             ) : (
@@ -622,12 +710,36 @@ const AdminUserProfile = () => {
                         }}
                       />
                       <CardContent sx={{ p: 1.5 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Chip label={photo.status} color={getVerificationBadgeColor(photo.status)} size="small" sx={{ color: 'white' }} />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Chip label={photo.status || 'PENDING'} color={getVerificationBadgeColor(photo.status)} size="small" sx={{ color: 'white' }} />
                           <Typography variant="caption" sx={{ color: '#cbd5e1' }}>
                             {formatDate(photo.createdAt)}
                           </Typography>
                         </Box>
+                        {photo.url && (!photo.status || photo.status === 'PENDING') && (
+                          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="success"
+                              fullWidth
+                              startIcon={<Check />}
+                              onClick={() => handleApprovePhoto(photo.id, photo.url, 'PHOTO_GALLERY')}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="error"
+                              fullWidth
+                              startIcon={<Close />}
+                              onClick={() => setPhotoRejectDialog({ open: true, photoId: photo.id, photoUrl: photo.url, photoType: 'PHOTO_GALLERY', reason: '' })}
+                            >
+                              Reject
+                            </Button>
+                          </Box>
+                        )}
                       </CardContent>
                     </Card>
                   </Grid>
@@ -1102,6 +1214,39 @@ const AdminUserProfile = () => {
           <Button onClick={() => setSubscriptionDialog({ open: false, plan: 'FREE' })} sx={{ color: 'white' }}>Cancel</Button>
           <Button variant="contained" color="primary" onClick={handleUpdateSubscription}>
             Update to {subscriptionDialog.plan}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Photo Reject Dialog */}
+      <Dialog open={photoRejectDialog.open} onClose={() => setPhotoRejectDialog({ open: false, photoId: null, photoUrl: null, photoType: null, reason: '' })}>
+        <DialogTitle sx={{ bgcolor: '#1e293b', color: 'white' }}>Reject Photo</DialogTitle>
+        <DialogContent sx={{ bgcolor: '#1e293b' }}>
+          <Typography sx={{ color: '#94a3b8', mb: 2 }}>
+            Please provide a reason for rejecting this photo.
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            label="Rejection reason"
+            value={photoRejectDialog.reason}
+            onChange={(e) => setPhotoRejectDialog({ ...photoRejectDialog, reason: e.target.value })}
+            placeholder="e.g., Photo is blurry, inappropriate content, face not visible..."
+            sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#334155' } }}
+            InputLabelProps={{ sx: { color: '#94a3b8' } }}
+            InputProps={{ sx: { color: 'white' } }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ bgcolor: '#1e293b' }}>
+          <Button onClick={() => setPhotoRejectDialog({ open: false, photoId: null, photoUrl: null, photoType: null, reason: '' })} sx={{ color: 'white' }}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={handleRejectPhoto}
+            disabled={!photoRejectDialog.reason.trim()}
+          >
+            Reject Photo
           </Button>
         </DialogActions>
       </Dialog>
