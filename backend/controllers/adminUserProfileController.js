@@ -827,6 +827,7 @@ const verifyUserPhoto = async (req, res) => {
 
 /**
  * Check if all user photos are verified and update photosVerified status
+ * Also updates overall isVerified status if all verifications are complete
  */
 const checkAllPhotosVerified = async (userId) => {
   try {
@@ -843,17 +844,39 @@ const checkAllPhotosVerified = async (userId) => {
       where: { userId }
     });
 
-    // If there's at least one approved photo and no pending photos, mark as verified
+    // If there's at least one approved photo and no pending photos, mark photos as verified
     if (approvedPhotos > 0 && pendingPhotos === 0) {
       await prisma.user.update({
         where: { id: userId },
         data: { photosVerified: true }
       });
+      
+      // Check if all verifications are complete to mark user as fully verified
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          emailVerified: true,
+          phoneVerified: true,
+          photosVerified: true
+        }
+      });
+      
+      // If email, phone, and photos are all verified, mark user as verified
+      if (user && user.emailVerified && user.phoneVerified && user.photosVerified) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { isVerified: true }
+        });
+        console.log(`User ${userId} is now fully verified`);
+      }
     } else if (pendingPhotos > 0 || totalPhotos === 0) {
       // If there are pending photos or no photos, mark as not verified
       await prisma.user.update({
         where: { id: userId },
-        data: { photosVerified: false }
+        data: { 
+          photosVerified: false,
+          isVerified: false // Also mark user as not verified
+        }
       });
     }
   } catch (error) {

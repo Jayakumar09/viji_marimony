@@ -74,6 +74,10 @@ router.put('/photos/:id/reject', rejectPhoto);
 
 // User management
 router.get('/users', getAllUsers);
+
+// Photo verification for user photos (profile and gallery) - MUST be before /users/:id routes
+router.post('/users/:userId/photos/verify', verifyUserPhoto);
+
 router.put('/users/:id/verification', updateUserVerification);
 router.put('/users/:id/verify', verifyUser);
 router.get('/users/:id', getUserDetails);
@@ -88,9 +92,6 @@ router.delete('/users/:id', deleteUser);
 
 // User verification
 router.put('/users/:id/manual-verify', manualVerifyUser);
-
-// Photo verification for user photos (profile and gallery)
-router.post('/users/:userId/photos/verify', verifyUserPhoto);
 
 // User activity logs
 router.get('/users/:id/activity-logs', getUserActivityLogs);
