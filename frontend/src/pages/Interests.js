@@ -146,111 +146,142 @@ const Interests = () => {
     const isRejected = interest.status === 'REJECTED';
 
     return (
-      <Card style={{ marginBottom: '1rem' }}>
+      <Card style={{ marginBottom: '1rem', border: isPending ? '2px solid #FF9800' : '1px solid #E0E0E0' }}>
         <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            {/* Profile Info */}
-            <Grid item xs={12} sm={8}>
-              <Box display="flex" alignItems="center" gap={2}>
-                {user.profilePhoto ? (
-                  <Avatar
-                    src={getImageUrl(user.profilePhoto)}
-                    alt={`${user.firstName} ${user.lastName}`}
-                    style={{ width: 60, height: 60 }}
-                  />
-                ) : (
-                  <Avatar style={{ width: 60, height: 60 }}>
-                    <Person />
-                  </Avatar>
+          {/* Header Section - Clear indication of who sent/received */}
+          <Box sx={{ mb: 2, p: 1.5, bgcolor: type === 'received' ? '#E3F2FD' : '#F3E5F5', borderRadius: 1 }}>
+            <Typography variant="subtitle1" fontWeight="bold" color={type === 'received' ? '#1565C0' : '#7B1FA2'}>
+              {type === 'received' ? (
+                <>📥 Interest Received From: <strong>{user.firstName} {user.lastName}</strong></>
+              ) : (
+                <>📤 Interest Sent To: <strong>{user.firstName} {user.lastName}</strong></>
+              )}
+            </Typography>
+            <Typography variant="caption" color="textSecondary">
+              Interest ID: {interest.id} • {format(new Date(interest.createdAt), 'MMM dd, yyyy hh:mm a')}
+            </Typography>
+          </Box>
+
+          <Grid container spacing={2} alignItems="flex-start">
+            {/* Profile Photo and Basic Info */}
+            <Grid item xs={12} sm={3} sx={{ textAlign: 'center' }}>
+              {user.profilePhoto ? (
+                <Avatar
+                  src={getImageUrl(user.profilePhoto)}
+                  alt={`${user.firstName} ${user.lastName}`}
+                  style={{ width: 100, height: 100, margin: '0 auto', border: '3px solid #8B5CF6' }}
+                />
+              ) : (
+                <Avatar style={{ width: 100, height: 100, margin: '0 auto', bgcolor: '#8B5CF6' }}>
+                  <Person style={{ fontSize: 50 }} />
+                </Avatar>
+              )}
+              <Box mt={1}>
+                {user.isVerified && (
+                  <Chip icon={<VerifiedUser />} label="Verified" size="small" color="success" sx={{ mr: 0.5 }} />
                 )}
-                
-                <Box flex={1}>
-                  <Typography variant="h6">
-                    {type === 'received' ? 'From: ' : 'To: '} 
-                    {user.firstName} {user.lastName}, {user.age}
-                    {user.isPremium && (
-                      <Star style={{ color: '#FFD700', marginLeft: '4px' }} />
-                    )}
-                    {user.isVerified && (
-                      <VerifiedUser style={{ color: '#4CAF50', marginLeft: '4px' }} />
-                    )}
-                  </Typography>
-                  
-                  <Box display="flex" alignItems="center" gap={1} mb={1}>
-                    <LocationOn style={{ fontSize: 16, color: '#666' }} />
-                    <Typography variant="body2" color="textSecondary">
-                      {user.city}, {user.state}
-                    </Typography>
-                  </Box>
-
-                  <Box display="flex" alignItems="center" gap={1} mb={1}>
-                    <Work style={{ fontSize: 16, color: '#666' }} />
-                    <Typography variant="body2" color="textSecondary">
-                      {user.profession || 'Not specified'}
-                    </Typography>
-                  </Box>
-
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <School style={{ fontSize: 16, color: '#666' }} />
-                    <Typography variant="body2" color="textSecondary">
-                      {user.education || 'Not specified'}
-                    </Typography>
-                  </Box>
-                </Box>
+                {user.isPremium && (
+                  <Chip icon={<Star />} label="Premium" size="small" color="warning" />
+                )}
               </Box>
             </Grid>
 
+            {/* Profile Details */}
+            <Grid item xs={12} sm={6}>
+              <Typography variant="h6" gutterBottom>
+                {user.firstName} {user.lastName}
+                {user.age && <span style={{ color: '#666', fontWeight: 'normal' }}> • {user.age} years</span>}
+                {user.gender && <span style={{ color: '#666', fontWeight: 'normal' }}> • {user.gender}</span>}
+              </Typography>
+              
+              <Grid container spacing={1}>
+                <Grid item xs={12}>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <LocationOn style={{ fontSize: 18, color: '#8B5CF6' }} />
+                    <Typography variant="body2">
+                      <strong>Location:</strong> {user.city || 'Not specified'}{user.state ? `, ${user.state}` : ''}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12}>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Work style={{ fontSize: 18, color: '#8B5CF6' }} />
+                    <Typography variant="body2">
+                      <strong>Profession:</strong> {user.profession || 'Not specified'}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12}>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <School style={{ fontSize: 18, color: '#8B5CF6' }} />
+                    <Typography variant="body2">
+                      <strong>Education:</strong> {user.education || 'Not specified'}
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              {/* Message */}
+              {interest.message && (
+                <Box mt={2} p={1.5} bgcolor="#F5F5F5" borderRadius={1}>
+                  <Typography variant="body2" color="textSecondary">
+                    <strong>Message:</strong> "{interest.message}"
+                  </Typography>
+                </Box>
+              )}
+            </Grid>
+
             {/* Status and Actions */}
-            <Grid item xs={12} sm={4}>
-              <Box textAlign="right">
+            <Grid item xs={12} sm={3}>
+              <Box textAlign="center" sx={{ p: 1.5, bgcolor: '#FAFAFA', borderRadius: 1 }}>
+                <Typography variant="caption" color="textSecondary" display="block" gutterBottom>
+                  Status
+                </Typography>
                 <Chip
-                  label={interest.status.replace('_', ' ')}
+                  label={interest.status}
                   color={
                     isPending ? 'warning' :
                     isAccepted ? 'success' : 'error'
                   }
-                  size="small"
-                  style={{ marginBottom: '1rem' }}
+                  size="medium"
+                  sx={{ mb: 2, fontWeight: 'bold', fontSize: '0.9rem' }}
                 />
                 
                 {type === 'received' && isPending && (
-                  <Box display="flex" gap={1} justifyContent="flex-end">
+                  <Box display="flex" flexDirection="column" gap={1}>
                     <Button
                       variant="contained"
-                      color="primary"
+                      color="success"
                       startIcon={<CheckCircle />}
                       onClick={() => handleRespondInterest(interest, 'accept')}
                       disabled={respondMutation.isLoading}
+                      fullWidth
                     >
                       Accept
                     </Button>
                     <Button
                       variant="outlined"
-                      color="secondary"
+                      color="error"
                       startIcon={<Cancel />}
                       onClick={() => handleRespondInterest(interest, 'reject')}
                       disabled={respondMutation.isLoading}
+                      fullWidth
                     >
-                      Reject
+                      Decline
                     </Button>
                   </Box>
                 )}
 
-                <Typography variant="caption" display="block" color="textSecondary">
-                  {format(new Date(interest.createdAt), 'MMM dd, yyyy hh:mm a')}
-                </Typography>
+                {type === 'sent' && (
+                  <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                    {isPending && 'Waiting for response...'}
+                    {isAccepted && '🎉 Your interest was accepted!'}
+                    {isRejected && 'This interest was declined'}
+                  </Typography>
+                )}
               </Box>
             </Grid>
           </Grid>
-
-          {interest.message && (
-            <>
-              <Divider style={{ margin: '1rem 0' }} />
-              <Typography variant="body2" color="textSecondary">
-                <strong>Message:</strong> {interest.message}
-              </Typography>
-            </>
-          )}
         </CardContent>
       </Card>
     );
@@ -269,42 +300,54 @@ const Interests = () => {
       {stats && (
         <Grid container spacing={2} style={{ marginBottom: '2rem' }}>
           <Grid item xs={12} sm={6} md={3}>
-            <Paper style={{ padding: '1rem', textAlign: 'center' }}>
-              <Typography variant="h4" color="#8B5CF6">
+            <Paper style={{ padding: '1rem', textAlign: 'center', bgcolor: '#FFF3E0', border: '2px solid #FF9800' }}>
+              <Typography variant="h4" color="#FF9800">
                 {stats.stats.received.pending}
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                Pending
+                📥 Pending Received
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                Awaiting your response
               </Typography>
             </Paper>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Paper style={{ padding: '1rem', textAlign: 'center' }}>
+            <Paper style={{ padding: '1rem', textAlign: 'center', bgcolor: '#E8F5E9', border: '2px solid #4CAF50' }}>
               <Typography variant="h4" color="#4CAF50">
                 {stats.stats.received.accepted}
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                Accepted
+                ✅ Accepted
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                Interests you accepted
               </Typography>
             </Paper>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Paper style={{ padding: '1rem', textAlign: 'center' }}>
+            <Paper style={{ padding: '1rem', textAlign: 'center', bgcolor: '#FFEBEE', border: '2px solid #F44336' }}>
               <Typography variant="h4" color="#F44336">
                 {stats.stats.received.rejected}
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                Rejected
+                ❌ Declined
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                Interests you declined
               </Typography>
             </Paper>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Paper style={{ padding: '1rem', textAlign: 'center' }}>
+            <Paper style={{ padding: '1rem', textAlign: 'center', bgcolor: '#E3F2FD', border: '2px solid #2196F3' }}>
               <Typography variant="h4" color="#2196F3">
                 {stats.stats.sent.total}
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                Sent
+                📤 Sent by You
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                Total interests sent
               </Typography>
             </Paper>
           </Grid>
@@ -320,16 +363,16 @@ const Interests = () => {
           textColor="primary"
           centered
         >
-          {tabLabels.map((label, index) => (
-            <Tab 
-              key={index} 
-              label={
-                index === 0 && stats?.stats.received.pending > 0
-                  ? <Badge badgeContent={stats.stats.received.pending} color="secondary">{label}</Badge>
-                  : label
-              }
-            />
-          ))}
+          <Tab 
+            icon={<Badge badgeContent={stats?.stats.received.pending || 0} color="error" showZero={false}>
+              <Person />
+            </Badge>}
+            label={`Received Interests (${stats?.stats.received.total || 0})`}
+          />
+          <Tab 
+            icon={<Send />}
+            label={`Sent Interests (${stats?.stats.sent.total || 0})`}
+          />
         </Tabs>
 
         {/* Sent Interests Filter */}
@@ -387,16 +430,29 @@ const Interests = () => {
             </>
           ) : (
             <Box textAlign="center" py={4}>
-              <Send style={{ fontSize: 80, color: '#E0E0E0' }} />
-              <Typography variant="h6" color="textSecondary" gutterBottom>
-                No {activeTab === 0 ? 'received' : 'sent'} interests
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                {activeTab === 0 
-                  ? 'You haven\'t received any interests yet'
-                  : 'You haven\'t sent any interests yet'
-                }
-              </Typography>
+              {activeTab === 0 ? (
+                <>
+                  <Person style={{ fontSize: 80, color: '#E0E0E0' }} />
+                  <Typography variant="h6" color="textSecondary" gutterBottom>
+                    No Received Interests
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    When someone sends you an interest, it will appear here.
+                    <br />You can then Accept or Decline their interest.
+                  </Typography>
+                </>
+              ) : (
+                <>
+                  <Send style={{ fontSize: 80, color: '#E0E0E0' }} />
+                  <Typography variant="h6" color="textSecondary" gutterBottom>
+                    No Sent Interests
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    When you send an interest to someone, it will appear here.
+                    <br />Search for profiles and send interests to connect!
+                  </Typography>
+                </>
+              )}
             </Box>
           )}
         </div>

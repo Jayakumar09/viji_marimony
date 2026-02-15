@@ -35,11 +35,31 @@ const AdminPanel = () => {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [pendingPhotoCount, setPendingPhotoCount] = useState(0);
+
+  // Fetch pending photo count for badge
+  const fetchPendingPhotoCount = async () => {
+    try {
+      const response = await api.get('/admin/dashboard');
+      setPendingPhotoCount(response.data.pendingPhotoVerifications || 0);
+    } catch (error) {
+      console.error('Failed to fetch pending photo count:', error);
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchPendingPhotoCount();
+      // Refresh count every 30 seconds
+      const interval = setInterval(fetchPendingPhotoCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isAdmin]);
 
   if (!isAdmin) {
     return (
@@ -118,7 +138,7 @@ const AdminPanel = () => {
                 minWidth: 40
               }}>
                 {item.badge ? (
-                  <Badge badgeContent="3" color="error">
+                  <Badge badgeContent={pendingPhotoCount} color="error" showZero={false}>
                     {item.icon}
                   </Badge>
                 ) : item.icon}

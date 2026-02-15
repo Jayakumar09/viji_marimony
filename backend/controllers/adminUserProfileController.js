@@ -69,6 +69,48 @@ const getAdminUserProfile = async (req, res) => {
             sentMessages: true,
             receivedMessages: true
           }
+        },
+        // Sent interests with receiver details
+        sentInterests: {
+          include: {
+            receiver: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                gender: true,
+                profilePhoto: true,
+                city: true,
+                state: true,
+                isActive: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 20
+        },
+        // Received interests with sender details
+        receivedInterests: {
+          include: {
+            sender: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                gender: true,
+                profilePhoto: true,
+                city: true,
+                state: true,
+                isActive: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 20
         }
       }
     });
@@ -202,10 +244,10 @@ const getAdminUserProfile = async (req, res) => {
         bio: user.bio || 'Not provided'
       },
       locationDetails: {
-        city: user.city,
-        state: user.state,
-        country: user.country,
-        fullLocation: `${user.city || ''}, ${user.state || ''}, ${user.country || ''}`
+        city: user.city || 'Not provided',
+        state: user.state || 'Not provided',
+        country: user.country || 'Not provided',
+        fullLocation: [user.city, user.state, user.country].filter(Boolean).join(', ') || 'Not provided'
       },
       professionalDetails: {
         education: user.education || 'Not provided',
@@ -268,7 +310,41 @@ const getAdminUserProfile = async (req, res) => {
         interestsSent: user._count.sentInterests,
         interestsReceived: user._count.receivedInterests,
         messagesSent: user._count.sentMessages,
-        messagesReceived: user._count.receivedMessages
+        messagesReceived: user._count.receivedMessages,
+        // Detailed interests sent
+        sentInterestsList: user.sentInterests.map(interest => ({
+          id: interest.id,
+          status: interest.status,
+          message: interest.message,
+          createdAt: interest.createdAt,
+          receiver: {
+            id: interest.receiver.id,
+            name: `${interest.receiver.firstName} ${interest.receiver.lastName}`,
+            email: interest.receiver.email,
+            phone: interest.receiver.phone,
+            gender: interest.receiver.gender,
+            profilePhoto: interest.receiver.profilePhoto,
+            location: `${interest.receiver.city}, ${interest.receiver.state}`,
+            isActive: interest.receiver.isActive
+          }
+        })),
+        // Detailed interests received
+        receivedInterestsList: user.receivedInterests.map(interest => ({
+          id: interest.id,
+          status: interest.status,
+          message: interest.message,
+          createdAt: interest.createdAt,
+          sender: {
+            id: interest.sender.id,
+            name: `${interest.sender.firstName} ${interest.sender.lastName}`,
+            email: interest.sender.email,
+            phone: interest.sender.phone,
+            gender: interest.sender.gender,
+            profilePhoto: interest.sender.profilePhoto,
+            location: `${interest.sender.city}, ${interest.sender.state}`,
+            isActive: interest.sender.isActive
+          }
+        }))
       }
     };
 

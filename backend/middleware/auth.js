@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const { prisma } = require('../utils/database');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'boyar-matrimony-super-secret-key-change-in-production-2024';
+
 const authMiddleware = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
@@ -9,9 +11,17 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: 'Access denied. No token provided.' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Support both `id` and `userId` in token payload for backwards compatibility
+    const userId = decoded.id || decoded.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Invalid token payload.' });
+    }
+    
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { id: userId },
       select: {
         id: true,
         email: true,
@@ -34,6 +44,7 @@ const authMiddleware = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
+    console.error('Auth middleware error:', error.message);
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ error: 'Invalid token.' });
     }
@@ -52,9 +63,17 @@ const adminAuthMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: 'Access denied. No token provided.' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Support both `id` and `adminId` in token payload
+    const adminId = decoded.id || decoded.adminId;
+    
+    if (!adminId) {
+      return res.status(401).json({ error: 'Invalid admin token payload.' });
+    }
+    
     const admin = await prisma.admin.findUnique({
-      where: { id: decoded.adminId },
+      where: { id: adminId },
       select: {
         id: true,
         email: true,
@@ -75,6 +94,7 @@ const adminAuthMiddleware = async (req, res, next) => {
     req.admin = admin;
     next();
   } catch (error) {
+    console.error('Admin auth middleware error:', error.message);
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ error: 'Invalid token.' });
     }

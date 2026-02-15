@@ -77,14 +77,19 @@ const AdminUserProfile = () => {
     setLoading(true);
     setError(null);
     try {
+      console.log('Fetching user profile for ID:', id);
       const response = await api.get(`/admin/users/${id}/profile`);
+      console.log('Profile API response:', response.data);
       if (response.data.success) {
+        console.log('Profile data received:', response.data.data);
         setProfile(response.data.data);
       } else {
+        console.error('API returned error:', response.data.error);
         setError(response.data.error || 'Failed to fetch user profile');
       }
     } catch (err) {
       console.error('Fetch profile error:', err);
+      console.error('Error response:', err.response?.data);
       setError(err.response?.data?.error || 'Failed to fetch user profile');
     } finally {
       setLoading(false);
@@ -823,6 +828,134 @@ const AdminUserProfile = () => {
                 </Card>
               </Grid>
             </Grid>
+
+            {/* Interests Sent Details */}
+            <Typography variant="h6" sx={{ mb: 2, color: 'white' }}>Interests Sent ({activityStats.sentInterestsList?.length || 0})</Typography>
+            {activityStats.sentInterestsList && activityStats.sentInterestsList.length > 0 ? (
+              <TableContainer component={Paper} sx={{ bgcolor: '#334155', borderRadius: 2, mb: 4 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Profile</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Name</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Email</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Phone</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Location</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Status</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Sent On</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Action</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {activityStats.sentInterestsList.map((interest) => (
+                      <TableRow key={interest.id}>
+                        <TableCell>
+                          <Avatar
+                            src={getFullImageUrl(interest.receiver?.profilePhoto) || undefined}
+                            sx={{ width: 40, height: 40, bgcolor: '#8B5CF6' }}
+                          >
+                            {interest.receiver?.name?.charAt(0)}
+                          </Avatar>
+                        </TableCell>
+                        <TableCell sx={{ color: 'white' }}>
+                          {interest.receiver?.name || 'N/A'}
+                          {!interest.receiver?.isActive && (
+                            <Chip label="Inactive" size="small" color="error" sx={{ ml: 1 }} />
+                          )}
+                        </TableCell>
+                        <TableCell sx={{ color: 'white' }}>{interest.receiver?.email || 'N/A'}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{interest.receiver?.phone || 'N/A'}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{interest.receiver?.location || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={interest.status} 
+                            color={interest.status === 'ACCEPTED' ? 'success' : interest.status === 'REJECTED' ? 'error' : 'warning'} 
+                            size="small" 
+                          />
+                        </TableCell>
+                        <TableCell sx={{ color: 'white' }}>{formatDate(interest.createdAt)}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => navigate(`/admin/users/${interest.receiver?.id}`)}
+                            sx={{ color: '#a78bfa', borderColor: '#a78bfa' }}
+                          >
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Alert severity="info" sx={{ bgcolor: '#334155', color: '#60a5fa', mb: 4 }}>No interests sent</Alert>
+            )}
+
+            {/* Interests Received Details */}
+            <Typography variant="h6" sx={{ mb: 2, color: 'white' }}>Interests Received ({activityStats.receivedInterestsList?.length || 0})</Typography>
+            {activityStats.receivedInterestsList && activityStats.receivedInterestsList.length > 0 ? (
+              <TableContainer component={Paper} sx={{ bgcolor: '#334155', borderRadius: 2, mb: 4 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Profile</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Name</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Email</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Phone</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Location</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Status</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Received On</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Action</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {activityStats.receivedInterestsList.map((interest) => (
+                      <TableRow key={interest.id}>
+                        <TableCell>
+                          <Avatar
+                            src={getFullImageUrl(interest.sender?.profilePhoto) || undefined}
+                            sx={{ width: 40, height: 40, bgcolor: '#8B5CF6' }}
+                          >
+                            {interest.sender?.name?.charAt(0)}
+                          </Avatar>
+                        </TableCell>
+                        <TableCell sx={{ color: 'white' }}>
+                          {interest.sender?.name || 'N/A'}
+                          {!interest.sender?.isActive && (
+                            <Chip label="Inactive" size="small" color="error" sx={{ ml: 1 }} />
+                          )}
+                        </TableCell>
+                        <TableCell sx={{ color: 'white' }}>{interest.sender?.email || 'N/A'}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{interest.sender?.phone || 'N/A'}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{interest.sender?.location || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={interest.status} 
+                            color={interest.status === 'ACCEPTED' ? 'success' : interest.status === 'REJECTED' ? 'error' : 'warning'} 
+                            size="small" 
+                          />
+                        </TableCell>
+                        <TableCell sx={{ color: 'white' }}>{formatDate(interest.createdAt)}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => navigate(`/admin/users/${interest.sender?.id}`)}
+                            sx={{ color: '#a78bfa', borderColor: '#a78bfa' }}
+                          >
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Alert severity="info" sx={{ bgcolor: '#334155', color: '#60a5fa', mb: 4 }}>No interests received</Alert>
+            )}
 
             <Typography variant="h6" sx={{ mb: 2, color: 'white' }}>Account Timeline</Typography>
             <TableContainer component={Paper} sx={{ bgcolor: '#334155', borderRadius: 2 }}>
