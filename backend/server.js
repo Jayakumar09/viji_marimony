@@ -63,6 +63,7 @@ const verificationRoutes = require('./routes/verification');
 const adminRoutes = require('./routes/admin');
 const adminFileServeRoutes = require('./routes/adminFileServe');
 const adminPhotosRoutes = require('./routes/adminPhotos');
+const adminVerificationRoutes = require('./routes/adminVerification');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -75,6 +76,7 @@ app.use('/api/verification', verificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin', adminFileServeRoutes);
 app.use('/api/admin', adminPhotosRoutes);
+app.use('/api/admin', adminVerificationRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -146,22 +146,55 @@ model UserDocument {
 model Verification {
   id            String   @id @default(cuid())
   userId        String   @map("user_id")
-  idType        String   @map("id_type") // AADHAR, PAN, PASSPORT, etc.
-  idNumber      String?  @map("id_number") // Masked - only last 4 digits visible
-  faceMatchScore Float?  @map("face_match_score")
-  isTampered    Boolean  @default(false) @map("is_tampered")
+  idType        String   @map("id_type") // AADHAAR, PAN, VOTER_ID, DRIVING_LICENSE, PASSPORT
+  encryptedIdNumber String? @map("encrypted_id_number") // AES-256 encrypted full ID number
+  last4Digits   String?  @map("last_4_digits") // Last 4 digits for display
+  idImagePath   String?  @map("id_image_path") // Path to ID proof image
+  selfiePath    String?  @map("selfie_path") // Path to selfie image
+  
+  // AI Verification Results
+  aiStatus      String   @default("PENDING") @map("ai_status") // PENDING, APPROVE, REVIEW, REJECT
+  aiConfidenceScore Float? @map("ai_confidence_score") // 0.0 to 1.0
+  aiRecommendation String? @map("ai_recommendation") // APPROVE, REVIEW, REJECT
+  tamperFlag    Boolean  @default(false) @map("tamper_flag") // True if tampering suspected
+  tamperRiskLevel String? @map("tamper_risk_level") // MINIMAL, LOW, MEDIUM, HIGH
   formatValid   Boolean  @default(true) @map("format_valid")
+  faceMatchScore Float?  @map("face_match_score") // 0.0 to 1.0
+  aiFlags       String?  @map("ai_flags") // JSON string of AI flags
+  aiSummary     String?  @map("ai_summary") // Human-readable AI summary
+  aiProcessedAt DateTime? @map("ai_processed_at")
+  
+  // Admin Verification
   status        String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  verifiedBy    String?  @map("verified_by")
+  verifiedBy    String?  @map("verified_by") // Admin ID who verified
   verifiedAt    DateTime? @map("verified_at")
+  rejectionReason String? @map("rejection_reason")
   notes         String?
+  
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   // Relations
   user          User     @relation("UserVerifications", fields: [userId], references: [id], onDelete: Cascade)
+  revealLogs    VerificationRevealLog[] @relation("VerificationRevealLogs")
 
   @@map("verifications")
+}
+
+// Verification Reveal Log - tracks when admin views full ID
+model VerificationRevealLog {
+  id              String   @id @default(cuid())
+  verificationId  String   @map("verification_id")
+  adminId         String   @map("admin_id")
+  ipAddress       String?  @map("ip_address")
+  userAgent       String?  @map("user_agent")
+  revealReason    String?  @map("reveal_reason")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  verification    Verification @relation("VerificationRevealLogs", fields: [verificationId], references: [id], onDelete: Cascade)
+
+  @@map("verification_reveal_logs")
 }
 
 model Document {
