@@ -1,9 +1,13 @@
 /**
- * Document Validation Service
- * Validates uploaded documents for format, size, and type compliance
+ * Document Validation Service with Tesseract OCR
+ * Production implementation for document validation and text extraction
+ * Uses Tesseract.js for OCR and document verification
  */
 
 const path = require('path');
+const fs = require('fs');
+const Tesseract = require('tesseract.js');
+const sharp = require('sharp');
 
 // Allowed document types and their MIME types
 const ALLOWED_DOCUMENT_TYPES = {
@@ -20,38 +24,154 @@ const MAX_FILE_SIZES = {
   document: 10 * 1024 * 1024 // 10MB
 };
 
-// ID type specific validations
+// ID type specific validations with patterns
 const ID_TYPE_VALIDATIONS = {
   AADHAAR: {
     minLength: 12,
     maxLength: 12,
-    pattern: /^\d{12}$/,
-    formatDescription: '12-digit number'
+    pattern: /^\d{4}\s?\d{4}\s?\d{4}$|^\d{12}$/,
+    formatDescription: '12-digit number (e.g., 1234 5678 9012)',
+    keywords: ['aadhaar', 'aadhar', 'uid', 'unique identification'],
+    ocrPatterns: [/\d{4}\s?\d{4}\s?\d{4}/g, /\b\d{12}\b/g]
   },
   PAN: {
     minLength: 10,
     maxLength: 10,
     pattern: /^[A-Z]{5}\d{4}[A-Z]{1}$/,
-    formatDescription: 'ABCDE1234F format'
+    formatDescription: 'ABCDE1234F format (5 letters, 4 digits, 1 letter)',
+    keywords: ['pan', 'permanent account', 'income tax'],
+    ocrPatterns: [/[A-Z]{5}\d{4}[A-Z]{1}/g]
   },
   VOTER_ID: {
     minLength: 10,
     maxLength: 10,
     pattern: /^[A-Z]{3}\d{7}$/,
-    formatDescription: 'ABC1234567 format'
+    formatDescription: 'ABC1234567 format (3 letters, 7 digits)',
+    keywords: ['voter', 'election', 'epic'],
+    ocrPatterns: [/[A-Z]{3}\d{7}/g]
   },
   DRIVING_LICENSE: {
     minLength: 8,
     maxLength: 20,
-    pattern: /^[A-Z]{2}\d{2}\s?\d{11}$/,
-    formatDescription: 'State code followed by numbers'
+    pattern: /^[A-Z]{2}\d{2}\s?\d{11}$|^[A-Z]{2}-\d{13}$/,
+    formatDescription: 'State code followed by numbers (e.g., TN01 20140012345)',
+    keywords: ['driving', 'licence', 'license', 'dl'],
+    ocrPatterns: [/[A-Z]{2}\d{2}\s?\d{11}/g, /[A-Z]{2}-\d{13}/g]
   },
   PASSPORT: {
     minLength: 8,
     maxLength: 9,
     pattern: /^[A-Z]{1}\d{7}$/,
-    formatDescription: 'Letter followed by 7 digits'
+    formatDescription: 'Letter followed by 7 digits (e.g., J1234567)',
+    keywords: ['passport', 'republic of india'],
+    ocrPatterns: [/[A-Z]\d{7}/g]
   }
+};
+
+// Tesseract worker instance (lazy loaded)
+let tesseractWorker = null;
+
+/**
+ * Initialize Tesseract worker
+ * @returns {Promise<Object>}
+ */
+const initTesseract = async () => {
+  if (!tesseractWorker) {
+    const lang = process.env.TESSERACT_LANGUAGE || 'eng+hin';
+    tesseractWorker = await Tesseract.createWorker(lang, 1, {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
+        }
+      }
+    });
+  }
+  return tesseractWorker;
+};
+
+/**
+ * Terminate Tesseract worker (cleanup)
+ */
+const terminateTesseract = async () => {
+  if (tesseractWorker) {
+    await tesseractWorker.terminate();
+    tesseractWorker = null;
+  }
+};
+
+/**
+ * Preprocess image for better OCR results
+ * @param {string} imagePath - Path to image
+ * @returns {Promise<Buffer>} - Preprocessed image buffer
+ */
+const preprocessImage = async (imagePath) => {
+  try {
+    const image = sharp(imagePath);
+    const metadata = await image.metadata();
+
+    // Apply preprocessing for better OCR
+    const processedBuffer = await image
+      .resize({ width: Math.max(metadata.width, 1500) }) // Ensure minimum width
+      .grayscale() // Convert to grayscale
+      .normalize() // Normalize contrast
+      .sharpen() // Sharpen edges
+      .toBuffer();
+
+    return processedBuffer;
+  } catch (error) {
+    console.error('Image preprocessing error:', error);
+    // Return original if preprocessing fails
+    return fs.readFileSync(imagePath);
+  }
+};
+
+/**
+ * Extract text from image using Tesseract OCR
+ * @param {string} imagePath - Path to image file
+ * @returns {Promise<Object>} - OCR result with extracted text
+ */
+const extractText = async (imagePath) => {
+  const result = {
+    success: false,
+    text: '',
+    confidence: 0,
+    words: [],
+    lines: [],
+    error: null
+  };
+
+  try {
+    if (!fs.existsSync(imagePath)) {
+      result.error = 'Image file not found';
+      return result;
+    }
+
+    // Preprocess image for better OCR
+    const processedImage = await preprocessImage(imagePath);
+
+    // Initialize Tesseract and perform OCR
+    const worker = await initTesseract();
+    const ocrResult = await worker.recognize(processedImage);
+
+    result.success = true;
+    result.text = ocrResult.data.text;
+    result.confidence = ocrResult.data.confidence / 100;
+    result.words = ocrResult.data.words?.map(w => ({
+      text: w.text,
+      confidence: w.confidence / 100,
+      bbox: w.bbox
+    })) || [];
+    result.lines = ocrResult.data.lines?.map(l => ({
+      text: l.text,
+      confidence: l.confidence / 100
+    })) || [];
+
+  } catch (error) {
+    console.error('OCR extraction error:', error);
+    result.error = error.message;
+  }
+
+  return result;
 };
 
 /**
@@ -98,86 +218,131 @@ const validateFileType = (file, documentType = 'document') => {
 };
 
 /**
- * Validate ID number format based on ID type
- * @param {string} idNumber - The ID number to validate
+ * Validate ID number format
+ * @param {string} idNumber - ID number to validate
  * @param {string} idType - Type of ID (AADHAAR, PAN, etc.)
  * @returns {Object} - Validation result
  */
 const validateIdNumber = (idNumber, idType) => {
   const result = {
-    valid: true,
+    valid: false,
     errors: [],
     warnings: [],
-    formatValid: true,
-    cleanedNumber: null
+    details: {
+      type: idType,
+      formatValid: false,
+      lengthValid: false,
+      patternMatch: false
+    }
   };
 
-  if (!idNumber) {
-    result.valid = false;
-    result.formatValid = false;
-    result.errors.push('ID number is required');
-    return result;
-  }
-
-  // Clean the ID number (remove spaces and dashes)
-  const cleanedNumber = String(idNumber).toUpperCase().replace(/[-\s]/g, '');
-  result.cleanedNumber = cleanedNumber;
-
-  const validation = ID_TYPE_VALIDATIONS[idType?.toUpperCase()];
-  
+  const validation = ID_TYPE_VALIDATIONS[idType];
   if (!validation) {
-    result.warnings.push(`Unknown ID type: ${idType}. Using generic validation.`);
-    // Generic validation - just check length
-    if (cleanedNumber.length < 4 || cleanedNumber.length > 20) {
-      result.valid = false;
-      result.formatValid = false;
-      result.errors.push('ID number length should be between 4 and 20 characters');
-    }
+    result.errors.push(`Unknown ID type: ${idType}`);
     return result;
   }
+
+  // Clean the ID number (remove spaces)
+  const cleanId = idNumber.replace(/\s/g, '');
 
   // Check length
-  if (cleanedNumber.length < validation.minLength || cleanedNumber.length > validation.maxLength) {
-    result.valid = false;
-    result.formatValid = false;
-    result.errors.push(`Invalid length for ${idType}. Expected ${validation.minLength}-${validation.maxLength} characters, got ${cleanedNumber.length}`);
+  if (cleanId.length >= validation.minLength && cleanId.length <= validation.maxLength) {
+    result.details.lengthValid = true;
+  } else {
+    result.errors.push(`Invalid length. Expected ${validation.minLength}-${validation.maxLength} characters, got ${cleanId.length}`);
   }
 
-  // Check format pattern
-  if (validation.pattern && !validation.pattern.test(cleanedNumber)) {
-    result.valid = false;
-    result.formatValid = false;
-    result.errors.push(`Invalid format for ${idType}. Expected: ${validation.formatDescription}`);
+  // Check pattern
+  if (validation.pattern.test(cleanId)) {
+    result.details.patternMatch = true;
+    result.details.formatValid = true;
+  } else {
+    result.errors.push(`Invalid format. Expected: ${validation.formatDescription}`);
   }
+
+  // Overall validity
+  result.valid = result.details.lengthValid && result.details.patternMatch;
 
   return result;
 };
 
 /**
- * Validate document metadata
- * @param {Object} metadata - Document metadata
- * @returns {Object} - Validation result
+ * Extract and validate ID number from document image
+ * @param {string} imagePath - Path to document image
+ * @param {string} idType - Type of ID
+ * @returns {Promise<Object>} - Extraction and validation result
  */
-const validateMetadata = (metadata) => {
+const extractAndValidateId = async (imagePath, idType) => {
   const result = {
-    valid: true,
+    valid: false,
+    extractedId: null,
+    confidence: 0,
+    matchedPatterns: [],
+    ocrText: '',
     errors: [],
     warnings: []
   };
 
-  if (!metadata) {
-    result.warnings.push('No metadata provided');
-    return result;
-  }
+  try {
+    // Extract text from image
+    const ocrResult = await extractText(imagePath);
 
-  // Check required fields
-  if (!metadata.idType) {
-    result.warnings.push('ID type not specified');
-  }
+    if (!ocrResult.success) {
+      result.errors.push(`OCR failed: ${ocrResult.error}`);
+      return result;
+    }
 
-  if (!metadata.userId) {
-    result.valid = false;
-    result.errors.push('User ID is required');
+    result.ocrText = ocrResult.text;
+    result.confidence = ocrResult.confidence;
+
+    const validation = ID_TYPE_VALIDATIONS[idType];
+    if (!validation) {
+      result.errors.push(`Unknown ID type: ${idType}`);
+      return result;
+    }
+
+    // Search for ID patterns in extracted text
+    const text = ocrResult.text.toUpperCase().replace(/\s+/g, ' ');
+    
+    for (const pattern of validation.ocrPatterns) {
+      const matches = text.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          const cleanMatch = match.replace(/\s/g, '');
+          const validation = validateIdNumber(cleanMatch, idType);
+          if (validation.valid) {
+            result.matchedPatterns.push({
+              value: cleanMatch,
+              original: match,
+              confidence: ocrResult.confidence
+            });
+          }
+        }
+      }
+    }
+
+    // Check for document keywords
+    const keywordMatches = validation.keywords.filter(keyword => 
+      text.toLowerCase().includes(keyword.toLowerCase())
+    );
+
+    if (keywordMatches.length > 0) {
+      result.warnings.push(`Document keywords found: ${keywordMatches.join(', ')}`);
+    }
+
+    // Select best match
+    if (result.matchedPatterns.length > 0) {
+      const bestMatch = result.matchedPatterns.reduce((best, current) => 
+        current.confidence > best.confidence ? current : best
+      );
+      result.extractedId = bestMatch.value;
+      result.valid = true;
+    } else {
+      result.warnings.push('No valid ID number pattern found in document');
+    }
+
+  } catch (error) {
+    result.errors.push(`Extraction error: ${error.message}`);
   }
 
   return result;
@@ -187,58 +352,72 @@ const validateMetadata = (metadata) => {
  * Comprehensive document validation
  * @param {Object} params - Validation parameters
  * @param {Object} params.file - Uploaded file
- * @param {string} params.idNumber - ID number
- * @param {string} params.idType - ID type
- * @param {string} params.documentType - Document type (idProof, selfie)
- * @returns {Object} - Complete validation result
+ * @param {string} params.idNumber - ID number to validate
+ * @param {string} params.idType - Type of ID
+ * @param {string} params.documentType - Document type
+ * @returns {Promise<Object>} - Complete validation result
  */
 const validateDocument = async (params) => {
-  const { file, idNumber, idType, documentType = 'document' } = params;
+  const { file, idNumber, idType, documentType = 'idProof' } = params;
 
   const result = {
     valid: true,
     errors: [],
     warnings: [],
+    confidence: 1,
     details: {
       fileValidation: null,
       idValidation: null,
-      formatValid: true,
-      sizeValid: true,
-      typeValid: true
-    },
-    confidence: 1.0
+      ocrValidation: null
+    }
   };
 
-  // Validate file
-  const fileValidation = validateFileType(file, documentType);
-  result.details.fileValidation = fileValidation;
-  result.details.sizeValid = !fileValidation.errors.some(e => e.includes('size'));
-  result.details.typeValid = !fileValidation.errors.some(e => e.includes('type'));
-  
-  if (!fileValidation.valid) {
-    result.valid = false;
-    result.errors.push(...fileValidation.errors);
-    result.confidence *= 0.5;
-  }
-  result.warnings.push(...fileValidation.warnings);
-
-  // Validate ID number if provided
-  if (idNumber) {
-    const idValidation = validateIdNumber(idNumber, idType);
-    result.details.idValidation = idValidation;
-    result.details.formatValid = idValidation.formatValid;
-    
-    if (!idValidation.valid) {
-      result.valid = false;
-      result.errors.push(...idValidation.errors);
-      result.confidence *= 0.3;
+  try {
+    // Step 1: Validate file type and size
+    if (file) {
+      result.details.fileValidation = validateFileType(file, documentType);
+      if (!result.details.fileValidation.valid) {
+        result.valid = false;
+        result.errors.push(...result.details.fileValidation.errors);
+      }
+      result.warnings.push(...result.details.fileValidation.warnings);
     }
-    result.warnings.push(...idValidation.warnings);
-  }
 
-  // Calculate overall confidence
-  if (result.errors.length > 0) {
-    result.confidence = Math.max(0, result.confidence - (result.errors.length * 0.2));
+    // Step 2: Validate ID number format
+    if (idNumber && idType) {
+      result.details.idValidation = validateIdNumber(idNumber, idType);
+      if (!result.details.idValidation.valid) {
+        result.valid = false;
+        result.errors.push(...result.details.idValidation.errors);
+      }
+      result.warnings.push(...result.details.idValidation.warnings);
+    }
+
+    // Step 3: OCR validation if file path provided
+    if (file && file.path && idType) {
+      result.details.ocrValidation = await extractAndValidateId(file.path || file, idType);
+      
+      if (result.details.ocrValidation.valid) {
+        // Verify OCR extracted ID matches provided ID
+        if (idNumber && result.details.ocrValidation.extractedId) {
+          const providedClean = idNumber.replace(/\s/g, '');
+          const extractedClean = result.details.ocrValidation.extractedId.replace(/\s/g, '');
+          
+          if (providedClean !== extractedClean) {
+            result.warnings.push('Provided ID number does not match extracted ID from document');
+            result.confidence *= 0.7;
+          }
+        }
+        result.confidence *= result.details.ocrValidation.confidence;
+      } else {
+        result.warnings.push(...result.details.ocrValidation.warnings);
+        result.confidence *= 0.8;
+      }
+    }
+
+  } catch (error) {
+    result.valid = false;
+    result.errors.push(`Validation error: ${error.message}`);
   }
 
   return result;
@@ -246,39 +425,36 @@ const validateDocument = async (params) => {
 
 /**
  * Get supported ID types
- * @returns {Array} - List of supported ID types
+ * @returns {Array}
  */
 const getSupportedIdTypes = () => {
-  return Object.keys(ID_TYPE_VALIDATIONS).map(type => ({
+  return Object.entries(ID_TYPE_VALIDATIONS).map(([type, config]) => ({
     type,
-    formatDescription: ID_TYPE_VALIDATIONS[type].formatDescription,
-    example: getExampleId(type)
+    formatDescription: config.formatDescription,
+    minLength: config.minLength,
+    maxLength: config.maxLength
   }));
 };
 
 /**
- * Get example ID for a type (for display purposes)
- * @param {string} idType - ID type
- * @returns {string} - Example ID
+ * Check if OCR is available
+ * @returns {boolean}
  */
-const getExampleId = (idType) => {
-  const examples = {
-    AADHAAR: '123456789012',
-    PAN: 'ABCDE1234F',
-    VOTER_ID: 'ABC1234567',
-    DRIVING_LICENSE: 'MH0123456789012',
-    PASSPORT: 'A1234567'
-  };
-  return examples[idType] || 'XXXXXXXXXX';
+const isOcrAvailable = () => {
+  return true; // Tesseract.js is always available
 };
 
 module.exports = {
-  validateDocument,
   validateFileType,
   validateIdNumber,
-  validateMetadata,
+  validateDocument,
+  extractText,
+  extractAndValidateId,
+  preprocessImage,
   getSupportedIdTypes,
-  getExampleId,
+  isOcrAvailable,
+  initTesseract,
+  terminateTesseract,
   ALLOWED_DOCUMENT_TYPES,
   MAX_FILE_SIZES,
   ID_TYPE_VALIDATIONS

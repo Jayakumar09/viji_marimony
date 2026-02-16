@@ -9,6 +9,9 @@ require('dotenv').config();
 // Database connection
 const { testConnection } = require('./utils/database');
 
+// AI Verification Module
+const aiVerification = require('./ai-verification');
+
 const app = express();
 const PORT = process.env.PORT || 5001;
 
@@ -167,11 +170,26 @@ async function startServer() {
         }
       });
       
-      server.listen(PORT, () => {
+      server.listen(PORT, async () => {
         console.log(`\n✅ Database: Connected Successfully`);
         console.log(`🚀 Server running on port ${PORT}`);
         console.log(`📧 Admin contact: vijayalakshmijayakumar45@gmail.com`);
         console.log(`🏠 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+        
+        // Initialize AI Verification Services
+        try {
+          const aiStatus = await aiVerification.initialize();
+          if (aiStatus.success) {
+            console.log(`🤖 AI Verification: Initialized`);
+            console.log(`   - Tesseract OCR: ${aiStatus.services.tesseract}`);
+            console.log(`   - AWS Rekognition: ${aiStatus.services.rekognition}`);
+          } else {
+            console.log(`⚠️  AI Verification: Partial initialization`);
+          }
+        } catch (aiError) {
+          console.log(`⚠️  AI Verification: ${aiError.message}`);
+        }
+        
         console.log(`\n✅ Frontend can now connect to the backend\n`);
       });
     } catch (error) {

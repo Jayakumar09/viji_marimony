@@ -536,6 +536,254 @@ const syncUserSubscription = async (req, res) => {
   }
 };
 
+// ============ PROFILE VERIFICATION WORKFLOW ============
+
+// Get pending profile verifications (users with email + phone verified, awaiting admin review)
+const getPendingProfileVerifications = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status = 'Under Admin Review' } = req.query;
+    const skip = (page - 1) * limit;
+    
+    const users = await prisma.user.findMany({
+      where: {
+        profileVerificationStatus: status,
+        emailVerified: true,
+        phoneVerified: true
+      },
+      skip,
+      take: parseInt(limit),
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        city: true,
+        state: true,
+        gender: true,
+        age: true,
+        emailVerified: true,
+        phoneVerified: true,
+        profileVerificationStatus: true,
+        profilePhoto: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+    
+    const total = await prisma.user.count({
+      where: {
+        profileVerificationStatus: status,
+        emailVerified: true,
+        phoneVerified: true
+      }
+    });
+    
+    res.json({
+      users,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Get pending profile verifications error:', error);
+    res.status(500).json({ error: 'Failed to fetch pending profile verifications' });
+  }
+};
+
+// Approve profile verification
+const approveProfileVerification = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const adminId = req.admin.id;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { 
+        id: true, 
+        firstName: true, 
+        lastName: true,
+        email: true,
+        emailVerified: true, 
+        phoneVerified: true,
+        profileVerificationStatus: true 
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (!user.emailVerified || !user.phoneVerified) {
+      return res.status(400).json({ error: 'User has not completed email and phone verification' });
+    }
+    
+    // Update user profile verification status
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        profileVerificationStatus: 'Profile Verified',
+        profileVerified: true,
+        isVerified: true
+      }
+    });
+    
+    // Log admin activity
+    await prisma.adminActivityLog.create({
+      data: {
+        adminId,
+        action: 'PROFILE_VERIFICATION_APPROVED',
+        targetUserId: userId,
+        details: JSON.stringify({
+          previousStatus: user.profileVerificationStatus,
+          newStatus: 'Profile Verified',
+          userName: `${user.firstName} ${user.lastName}`
+        })
+      }
+    });
+    
+    // Send approval email to user
+    try {
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        }
+      });
+      
+      await transporter.sendMail({
+        from: process.env.FROM_EMAIL || 'noreply@boyarmatrimony.com',
+        to: user.email,
+        subject: 'Profile Verified - Vijayalakshmi Boyar Matrimony',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #8B5CF6;">Profile Verified! 🎉</h2>
+            <p>Dear ${user.firstName},</p>
+            <p>Congratulations! Your profile has been verified by our admin team.</p>
+            <p>Your profile is now visible to other members, and you can start receiving matches.</p>
+            <p>Thank you for choosing Vijayalakshmi Boyar Matrimony!</p>
+            <br>
+            <p>Best regards,<br>Vijayalakshmi Boyar Matrimony Team</p>
+          </div>
+        `
+      });
+    } catch (emailError) {
+      console.error('Failed to send approval email:', emailError.message);
+    }
+    
+    res.json({
+      message: 'Profile verification approved successfully',
+      user: {
+        id: updatedUser.id,
+        profileVerificationStatus: updatedUser.profileVerificationStatus,
+        profileVerified: updatedUser.profileVerified
+      }
+    });
+  } catch (error) {
+    console.error('Approve profile verification error:', error);
+    res.status(500).json({ error: 'Failed to approve profile verification' });
+  }
+};
+
+// Reject profile verification
+const rejectProfileVerification = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { reason } = req.body;
+    const adminId = req.admin.id;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { 
+        id: true, 
+        firstName: true, 
+        lastName: true,
+        email: true,
+        profileVerificationStatus: true 
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Update user profile verification status
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        profileVerificationStatus: 'Rejected',
+        profileVerified: false,
+        isVerified: false,
+        manualVerificationNotes: reason || 'Profile verification rejected by admin'
+      }
+    });
+    
+    // Log admin activity
+    await prisma.adminActivityLog.create({
+      data: {
+        adminId,
+        action: 'PROFILE_VERIFICATION_REJECTED',
+        targetUserId: userId,
+        details: JSON.stringify({
+          previousStatus: user.profileVerificationStatus,
+          newStatus: 'Rejected',
+          reason: reason,
+          userName: `${user.firstName} ${user.lastName}`
+        })
+      }
+    });
+    
+    // Send rejection email to user
+    try {
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        }
+      });
+      
+      await transporter.sendMail({
+        from: process.env.FROM_EMAIL || 'noreply@boyarmatrimony.com',
+        to: user.email,
+        subject: 'Profile Verification Update - Vijayalakshmi Boyar Matrimony',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #8B5CF6;">Profile Verification Update</h2>
+            <p>Dear ${user.firstName},</p>
+            <p>We regret to inform you that your profile verification could not be completed at this time.</p>
+            <p><strong>Reason:</strong> ${reason || 'Please contact support for more details.'}</p>
+            <p>Please resolve the issue and submit again for verification.</p>
+            <br>
+            <p>Best regards,<br>Vijayalakshmi Boyar Matrimony Team</p>
+          </div>
+        `
+      });
+    } catch (emailError) {
+      console.error('Failed to send rejection email:', emailError.message);
+    }
+    
+    res.json({
+      message: 'Profile verification rejected',
+      user: {
+        id: updatedUser.id,
+        profileVerificationStatus: updatedUser.profileVerificationStatus,
+        profileVerified: updatedUser.profileVerified
+      }
+    });
+  } catch (error) {
+    console.error('Reject profile verification error:', error);
+    res.status(500).json({ error: 'Failed to reject profile verification' });
+  }
+};
+
 module.exports = {
   adminMiddleware,
   getPendingVerifications,
@@ -547,5 +795,8 @@ module.exports = {
   getUserDetails,
   getDashboardStats,
   createSubscription,
-  syncUserSubscription
+  syncUserSubscription,
+  getPendingProfileVerifications,
+  approveProfileVerification,
+  rejectProfileVerification
 };

@@ -86,6 +86,7 @@ const AdminPanel = () => {
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/admin' },
     { text: 'Photo Approvals', icon: <PhotoCamera />, path: '/admin/photos', badge: true },
+    { text: 'Profile Verifications', icon: <VerifiedUser />, path: '/admin/profile-verifications', badge: true },
     { text: 'User Management', icon: <People />, path: '/admin/users' },
     { text: 'Subscriptions', icon: <AttachMoney />, path: '/admin/subscriptions' },
     { text: 'Activity Logs', icon: <History />, path: '/admin/logs' },
@@ -280,6 +281,7 @@ const AdminPanel = () => {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/photos" element={<PhotoApprovals />} />
+          <Route path="/profile-verifications" element={<ProfileVerifications />} />
           <Route path="/users" element={<UserManagement />} />
           <Route path="/users/:id" element={<AdminUserProfile />} />
           <Route path="/subscriptions" element={<SubscriptionManagement />} />
@@ -792,6 +794,300 @@ const PhotoApprovals = () => {
             disabled={!rejectDialog.reason.trim()}
           >
             Reject Photo
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
+};
+
+// Profile Verifications Component - Users awaiting admin review
+const ProfileVerifications = () => {
+  const navigate = useNavigate();
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [rejectDialog, setRejectDialog] = useState({ open: false, userId: null, userName: '', reason: '' });
+
+  useEffect(() => {
+    fetchPendingVerifications();
+  }, [pagination.page]);
+
+  const fetchPendingVerifications = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get(`/admin/profile-verifications/pending?page=${pagination.page}&limit=10`);
+      setUsers(response.data.users || []);
+      setPagination(prev => ({
+        ...prev,
+        pages: response.data.pagination?.pages || 1,
+        total: response.data.pagination?.total || 0
+      }));
+    } catch (error) {
+      console.error('Failed to fetch pending profile verifications:', error);
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApprove = async (userId) => {
+    try {
+      await api.put(`/admin/profile-verifications/${userId}/approve`);
+      setSnackbar({ open: true, message: 'Profile verified successfully!', severity: 'success' });
+      fetchPendingVerifications();
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to approve profile verification', severity: 'error' });
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectDialog.reason.trim()) {
+      setSnackbar({ open: true, message: 'Please provide a rejection reason', severity: 'warning' });
+      return;
+    }
+    try {
+      await api.put(`/admin/profile-verifications/${rejectDialog.userId}/reject`, {
+        reason: rejectDialog.reason
+      });
+      setRejectDialog({ open: false, userId: null, userName: '', reason: '' });
+      setSnackbar({ open: true, message: 'Profile verification rejected', severity: 'success' });
+      fetchPendingVerifications();
+    } catch (error) {
+      setSnackbar({ open: true, message: 'Failed to reject profile verification', severity: 'error' });
+    }
+  };
+
+  return (
+    <Box>
+      {/* Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h5" fontWeight="bold">Profile Verifications</Typography>
+          <Typography variant="body2" color="textSecondary">
+            Users who completed email & phone verification - Awaiting admin review
+          </Typography>
+        </Box>
+        <Button
+          variant="outlined"
+          startIcon={<Refresh />}
+          onClick={fetchPendingVerifications}
+        >
+          Refresh
+        </Button>
+      </Box>
+
+      {/* Info Card */}
+      <Card sx={{ mb: 3, bgcolor: '#E8F5E9', border: '1px solid #4CAF50' }}>
+        <CardContent sx={{ py: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <VerifiedUser color="success" />
+            <Typography variant="body2">
+              <strong>Verification Flow:</strong> Users who have completed both Email and Phone verification 
+              appear here for admin review. After approval, their profile becomes visible to other members.
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
+
+      {/* Users Table */}
+      {loading ? (
+        <LinearProgress />
+      ) : users.length === 0 ? (
+        <Card sx={{ p: 6, textAlign: 'center' }}>
+          <VerifiedUser sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" color="textSecondary">
+            No pending profile verifications
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            All users with completed email & phone verification have been reviewed
+          </Typography>
+        </Card>
+      ) : (
+        <>
+          <TableContainer component={Paper} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+            <Table>
+              <TableHead sx={{ bgcolor: '#f5f5f5' }}>
+                <TableRow>
+                  <TableCell>User</TableCell>
+                  <TableCell>Contact</TableCell>
+                  <TableCell>Location</TableCell>
+                  <TableCell>Age/Gender</TableCell>
+                  <TableCell>Verification Status</TableCell>
+                  <TableCell>Registered</TableCell>
+                  <TableCell align="center">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id} hover>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Avatar 
+                          src={user.profilePhoto} 
+                          sx={{ bgcolor: '#8B5CF6' }}
+                        >
+                          {user.firstName?.charAt(0)}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="body2" fontWeight="600">
+                            {user.firstName} {user.lastName}
+                          </Typography>
+                          <Typography variant="caption" color="textSecondary">
+                            ID: {user.id.slice(-8)}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Email sx={{ fontSize: 14, color: 'success.main' }} />
+                          <Typography variant="caption">{user.email}</Typography>
+                          {user.emailVerified && (
+                            <CheckCircle sx={{ fontSize: 14, color: 'success.main' }} />
+                          )}
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Phone sx={{ fontSize: 14, color: 'success.main' }} />
+                          <Typography variant="caption">{user.phone}</Typography>
+                          {user.phoneVerified && (
+                            <CheckCircle sx={{ fontSize: 14, color: 'success.main' }} />
+                          )}
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <LocationOn sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <Typography variant="caption">
+                          {user.city}, {user.state}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption">
+                        {user.age} yrs / {user.gender}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={user.profileVerificationStatus || 'Pending'} 
+                        size="small"
+                        color={user.profileVerificationStatus === 'Under Admin Review' ? 'warning' : 'default'}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                        <Tooltip title="View Profile">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => navigate(`/admin/users/${user.id}`)}
+                          >
+                            <Visibility fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Approve">
+                          <IconButton 
+                            size="small" 
+                            color="success"
+                            onClick={() => handleApprove(user.id)}
+                          >
+                            <Check fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Reject">
+                          <IconButton 
+                            size="small" 
+                            color="error"
+                            onClick={() => setRejectDialog({ 
+                              open: true, 
+                              userId: user.id, 
+                              userName: `${user.firstName} ${user.lastName}`,
+                              reason: '' 
+                            })}
+                          >
+                            <Close fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {/* Pagination */}
+          {pagination.pages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+              <Button
+                disabled={pagination.page === 1}
+                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+              >
+                Previous
+              </Button>
+              <Typography sx={{ px: 3, py: 1 }}>
+                Page {pagination.page} of {pagination.pages}
+              </Typography>
+              <Button
+                disabled={pagination.page === pagination.pages}
+                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+              >
+                Next
+              </Button>
+            </Box>
+          )}
+        </>
+      )}
+
+      {/* Reject Dialog */}
+      <Dialog open={rejectDialog.open} onClose={() => setRejectDialog({ open: false, userId: null, userName: '', reason: '' })}>
+        <DialogTitle>Reject Profile Verification</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Rejecting verification for: <strong>{rejectDialog.userName}</strong>
+          </Typography>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Rejection Reason"
+            fullWidth
+            multiline
+            rows={3}
+            value={rejectDialog.reason}
+            onChange={(e) => setRejectDialog(prev => ({ ...prev, reason: e.target.value }))}
+            placeholder="Please provide a reason for rejection..."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRejectDialog({ open: false, userId: null, userName: '', reason: '' })}>
+            Cancel
+          </Button>
+          <Button onClick={handleReject} color="error" variant="contained">
+            Reject
           </Button>
         </DialogActions>
       </Dialog>

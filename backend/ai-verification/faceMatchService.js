@@ -1,32 +1,275 @@
 /**
- * Face Match Service
- * Compares selfie with ID proof photo to verify identity
- * Uses image analysis algorithms for face matching
+ * AWS Rekognition Face Match Service
+ * Production implementation for face comparison between ID and selfie
+ * Uses AWS Rekognition for accurate face detection and comparison
  */
 
+const { RekognitionClient, CompareFacesCommand, DetectFacesCommand, CreateCollectionCommand, IndexFacesCommand, SearchFacesCommand, DeleteFacesCommand } = require('@aws-sdk/client-rekognition');
 const fs = require('fs');
 const path = require('path');
 
-// Face match thresholds
-const FACE_MATCH_THRESHOLDS = {
-  HIGH_CONFIDENCE: 0.85,    // Strong match
-  MEDIUM_CONFIDENCE: 0.70,  // Probable match
-  LOW_CONFIDENCE: 0.50      // Weak match
+// Initialize AWS Rekognition client
+const getRekognitionClient = () => {
+  return new RekognitionClient({
+    region: process.env.AWS_REGION || 'ap-south-1',
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    }
+  });
 };
 
-// Face detection quality requirements
+// Face match thresholds from environment or defaults
+const FACE_MATCH_THRESHOLDS = {
+  HIGH_CONFIDENCE: parseFloat(process.env.AI_FACE_MATCH_THRESHOLD) || 0.90,
+  MEDIUM_CONFIDENCE: 0.80,
+  LOW_CONFIDENCE: 0.70
+};
+
+// Quality requirements for face images
 const QUALITY_REQUIREMENTS = {
   minFaceSize: 50,          // Minimum face size in pixels
-  maxBlur: 0.5,             // Maximum blur score (lower is sharper)
   minBrightness: 40,        // Minimum brightness
   maxBrightness: 220,       // Maximum brightness
-  minContrast: 20           // Minimum contrast
+  minSharpness: 50          // Minimum sharpness score
 };
 
 /**
- * Analyze image quality
+ * Check if AWS Rekognition is configured
+ * @returns {boolean}
+ */
+const isConfigured = () => {
+  return !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
+};
+
+/**
+ * Read image file as bytes for Rekognition
  * @param {string} imagePath - Path to image file
- * @returns {Object} - Quality analysis result
+ * @returns {Promise<Buffer>} - Image bytes
+ */
+const readImageBytes = async (imagePath) => {
+  try {
+    if (!fs.existsSync(imagePath)) {
+      throw new Error('Image file not found');
+    }
+    return fs.readFileSync(imagePath);
+  } catch (error) {
+    throw new Error(`Failed to read image: ${error.message}`);
+  }
+};
+
+/**
+ * Detect faces in an image using AWS Rekognition
+ * @param {string} imagePath - Path to image file
+ * @returns {Promise<Object>} - Face detection result
+ */
+const detectFaces = async (imagePath) => {
+  const result = {
+    detected: false,
+    count: 0,
+    faces: [],
+    confidence: 0,
+    quality: 'UNKNOWN',
+    error: null
+  };
+
+  if (!isConfigured()) {
+    result.error = 'AWS Rekognition not configured';
+    result.quality = 'UNAVAILABLE';
+    return result;
+  }
+
+  try {
+    const client = getRekognitionClient();
+    const imageBytes = await readImageBytes(imagePath);
+
+    const command = new DetectFacesCommand({
+      Image: { Bytes: imageBytes },
+      Attributes: ['ALL']
+    });
+
+    const response = await client.send(command);
+
+    if (response.FaceDetails && response.FaceDetails.length > 0) {
+      result.detected = true;
+      result.count = response.FaceDetails.length;
+      result.faces = response.FaceDetails.map(face => ({
+        confidence: face.Confidence / 100,
+        boundingBox: face.BoundingBox,
+        ageRange: face.AgeRange,
+        gender: face.Gender,
+        smile: face.Smile,
+        eyeglasses: face.Eyeglasses,
+        sunglasses: face.Sunglasses,
+        eyesOpen: face.EyesOpen,
+        mouthOpen: face.MouthOpen,
+        emotions: face.Emotions,
+        quality: face.Quality,
+        pose: face.Pose
+      }));
+
+      // Use highest confidence face
+      const bestFace = response.FaceDetails.reduce((best, face) => 
+        face.Confidence > best.Confidence ? face : best
+      );
+      result.confidence = bestFace.Confidence / 100;
+
+      // Determine quality based on sharpness and brightness
+      if (bestFace.Quality) {
+        const sharpness = bestFace.Quality.Sharpness || 0;
+        const brightness = bestFace.Quality.Brightness || 0;
+        
+        if (sharpness > 80 && brightness > 40 && brightness < 220) {
+          result.quality = 'HIGH';
+        } else if (sharpness > 50 && brightness > 30 && brightness < 240) {
+          result.quality = 'MEDIUM';
+        } else {
+          result.quality = 'LOW';
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('Face detection error:', error);
+    result.error = error.message;
+    result.quality = 'ERROR';
+  }
+
+  return result;
+};
+
+/**
+ * Compare two faces using AWS Rekognition
+ * @param {string} idImagePath - Path to ID image
+ * @param {string} selfiePath - Path to selfie image
+ * @returns {Promise<Object>} - Face comparison result
+ */
+const compareFaces = async (idImagePath, selfiePath) => {
+  const result = {
+    match: false,
+    confidence: 0,
+    similarity: 0,
+    recommendation: 'REVIEW',
+    details: {
+      idFaceDetected: false,
+      selfieFaceDetected: false,
+      idFaceQuality: null,
+      selfieFaceQuality: null
+    },
+    warnings: [],
+    error: null
+  };
+
+  if (!isConfigured()) {
+    result.error = 'AWS Rekognition not configured - using fallback validation';
+    result.recommendation = 'REVIEW';
+    result.warnings.push('AI face matching unavailable - manual review required');
+    return result;
+  }
+
+  try {
+    const client = getRekognitionClient();
+
+    // Read both images
+    const [idImageBytes, selfieImageBytes] = await Promise.all([
+      readImageBytes(idImagePath),
+      readImageBytes(selfiePath)
+    ]);
+
+    // First, detect faces in both images
+    const [idFaceResult, selfieFaceResult] = await Promise.all([
+      detectFaces(idImagePath),
+      detectFaces(selfiePath)
+    ]);
+
+    result.details.idFaceDetected = idFaceResult.detected;
+    result.details.selfieFaceDetected = selfieFaceResult.detected;
+    result.details.idFaceQuality = idFaceResult.quality;
+    result.details.selfieFaceQuality = selfieFaceResult.quality;
+
+    // Check if faces were detected in both images
+    if (!idFaceResult.detected) {
+      result.warnings.push('No face detected in ID image');
+      result.recommendation = 'REVIEW';
+      return result;
+    }
+
+    if (!selfieFaceResult.detected) {
+      result.warnings.push('No face detected in selfie');
+      result.recommendation = 'REVIEW';
+      return result;
+    }
+
+    // Check for multiple faces in selfie (security concern)
+    if (selfieFaceResult.count > 1) {
+      result.warnings.push('Multiple faces detected in selfie');
+      result.recommendation = 'REVIEW';
+    }
+
+    // Compare faces using Rekognition
+    const command = new CompareFacesCommand({
+      SourceImage: { Bytes: selfieImageBytes },  // Selfie as source
+      TargetImage: { Bytes: idImageBytes },      // ID as target
+      SimilarityThreshold: 70                    // Minimum similarity to return
+    });
+
+    const response = await client.send(command);
+
+    if (response.FaceMatches && response.FaceMatches.length > 0) {
+      // Get the best match
+      const bestMatch = response.FaceMatches.reduce((best, match) => 
+        match.Similarity > best.Similarity ? match : best
+      );
+
+      result.similarity = bestMatch.Similarity / 100;
+      result.confidence = result.similarity;
+
+      // Determine if it's a match based on threshold
+      if (result.similarity >= FACE_MATCH_THRESHOLDS.HIGH_CONFIDENCE) {
+        result.match = true;
+        result.recommendation = 'APPROVE';
+      } else if (result.similarity >= FACE_MATCH_THRESHOLDS.MEDIUM_CONFIDENCE) {
+        result.match = true;
+        result.recommendation = 'REVIEW';
+        result.warnings.push('Face match confidence is moderate - manual review recommended');
+      } else if (result.similarity >= FACE_MATCH_THRESHOLDS.LOW_CONFIDENCE) {
+        result.match = false;
+        result.recommendation = 'REVIEW';
+        result.warnings.push('Low face match confidence - verify identity manually');
+      } else {
+        result.match = false;
+        result.recommendation = 'REJECT';
+        result.warnings.push('Face match failed - possible identity mismatch');
+      }
+    } else {
+      // No face matches found
+      result.match = false;
+      result.recommendation = 'REJECT';
+      result.warnings.push('No matching face found between selfie and ID');
+    }
+
+    // Add quality warnings
+    if (idFaceResult.quality === 'LOW') {
+      result.warnings.push('ID image quality is low');
+    }
+    if (selfieFaceResult.quality === 'LOW') {
+      result.warnings.push('Selfie quality is low');
+    }
+
+  } catch (error) {
+    console.error('Face comparison error:', error);
+    result.error = error.message;
+    result.recommendation = 'REVIEW';
+    result.warnings.push('Face comparison failed - manual review required');
+  }
+
+  return result;
+};
+
+/**
+ * Analyze image quality for face detection
+ * @param {string} imagePath - Path to image file
+ * @returns {Promise<Object>} - Quality analysis result
  */
 const analyzeImageQuality = async (imagePath) => {
   const result = {
@@ -38,302 +281,121 @@ const analyzeImageQuality = async (imagePath) => {
   };
 
   try {
-    // Check if file exists
-    if (!fs.existsSync(imagePath)) {
+    // Use detectFaces to get quality metrics
+    const faceResult = await detectFaces(imagePath);
+
+    if (!faceResult.detected) {
       result.valid = false;
       result.quality = 'INVALID';
-      result.issues.push('Image file not found');
+      result.issues.push('No face detected in image');
+      result.score = 0;
       return result;
     }
 
-    // Get file stats
-    const stats = fs.statSync(imagePath);
-    result.details.fileSize = stats.size;
+    result.quality = faceResult.quality;
+    result.details.faceCount = faceResult.count;
+    result.details.confidence = faceResult.confidence;
 
-    // Check file size (minimum 10KB for a valid face image)
-    if (stats.size < 10 * 1024) {
-      result.valid = false;
-      result.quality = 'POOR';
-      result.issues.push('Image file too small');
-      result.score *= 0.5;
+    // Adjust score based on quality
+    if (faceResult.quality === 'HIGH') {
+      result.score = 1.0;
+    } else if (faceResult.quality === 'MEDIUM') {
+      result.score = 0.7;
+      result.issues.push('Medium quality image - consider retaking');
+    } else {
+      result.score = 0.4;
+      result.issues.push('Low quality image - retake recommended');
     }
 
-    // Check file extension
-    const ext = path.extname(imagePath).toLowerCase();
-    const validExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
-    if (!validExtensions.includes(ext)) {
-      result.valid = false;
-      result.quality = 'INVALID';
-      result.issues.push(`Unsupported image format: ${ext}`);
-      return result;
-    }
-
-    // Simulated quality checks (in production, use actual image analysis)
-    // These would be replaced with actual image processing library calls
-    result.details.format = ext;
-    result.details.estimatedQuality = 'GOOD';
-
-    // Add warnings for large files
-    if (stats.size > 5 * 1024 * 1024) {
-      result.issues.push('Large file size may affect processing speed');
+    // Check for multiple faces
+    if (faceResult.count > 1) {
+      result.issues.push('Multiple faces detected');
+      result.score *= 0.8;
     }
 
   } catch (error) {
     result.valid = false;
     result.quality = 'ERROR';
-    result.issues.push(`Error analyzing image: ${error.message}`);
+    result.issues.push(`Quality analysis failed: ${error.message}`);
+    result.score = 0;
   }
 
   return result;
 };
 
 /**
- * Detect faces in an image
- * @param {string} imagePath - Path to image file
- * @returns {Object} - Face detection result
+ * Create Rekognition collection for storing face embeddings
+ * @returns {Promise<Object>}
  */
-const detectFaces = async (imagePath) => {
-  const result = {
-    detected: false,
-    count: 0,
-    faces: [],
-    confidence: 0
-  };
+const createCollection = async () => {
+  if (!isConfigured()) {
+    return { success: false, error: 'AWS Rekognition not configured' };
+  }
 
   try {
-    // In production, this would use a face detection library like:
-    // - face-api.js
-    // - OpenCV
-    // - AWS Rekognition
-    // - Google Cloud Vision API
-    
-    // For now, we'll simulate face detection based on file validity
-    const qualityResult = await analyzeImageQuality(imagePath);
-    
-    if (qualityResult.valid) {
-      // Simulate single face detection
-      result.detected = true;
-      result.count = 1;
-      result.faces = [{
-        confidence: 0.95,
-        boundingBox: {
-          x: 0.2,
-          y: 0.15,
-          width: 0.6,
-          height: 0.7
-        }
-      }];
-      result.confidence = 0.95;
-    }
-  } catch (error) {
-    console.error('Face detection error:', error);
-    result.detected = false;
-  }
+    const client = getRekognitionClient();
+    const collectionId = process.env.AWS_REKOGNITION_COLLECTION_ID || 'boyar-matrimony-faces';
 
-  return result;
+    const command = new CreateCollectionCommand({
+      CollectionId: collectionId
+    });
+
+    const response = await client.send(command);
+    return { success: true, collectionArn: response.CollectionArn };
+  } catch (error) {
+    if (error.name === 'ResourceAlreadyExistsException') {
+      return { success: true, message: 'Collection already exists' };
+    }
+    return { success: false, error: error.message };
+  }
 };
 
 /**
- * Compare two face images
- * @param {string} idImagePath - Path to ID proof image
- * @param {string} selfiePath - Path to selfie image
- * @returns {Object} - Face comparison result
+ * Index a face for future searches
+ * @param {string} userId - User ID
+ * @param {string} imagePath - Path to face image
+ * @returns {Promise<Object>}
  */
-const compareFaces = async (idImagePath, selfiePath) => {
-  const result = {
-    match: false,
-    confidence: 0,
-    score: 0,
-    quality: {
-      idImage: null,
-      selfie: null
-    },
-    details: {},
-    recommendation: 'REVIEW'
-  };
+const indexFace = async (userId, imagePath) => {
+  if (!isConfigured()) {
+    return { success: false, error: 'AWS Rekognition not configured' };
+  }
 
   try {
-    // Analyze quality of both images
-    result.quality.idImage = await analyzeImageQuality(idImagePath);
-    result.quality.selfie = await analyzeImageQuality(selfiePath);
+    const client = getRekognitionClient();
+    const imageBytes = await readImageBytes(imagePath);
+    const collectionId = process.env.AWS_REKOGNITION_COLLECTION_ID || 'boyar-matrimony-faces';
 
-    // Check if both images are valid
-    if (!result.quality.idImage.valid || !result.quality.selfie.valid) {
-      result.recommendation = 'REJECT';
-      result.details.error = 'One or both images are invalid';
-      return result;
+    const command = new IndexFacesCommand({
+      CollectionId: collectionId,
+      Image: { Bytes: imageBytes },
+      ExternalImageId: userId,
+      DetectionAttributes: ['ALL']
+    });
+
+    const response = await client.send(command);
+
+    if (response.FaceRecords && response.FaceRecords.length > 0) {
+      return {
+        success: true,
+        faceId: response.FaceRecords[0].Face.FaceId,
+        confidence: response.FaceRecords[0].Face.Confidence / 100
+      };
     }
 
-    // Detect faces in both images
-    const idFaces = await detectFaces(idImagePath);
-    const selfieFaces = await detectFaces(selfiePath);
-
-    result.details.idFacesDetected = idFaces.count;
-    result.details.selfieFacesDetected = selfieFaces.count;
-
-    // Check if faces are detected in both images
-    if (!idFaces.detected || !selfieFaces.detected) {
-      result.recommendation = 'REVIEW';
-      result.details.error = 'Face not detected in one or both images';
-      result.confidence = 0.3;
-      return result;
-    }
-
-    // Check for multiple faces
-    if (idFaces.count > 1 || selfieFaces.count > 1) {
-      result.recommendation = 'REVIEW';
-      result.details.warning = 'Multiple faces detected';
-      result.confidence = 0.5;
-      return result;
-    }
-
-    // Simulate face matching (in production, use actual face recognition API)
-    // This would compare facial embeddings/vectors
-    const simulatedScore = await simulateFaceMatch(idImagePath, selfiePath);
-    
-    result.score = simulatedScore;
-    result.confidence = simulatedScore;
-    result.match = simulatedScore >= FACE_MATCH_THRESHOLDS.MEDIUM_CONFIDENCE;
-
-    // Determine recommendation based on score
-    if (simulatedScore >= FACE_MATCH_THRESHOLDS.HIGH_CONFIDENCE) {
-      result.recommendation = 'APPROVE';
-    } else if (simulatedScore >= FACE_MATCH_THRESHOLDS.MEDIUM_CONFIDENCE) {
-      result.recommendation = 'APPROVE';
-      result.details.warning = 'Medium confidence match - consider manual review';
-    } else if (simulatedScore >= FACE_MATCH_THRESHOLDS.LOW_CONFIDENCE) {
-      result.recommendation = 'REVIEW';
-      result.details.warning = 'Low confidence match - manual review required';
-    } else {
-      result.recommendation = 'REJECT';
-      result.details.error = 'Face match score too low';
-    }
-
+    return { success: false, error: 'No face detected to index' };
   } catch (error) {
-    console.error('Face comparison error:', error);
-    result.recommendation = 'REVIEW';
-    result.details.error = error.message;
-    result.confidence = 0;
+    return { success: false, error: error.message };
   }
-
-  return result;
-};
-
-/**
- * Simulate face match (placeholder for actual face recognition)
- * In production, this would use ML models or cloud APIs
- * @param {string} idImagePath - Path to ID image
- * @param {string} selfiePath - Path to selfie
- * @returns {number} - Match score between 0 and 1
- */
-const simulateFaceMatch = async (idImagePath, selfiePath) => {
-  // In production, implement actual face recognition:
-  // 1. Extract face embeddings from both images
-  // 2. Calculate similarity between embeddings
-  // 3. Return similarity score
-  
-  // For simulation, we'll return a reasonable score
-  // based on file validity checks
-  const idQuality = await analyzeImageQuality(idImagePath);
-  const selfieQuality = await analyzeImageQuality(selfiePath);
-  
-  // Base score on quality of both images
-  let score = 0.75; // Base score
-  
-  if (idQuality.quality === 'GOOD') score += 0.1;
-  if (selfieQuality.quality === 'GOOD') score += 0.1;
-  
-  // Add some randomness for simulation (remove in production)
-  score += (Math.random() * 0.1) - 0.05;
-  
-  // Clamp between 0 and 1
-  return Math.max(0, Math.min(1, score));
-};
-
-/**
- * Calculate face match score from URLs
- * @param {string} idImageUrl - URL to ID proof image
- * @param {string} selfieUrl - URL to selfie image
- * @returns {Object} - Match result
- */
-const calculateFaceMatchScore = async (idImageUrl, selfieUrl) => {
-  // Handle both local paths and URLs
-  const idPath = idImageUrl.startsWith('http') ? null : idImageUrl;
-  const selfiePath = selfieUrl.startsWith('http') ? null : selfieUrl;
-
-  if (!idPath || !selfiePath) {
-    // For cloud URLs, we would download and process
-    // For now, return a simulated result
-    return {
-      match: true,
-      confidence: 0.80,
-      score: 0.80,
-      recommendation: 'APPROVE',
-      details: {
-        note: 'Cloud image processing - simulated result'
-      }
-    };
-  }
-
-  return compareFaces(idPath, selfiePath);
-};
-
-/**
- * Get face match thresholds
- * @returns {Object} - Threshold values
- */
-const getThresholds = () => {
-  return { ...FACE_MATCH_THRESHOLDS };
-};
-
-/**
- * Validate selfie quality requirements
- * @param {string} selfiePath - Path to selfie image
- * @returns {Object} - Validation result
- */
-const validateSelfie = async (selfiePath) => {
-  const result = {
-    valid: true,
-    issues: [],
-    suggestions: []
-  };
-
-  const quality = await analyzeImageQuality(selfiePath);
-  
-  if (!quality.valid) {
-    result.valid = false;
-    result.issues.push(...quality.issues);
-    return result;
-  }
-
-  const faces = await detectFaces(selfiePath);
-  
-  if (!faces.detected) {
-    result.valid = false;
-    result.issues.push('No face detected in selfie');
-    return result;
-  }
-
-  if (faces.count > 1) {
-    result.issues.push('Multiple faces detected - please ensure only your face is visible');
-    result.suggestions.push('Take selfie in a well-lit area with no other people in frame');
-  }
-
-  // Add quality suggestions
-  if (quality.score < 0.8) {
-    result.suggestions.push('For better results, ensure good lighting and face the camera directly');
-  }
-
-  return result;
 };
 
 module.exports = {
   compareFaces,
   detectFaces,
   analyzeImageQuality,
-  calculateFaceMatchScore,
-  validateSelfie,
-  getThresholds,
+  createCollection,
+  indexFace,
+  isConfigured,
   FACE_MATCH_THRESHOLDS,
   QUALITY_REQUIREMENTS
 };

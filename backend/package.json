@@ -12,9 +12,12 @@
     "test": "jest",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "db:seed": "node prisma/seed.js"
+    "db:seed": "node prisma/seed.js",
+    "postinstall": "echo 'Run: npm install tesseract.js sharp @aws-sdk/client-rekognition @aws-sdk/client-s3'"
   },
   "dependencies": {
+    "@aws-sdk/client-rekognition": "^3.400.0",
+    "@aws-sdk/client-s3": "^3.400.0",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^1.41.0",
@@ -30,7 +33,10 @@
     "multer": "^1.4.5-lts.1",
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^6.9.7",
-    "twilio": "^4.23.0"
+    "sharp": "^0.33.5",
+    "tesseract.js": "^5.0.4",
+    "twilio": "^4.23.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",

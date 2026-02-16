@@ -22,22 +22,30 @@ if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
   }
 }
 
-// Helper function to check if user should be marked as verified
+// Helper function to check if user should be marked for admin review
 const checkAndSetVerification = async (userId) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { emailVerified: true, phoneVerified: true }
+    select: { emailVerified: true, phoneVerified: true, profileVerificationStatus: true }
   });
   
-  // Auto-verify user if both email and phone are verified
+  // When both email and phone are verified, set status to "Under Admin Review"
   if (user.emailVerified && user.phoneVerified) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { isVerified: true }
-    });
-    return true;
+    // Only update if not already verified or under review
+    if (user.profileVerificationStatus !== 'Profile Verified' && user.profileVerificationStatus !== 'Under Admin Review') {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { 
+          profileVerificationStatus: 'Under Admin Review'
+        }
+      });
+      
+      // Log for admin notification
+      console.log(`User ${userId} is now under admin review for profile verification`);
+    }
+    return { needsAdminReview: true, status: 'Under Admin Review' };
   }
-  return false;
+  return { needsAdminReview: false, status: 'Pending' };
 };
 
 // ============ EMAIL VERIFICATION ============
@@ -123,11 +131,12 @@ const verifyEmailOTP = async (req, res) => {
     });
     
     // Check if both email and phone are verified
-    const isFullyVerified = await checkAndSetVerification(user.id);
+    const verificationResult = await checkAndSetVerification(user.id);
     
     res.json({ 
       message: 'Email verified successfully',
-      isVerified: isFullyVerified
+      profileVerificationStatus: verificationResult.status,
+      needsAdminReview: verificationResult.needsAdminReview
     });
     
   } catch (error) {
@@ -251,11 +260,12 @@ const verifyPhoneOTP = async (req, res) => {
     });
     
     // Check if both email and phone are verified
-    const isFullyVerified = await checkAndSetVerification(req.user.id);
+    const verificationResult = await checkAndSetVerification(req.user.id);
     
     res.json({ 
       message: 'Phone verified successfully',
-      isVerified: isFullyVerified
+      profileVerificationStatus: verificationResult.status,
+      needsAdminReview: verificationResult.needsAdminReview
     });
     
   } catch (error) {
@@ -275,16 +285,34 @@ const getVerificationStatus = async (req, res) => {
         phoneVerified: true, 
         isVerified: true,
         email: true,
-        phone: true
+        phone: true,
+        profileVerificationStatus: true,
+        profileVerified: true
       }
     });
+    
+    // Pending verification message for users who haven't completed verification
+    const pendingMessage = (!user.emailVerified || !user.phoneVerified) 
+      ? `Dear Member,
+
+Your Email and/or Phone verification is still pending.
+
+Please complete verification to unlock profile visibility and start receiving matches.
+
+Verification is required to ensure secure and trusted matchmaking.
+
+Thank you,
+Vijayalakshmi Boyar Matrimony Team`
+      : null;
     
     res.json({ 
       email: user.email,
       emailVerified: user.emailVerified,
       phone: user.phone,
       phoneVerified: user.phoneVerified,
-      profileVerified: user.isVerified
+      profileVerificationStatus: user.profileVerificationStatus || 'Pending',
+      profileVerified: user.profileVerified || user.isVerified,
+      pendingMessage
     });
     
   } catch (error) {

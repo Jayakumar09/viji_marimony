@@ -75,6 +75,10 @@ model User {
   // Verification Status
   manualVerificationStatus String?  @map("manual_verification_status") // PENDING, APPROVED, REJECTED
   manualVerificationNotes String?  @map("manual_verification_notes")
+  
+  // Profile Verification Status (for email + phone verification workflow)
+  profileVerificationStatus String? @default("Pending") @map("profile_verification_status") // Pending, Under Admin Review, Profile Verified, Rejected
+  profileVerified Boolean @default(false) @map("profile_verified") // Set by admin after review
 
   // Relations
   sentInterests     Interest[] @relation("SentInterests")

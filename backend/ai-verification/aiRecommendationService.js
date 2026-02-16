@@ -1,6 +1,7 @@
 /**
- * AI Recommendation Service
+ * AI Recommendation Service - Production Implementation
  * Combines all verification analyses to generate final recommendation
+ * Uses AWS Rekognition, Tesseract OCR, and Sharp-based tamper detection
  */
 
 const documentValidation = require('./documentValidationService');
@@ -14,18 +15,26 @@ const RECOMMENDATION_TYPES = {
   REJECT: 'REJECT'
 };
 
-// Confidence thresholds
+// Confidence thresholds from environment
 const CONFIDENCE_THRESHOLDS = {
-  HIGH: 0.85,
-  MEDIUM: 0.60,
-  LOW: 0.40
+  HIGH: parseFloat(process.env.AI_CONFIDENCE_THRESHOLD) || 0.85,
+  MEDIUM: 0.65,
+  LOW: 0.45
 };
 
 // Risk weights for different factors
 const RISK_WEIGHTS = {
-  documentValidation: 0.25,
-  faceMatch: 0.35,
+  documentValidation: 0.20,
+  faceMatch: 0.40,
   tamperDetection: 0.40
+};
+
+/**
+ * Check if AI verification is enabled
+ * @returns {boolean}
+ */
+const isEnabled = () => {
+  return process.env.AI_VERIFICATION_ENABLED !== 'false';
 };
 
 /**
@@ -36,9 +45,10 @@ const RISK_WEIGHTS = {
  * @param {string} params.idType - ID type
  * @param {string} params.selfiePath - Path to selfie image
  * @param {string} params.idImagePath - Path to ID image
- * @returns {Object} - Complete AI recommendation
+ * @returns {Promise<Object>} - Complete AI recommendation
  */
 const generateRecommendation = async (params) => {
+  const startTime = Date.now();
   const { file, idNumber, idType, selfiePath, idImagePath } = params;
 
   const result = {
@@ -52,42 +62,97 @@ const generateRecommendation = async (params) => {
       tamperDetection: null
     },
     summary: '',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    processingTime: 0,
+    aiEnabled: isEnabled()
   };
 
+  // If AI verification is disabled, return default review
+  if (!isEnabled()) {
+    result.flags.push('AI verification disabled - manual review required');
+    result.summary = 'AI verification is currently disabled. Manual review required.';
+    return result;
+  }
+
   try {
-    // Run all analyses in parallel
-    const analyses = await Promise.all([
-      // Document validation
+    console.log('Starting AI verification process...');
+
+    // Run all analyses in parallel for efficiency
+    const analyses = await Promise.allSettled([
+      // Document validation with OCR
       documentValidation.validateDocument({
         file,
         idNumber,
         idType,
         documentType: 'idProof'
-      }).catch(e => ({ valid: false, errors: [e.message] })),
+      }),
       
-      // Face match (if selfie provided)
+      // Face match using AWS Rekognition
       selfiePath && idImagePath 
         ? faceMatch.compareFaces(idImagePath, selfiePath)
-            .catch(e => ({ match: false, error: e.message }))
-        : Promise.resolve({ match: null, confidence: 0, recommendation: 'REVIEW' }),
+        : Promise.resolve({ 
+            match: null, 
+            confidence: 0, 
+            recommendation: 'REVIEW',
+            error: 'Missing selfie or ID image' 
+          }),
       
-      // Tamper detection
+      // Tamper detection using Sharp
       idImagePath 
         ? tamperDetection.analyzeDocument(idImagePath)
-            .catch(e => ({ tamperScore: 0.5, riskLevel: 'MEDIUM', error: e.message }))
-        : Promise.resolve({ tamperScore: 0, riskLevel: 'LOW' })
+        : Promise.resolve({ 
+            tamperScore: 0, 
+            riskLevel: 'UNKNOWN',
+            passed: true 
+          })
     ]);
 
-    const [docValidation, faceMatchResult, tamperResult] = analyses;
+    // Extract results from settled promises
+    const [docValidationResult, faceMatchResult, tamperResult] = analyses.map(a => 
+      a.status === 'fulfilled' ? a.value : { error: a.reason?.message || 'Analysis failed' }
+    );
 
-    result.details.documentValidation = docValidation;
+    result.details.documentValidation = docValidationResult;
     result.details.faceMatch = faceMatchResult;
     result.details.tamperDetection = tamperResult;
 
+    // Process document validation results
+    if (docValidationResult.valid === false) {
+      result.flags.push(...(docValidationResult.errors || []).map(e => `Document: ${e}`));
+    }
+    if (docValidationResult.warnings?.length > 0) {
+      result.flags.push(...docValidationResult.warnings.map(w => `Warning: ${w}`));
+    }
+    if (docValidationResult.details?.ocrValidation?.extractedId) {
+      result.details.extractedId = docValidationResult.details.ocrValidation.extractedId;
+    }
+
+    // Process face match results
+    if (faceMatchResult.error) {
+      result.flags.push(`Face match: ${faceMatchResult.error}`);
+    } else if (faceMatchResult.match === false) {
+      result.flags.push('Face match failed');
+    } else if (faceMatchResult.match === true && faceMatchResult.confidence < CONFIDENCE_THRESHOLDS.HIGH) {
+      result.flags.push('Face match confidence below threshold');
+    }
+    if (faceMatchResult.warnings?.length > 0) {
+      result.flags.push(...faceMatchResult.warnings);
+    }
+
+    // Process tamper detection results
+    if (tamperResult.riskLevel === 'HIGH') {
+      result.flags.push('High tamper risk detected');
+    } else if (tamperResult.riskLevel === 'MEDIUM') {
+      result.flags.push('Medium tamper risk detected');
+    }
+    if (tamperResult.indicators?.length > 0) {
+      result.flags.push(...tamperResult.indicators.slice(0, 5)); // Limit indicators
+    }
+
     // Calculate individual scores
-    const docScore = docValidation.valid ? 1 - docValidation.confidence : 0.5;
-    const faceScore = faceMatchResult.match ? 1 - faceMatchResult.confidence : 0.5;
+    const docScore = docValidationResult.valid ? 0 : 0.3;
+    const faceScore = faceMatchResult.match === false ? 0.5 : 
+                      faceMatchResult.match === true ? 0 : 0.25;
     const tamperScore = tamperResult.tamperScore || 0;
 
     // Calculate weighted risk score
@@ -97,63 +162,39 @@ const generateRecommendation = async (params) => {
       tamperScore * RISK_WEIGHTS.tamperDetection
     );
 
-    // Collect flags
-    if (!docValidation.valid) {
-      result.flags.push(...(docValidation.errors || []).map(e => `Document: ${e}`));
-    }
-    if (docValidation.warnings?.length > 0) {
-      result.flags.push(...docValidation.warnings.map(w => `Warning: ${w}`));
-    }
-    if (!docValidation.details?.formatValid) {
-      result.flags.push('ID format validation failed');
-    }
-    if (faceMatchResult.match === false) {
-      result.flags.push('Face match failed');
-    }
-    if (faceMatchResult.confidence < CONFIDENCE_THRESHOLDS.MEDIUM) {
-      result.flags.push('Low face match confidence');
-    }
-    if (tamperResult.riskLevel === 'HIGH') {
-      result.flags.push('High tamper risk detected');
-    }
-    if (tamperResult.indicators?.length > 0) {
-      result.flags.push(...tamperResult.indicators);
-    }
-
     // Calculate overall confidence
-    const positiveFactors = [];
-    const negativeFactors = [];
+    const confidenceFactors = [];
 
-    if (docValidation.valid) positiveFactors.push(0.9);
-    else negativeFactors.push(0.3);
+    if (docValidationResult.valid) {
+      confidenceFactors.push(docValidationResult.confidence || 0.8);
+    }
 
-    if (docValidation.details?.formatValid) positiveFactors.push(0.8);
-    else negativeFactors.push(0.2);
-
-    if (faceMatchResult.match) positiveFactors.push(faceMatchResult.confidence);
-    else if (faceMatchResult.match === false) negativeFactors.push(0.4);
+    if (faceMatchResult.match === true) {
+      confidenceFactors.push(faceMatchResult.confidence || 0.8);
+    } else if (faceMatchResult.match === false) {
+      confidenceFactors.push(0.2);
+    }
 
     if (tamperResult.riskLevel === 'MINIMAL' || tamperResult.riskLevel === 'LOW') {
-      positiveFactors.push(0.85);
+      confidenceFactors.push(0.9);
+    } else if (tamperResult.riskLevel === 'MEDIUM') {
+      confidenceFactors.push(0.6);
     } else if (tamperResult.riskLevel === 'HIGH') {
-      negativeFactors.push(0.5);
+      confidenceFactors.push(0.2);
     }
 
-    // Calculate confidence
-    const avgPositive = positiveFactors.length > 0 
-      ? positiveFactors.reduce((a, b) => a + b, 0) / positiveFactors.length 
+    // Average confidence
+    result.confidence = confidenceFactors.length > 0
+      ? confidenceFactors.reduce((a, b) => a + b, 0) / confidenceFactors.length
       : 0.5;
-    const avgNegative = negativeFactors.length > 0 
-      ? negativeFactors.reduce((a, b) => a + b, 0) / negativeFactors.length 
-      : 0;
-    
-    result.confidence = Math.max(0, Math.min(1, avgPositive - avgNegative * 0.5));
 
     // Determine final recommendation
     result.recommendation = determineRecommendation(result);
 
-    // Generate summary
+    // Generate human-readable summary
     result.summary = generateSummary(result);
+
+    console.log(`AI verification completed: ${result.recommendation} (${Math.round(result.confidence * 100)}% confidence)`);
 
   } catch (error) {
     console.error('AI recommendation error:', error);
@@ -161,8 +202,10 @@ const generateRecommendation = async (params) => {
     result.confidence = 0;
     result.flags.push('Analysis error occurred');
     result.details.error = error.message;
+    result.summary = 'An error occurred during AI analysis. Manual review required.';
   }
 
+  result.processingTime = Date.now() - startTime;
   return result;
 };
 
@@ -178,32 +221,47 @@ const determineRecommendation = (result) => {
   if (flags.includes('High tamper risk detected')) {
     return RECOMMENDATION_TYPES.REJECT;
   }
+  
   if (details.tamperDetection?.riskLevel === 'HIGH') {
     return RECOMMENDATION_TYPES.REJECT;
   }
+  
   if (details.faceMatch?.recommendation === 'REJECT') {
+    return RECOMMENDATION_TYPES.REJECT;
+  }
+  
+  if (details.faceMatch?.match === false && details.faceMatch?.confidence < 0.5) {
     return RECOMMENDATION_TYPES.REJECT;
   }
 
   // High risk score
-  if (riskScore > 0.7) {
+  if (riskScore > 0.6) {
     return RECOMMENDATION_TYPES.REJECT;
   }
 
   // Review conditions
-  if (riskScore > 0.4) {
+  if (riskScore > 0.3) {
     return RECOMMENDATION_TYPES.REVIEW;
   }
+  
   if (confidence < CONFIDENCE_THRESHOLDS.MEDIUM) {
     return RECOMMENDATION_TYPES.REVIEW;
   }
+  
   if (flags.length > 3) {
     return RECOMMENDATION_TYPES.REVIEW;
   }
+  
   if (details.faceMatch?.confidence < CONFIDENCE_THRESHOLDS.HIGH) {
     return RECOMMENDATION_TYPES.REVIEW;
   }
+  
   if (details.tamperDetection?.riskLevel === 'MEDIUM') {
+    return RECOMMENDATION_TYPES.REVIEW;
+  }
+  
+  if (details.documentValidation?.details?.ocrValidation && 
+      !details.documentValidation.details.ocrValidation.valid) {
     return RECOMMENDATION_TYPES.REVIEW;
   }
 
@@ -225,8 +283,12 @@ const generateSummary = (result) => {
 
   // Document validation summary
   if (result.details.documentValidation?.valid) {
-    parts.push('Document format is valid');
-  } else {
+    if (result.details.extractedId) {
+      parts.push(`Document validated (ID extracted: ****${result.details.extractedId.slice(-4)})`);
+    } else {
+      parts.push('Document format validated');
+    }
+  } else if (result.details.documentValidation?.errors?.length > 0) {
     parts.push('Document validation issues detected');
   }
 
@@ -235,6 +297,8 @@ const generateSummary = (result) => {
     parts.push(`face match confirmed (${Math.round(result.details.faceMatch.confidence * 100)}% confidence)`);
   } else if (result.details.faceMatch?.match === false) {
     parts.push('face match failed');
+  } else if (result.details.faceMatch?.error) {
+    parts.push('face match unavailable');
   }
 
   // Tamper detection summary
@@ -261,9 +325,9 @@ const generateSummary = (result) => {
 };
 
 /**
- * Quick verification check
+ * Quick verification check (lightweight, fast)
  * @param {Object} params - Quick check parameters
- * @returns {Object} - Quick check result
+ * @returns {Promise<Object>} - Quick check result
  */
 const quickVerify = async (params) => {
   const { file, idNumber, idType } = params;
@@ -289,8 +353,8 @@ const quickVerify = async (params) => {
     }
 
     // Quick tamper check
-    if (file) {
-      const tamperCheck = await tamperDetection.quickTamperCheck(file);
+    if (file && (file.path || file)) {
+      const tamperCheck = await tamperDetection.quickTamperCheck(file.path || file);
       if (!tamperCheck.passed) {
         result.passed = false;
         result.issues.push(...tamperCheck.warnings);
@@ -336,6 +400,29 @@ const getRecommendationText = (recommendation) => {
   return texts[recommendation] || 'Unknown';
 };
 
+/**
+ * Get service status
+ * @returns {Object} - Status of all AI services
+ */
+const getServiceStatus = () => {
+  return {
+    enabled: isEnabled(),
+    faceMatch: {
+      available: faceMatch.isConfigured(),
+      provider: 'AWS Rekognition'
+    },
+    documentValidation: {
+      available: documentValidation.isOcrAvailable(),
+      provider: 'Tesseract.js'
+    },
+    tamperDetection: {
+      available: true,
+      provider: 'Sharp'
+    },
+    thresholds: CONFIDENCE_THRESHOLDS
+  };
+};
+
 module.exports = {
   generateRecommendation,
   quickVerify,
@@ -343,6 +430,8 @@ module.exports = {
   generateSummary,
   getRecommendationColor,
   getRecommendationText,
+  getServiceStatus,
+  isEnabled,
   RECOMMENDATION_TYPES,
   CONFIDENCE_THRESHOLDS,
   RISK_WEIGHTS

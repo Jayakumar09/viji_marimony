@@ -100,6 +100,8 @@ const Verification = () => {
       
       if (data.isVerified) {
         setMessage('🎉 Congratulations! Your profile is now fully verified!');
+      } else if (data.profileVerificationStatus === 'Under Admin Review') {
+        setMessage('✅ Both Email and Phone verified! Your profile is now under admin review. You will be notified once approved.');
       } else {
         setMessage(`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} verified successfully!`);
       }
@@ -252,6 +254,71 @@ const Verification = () => {
           <div className="trust">
             🔒 Your details are safe and never shared with anyone
           </div>
+
+          {/* Pending Verification Warning */}
+          {status && (!status.emailVerified || !status.phoneVerified) && (
+            <div style={{ 
+              marginTop: '20px', 
+              padding: '16px', 
+              background: '#FFF3E0', 
+              borderRadius: '8px',
+              border: '1px solid #FFB74D'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#E65100' }}>
+                ⚠️ Verification Required
+              </h4>
+              <p style={{ margin: 0, fontSize: '14px', color: '#5D4037', whiteSpace: 'pre-line' }}>
+                Dear Member,
+
+Your Email and/or Phone verification is still pending.
+
+Please complete verification to unlock profile visibility and start receiving matches.
+
+Verification is required to ensure secure and trusted matchmaking.
+
+Thank you,
+Vijayalakshmi Boyar Matrimony Team
+              </p>
+            </div>
+          )}
+
+          {/* Under Admin Review Status */}
+          {status && status.profileVerificationStatus === 'Under Admin Review' && (
+            <div style={{ 
+              marginTop: '20px', 
+              padding: '16px', 
+              background: '#E8F5E9', 
+              borderRadius: '8px',
+              border: '1px solid #4CAF50'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#2E7D32' }}>
+                ✅ Under Admin Review
+              </h4>
+              <p style={{ margin: 0, fontSize: '14px', color: '#33691E' }}>
+                Your email and phone have been verified successfully. Your profile is now under admin review.
+                You will be notified once your profile is approved and visible to other members.
+              </p>
+            </div>
+          )}
+
+          {/* Profile Verified Status */}
+          {status && status.profileVerificationStatus === 'Profile Verified' && (
+            <div style={{ 
+              marginTop: '20px', 
+              padding: '16px', 
+              background: '#E3F2FD', 
+              borderRadius: '8px',
+              border: '1px solid #2196F3'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#1565C0' }}>
+                🎉 Profile Verified!
+              </h4>
+              <p style={{ margin: 0, fontSize: '14px', color: '#0D47A1' }}>
+                Congratulations! Your profile has been verified by our admin team. Your profile is now visible
+                to other members and you can start receiving matches.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

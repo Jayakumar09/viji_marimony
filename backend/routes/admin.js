@@ -11,7 +11,10 @@ const {
   getUserDetails,
   getDashboardStats,
   createSubscription,
-  syncUserSubscription
+  syncUserSubscription,
+  getPendingProfileVerifications,
+  approveProfileVerification,
+  rejectProfileVerification
 } = require('../controllers/adminController');
 const {
   getAdminUserProfile,
@@ -100,5 +103,10 @@ router.get('/users/:id/activity-logs', getUserActivityLogs);
 router.post('/subscriptions', createSubscription);
 router.put('/subscriptions/sync/:userId', syncUserSubscription);
 router.put('/subscriptions/:id', updateSubscription);
+
+// Profile verification workflow routes
+router.get('/profile-verifications/pending', getPendingProfileVerifications);
+router.put('/profile-verifications/:userId/approve', approveProfileVerification);
+router.put('/profile-verifications/:userId/reject', rejectProfileVerification);
 
 module.exports = router;
