@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paytm Payment Gateway Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #00BAF2 0%, #008DCD 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+
+    .header .badge {
+      display: inline-block;
+      background: #FF6B00;
+      color: white;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: bold;
+    }
+
+    .card {
+      background: white;
+      border-radius: 15px;
+      padding: 25px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .card h2 {
+      color: #333;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #eee;
+    }
+
+    .server-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ccc;
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.connected {
+      background: #4caf50;
+    }
+
+    .status-dot.error {
+      background: #f44336;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #555;
+      font-weight: 500;
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: #00BAF2;
+    }
+
+    .amount-input {
+      position: relative;
+    }
+
+    .amount-input span {
+      position: absolute;
+      left: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #666;
+      font-size: 1.2rem;
+    }
+
+    .amount-input input {
+      padding-left: 35px;
+    }
+
+    .plans {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .plan-btn {
+      padding: 20px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      background: white;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+    }
+
+    .plan-btn:hover {
+      border-color: #00BAF2;
+      transform: translateY(-2px);
+    }
+
+    .plan-btn.active {
+      border-color: #00BAF2;
+      background: #e3f7ff;
+    }
+
+    .plan-btn .amount {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .plan-btn .label {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00BAF2 0%, #008DCD 100%);
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(0, 186, 242, 0.4);
+    }
+
+    .btn:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .status-box {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .status-box.show {
+      display: block;
+    }
+
+    .status-box.success {
+      background: #e8f5e9;
+      border: 1px solid #4caf50;
+      color: #2e7d32;
+    }
+
+    .status-box.error {
+      background: #ffebee;
+      border: 1px solid #f44336;
+      color: #c62828;
+    }
+
+    .status-box.info {
+      background: #e3f2fd;
+      border: 1px solid #2196f3;
+      color: #1565c0;
+    }
+
+    .test-cards {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f5f5f5;
+      border-radius: 8px;
+    }
+
+    .test-cards h3 {
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .test-cards ul {
+      list-style: none;
+    }
+
+    .test-cards li {
+      padding: 8px 0;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .test-cards li:last-child {
+      border-bottom: none;
+    }
+
+    .card-number {
+      font-family: monospace;
+      font-size: 1rem;
+      color: #333;
+    }
+
+    .card-type {
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .card-type.success {
+      color: #4caf50;
+    }
+
+    .card-type.failure {
+      color: #f44336;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #ffffff;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .note {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+      font-size: 0.9rem;
+      color: #856404;
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    footer {
+      text-align: center;
+      color: white;
+      margin-top: 30px;
+      opacity: 0.8;
+    }
+
+    .payment-details {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 5px;
+    }
+
+    .payment-details p {
+      margin: 5px 0;
+    }
+
+    .setup-warning {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .setup-warning h3 {
+      color: #856404;
+      margin-bottom: 10px;
+    }
+
+    .setup-warning p {
+      color: #856404;
+      margin-bottom: 10px;
+    }
+
+    .setup-warning code {
+      background: #fff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>💳 Paytm Payment Demo</h1>
+      <span class="badge">TEST MODE</span>
+    </div>
+
+    <div class="card">
+      <div class="server-status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Checking server status...</span>
+      </div>
+    </div>
+
+    <div class="card setup-warning" id="setupWarning" style="display: none;">
+      <h3>⚠️ Setup Required</h3>
+      <p>Please configure your Paytm credentials in the <code>.env</code> file</p>
+      <p>Get your credentials from <a href="https://dashboard.paytm.com/" target="_blank">Paytm Dashboard</a></p>
+    </div>
+
+    <div class="card">
+      <h2>💰 Select Amount</h2>
+      
+      <div class="plans">
+        <button class="plan-btn" data-amount="100">
+          <div class="amount">₹100</div>
+          <div class="label">Basic</div>
+        </button>
+        <button class="plan-btn" data-amount="500">
+          <div class="amount">₹500</div>
+          <div class="label">Standard</div>
+        </button>
+        <button class="plan-btn active" data-amount="1000">
+          <div class="amount">₹1,000</div>
+          <div class="label">Premium</div>
+        </button>
+        <button class="plan-btn" data-amount="2500">
+          <div class="amount">₹2,500</div>
+          <div class="label">Enterprise</div>
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label>Or enter custom amount:</label>
+        <div class="amount-input">
+          <span>₹</span>
+          <input type="number" id="amount" value="1000" min="1" max="500000" placeholder="Enter amount">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Customer Name:</label>
+        <input type="text" id="customerName" value="Test User" placeholder="Enter your name">
+      </div>
+
+      <div class="form-group">
+        <label>Customer Email:</label>
+        <input type="email" id="customerEmail" value="test@example.com" placeholder="Enter your email">
+      </div>
+
+      <div class="form-group">
+        <label>Customer Phone:</label>
+        <input type="tel" id="customerPhone" value="9999999999" placeholder="Enter phone number">
+      </div>
+
+      <button class="btn btn-primary" id="payBtn" onclick="initiatePayment()">
+        Pay ₹<span id="payAmount">1,000</span>
+      </button>
+
+      <div class="status-box" id="statusBox"></div>
+
+      <div class="test-cards">
+        <h3>🧪 Test Card Numbers</h3>
+        <ul id="testCardsList">
+          <!-- Will be populated by JavaScript -->
+        </ul>
+        <p style="margin-top: 10px; font-size: 0.85rem; color: #666;">
+          <strong>Note:</strong> Use any future expiry date and any CVV.<br>
+          For UPI, use: <code>success@paytm</code>
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📋 Payment History</h2>
+      <div id="paymentHistory">
+        <p style="color: #666; text-align: center;">No payments yet</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>⚠️ Important:</strong>
+      This is a demo environment using Paytm Test Mode. No real money will be deducted.
+      Make sure to update your API keys in the .env file before testing.
+    </div>
+
+    <footer>
+      <p>Paytm Payment Gateway Demo • Test Mode</p>
+    </footer>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    let merchantId = '';
+    let isConfigured = true;
+    let paymentHistory = [];
+
+    // Debug mode
+    const DEBUG = true;
+    function log(...args) {
+      if (DEBUG) console.log('[Paytm Demo]', ...args);
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', async () => {
+      await checkServerStatus();
+      await loadTestCards();
+      setupAmountListeners();
+      checkUrlParams();
+    });
+
+    // Check URL parameters for payment result
+    function checkUrlParams() {
+      const params = new URLSearchParams(window.location.search);
+      const payment = params.get('payment');
+      const txnId = params.get('txnId');
+      const orderId = params.get('orderId');
+      const msg = params.get('msg');
+
+      if (payment === 'success' && txnId) {
+        showStatus('✅ Payment Successful!', 'success', {
+          'Transaction ID': txnId,
+          'Order ID': orderId
+        });
+        addToPaymentHistory({
+          txnId,
+          orderId,
+          amount: 'Paid',
+          status: 'Success',
+          time: new Date().toLocaleString()
+        });
+      } else if (payment === 'failed') {
+        showStatus('❌ Payment Failed: ' + (msg || 'Unknown error'), 'error');
+      }
+    }
+
+    // Check server status
+    async function checkServerStatus() {
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+      const setupWarning = document.getElementById('setupWarning');
+
+      try {
+        const response = await fetch(`${API_BASE}/health`);
+        const data = await response.json();
+
+        if (data.status === 'ok') {
+          statusDot.classList.add('connected');
+          statusText.textContent = `Server connected • Test Mode: ${data.testMode ? 'Enabled' : 'Disabled'}`;
+          merchantId = data.merchantId;
+          isConfigured = data.configured;
+          
+          if (!data.configured) {
+            setupWarning.style.display = 'block';
+          }
+        } else {
+          statusDot.classList.add('error');
+          statusText.textContent = 'Server error';
+        }
+      } catch (error) {
+        statusDot.classList.add('error');
+        statusText.textContent = 'Server not reachable. Make sure to run: npm start';
+      }
+    }
+
+    // Load test cards
+    async function loadTestCards() {
+      const testCardsList = document.getElementById('testCardsList');
+      
+      try {
+        const response = await fetch(`${API_BASE}/test-cards`);
+        const data = await response.json();
+
+        testCardsList.innerHTML = data.cards.map(card => `
+          <li>
+            <span class="card-number">${card.number}</span>
+            <span class="card-type ${card.type.includes('Success') ? 'success' : 'failure'}">${card.type}</span>
+          </li>
+        `).join('');
+      } catch (error) {
+        testCardsList.innerHTML = '<li>Failed to load test cards</li>';
+      }
+    }
+
+    // Setup amount listeners
+    function setupAmountListeners() {
+      const planBtns = document.querySelectorAll('.plan-btn');
+      const amountInput = document.getElementById('amount');
+      const payAmount = document.getElementById('payAmount');
+
+      planBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          planBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          amountInput.value = btn.dataset.amount;
+          payAmount.textContent = formatCurrency(btn.dataset.amount);
+        });
+      });
+
+      amountInput.addEventListener('input', () => {
+        planBtns.forEach(b => b.classList.remove('active'));
+        payAmount.textContent = formatCurrency(amountInput.value || 0);
+      });
+    }
+
+    // Format currency
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('en-IN').format(amount);
+    }
+
+    // Show status message
+    function showStatus(message, type, details = null) {
+      const statusBox = document.getElementById('statusBox');
+      statusBox.className = `status-box show ${type}`;
+      
+      let html = `<p>${message}</p>`;
+      if (details) {
+        html += '<div class="payment-details">';
+        for (const [key, value] of Object.entries(details)) {
+          html += `<p><strong>${key}:</strong> ${value}</p>`;
+        }
+        html += '</div>';
+      }
+      
+      statusBox.innerHTML = html;
+    }
+
+    // Initiate payment
+    async function initiatePayment() {
+      if (!isConfigured) {
+        showStatus('⚠️ Please configure your Paytm credentials in .env file first', 'error');
+        return;
+      }
+
+      const amount = document.getElementById('amount').value;
+      const name = document.getElementById('customerName').value;
+      const email = document.getElementById('customerEmail').value;
+      const phone = document.getElementById('customerPhone').value;
+      const payBtn = document.getElementById('payBtn');
+
+      if (!amount || amount < 1) {
+        showStatus('Please enter a valid amount', 'error');
+        return;
+      }
+
+      payBtn.disabled = true;
+      payBtn.innerHTML = '<span class="loading"></span> Creating Order...';
+
+      try {
+        // Create order
+        const orderResponse = await fetch(`${API_BASE}/create-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: parseInt(amount),
+            customerId: `CUST_${Date.now()}`,
+            customerEmail: email,
+            customerPhone: phone
+          })
+        });
+
+        const orderData = await orderResponse.json();
+
+        if (!orderData.success) {
+          throw new Error(orderData.error || 'Failed to create order');
+        }
+
+        log('Order created:', orderData);
+
+        showStatus('Order created! Redirecting to Paytm...', 'info', {
+          'Order ID': orderData.order.orderId,
+          'Amount': `₹${formatCurrency(amount)}`
+        });
+
+        // Create form and submit to Paytm
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = orderData.paytmUrl;
+
+        // Add all Paytm parameters as hidden fields
+        for (const [key, value] of Object.entries(orderData.paytmParams)) {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = value;
+          form.appendChild(input);
+        }
+
+        document.body.appendChild(form);
+        log('Redirecting to Paytm...');
+        form.submit();
+
+      } catch (error) {
+        log('Error:', error);
+        showStatus(`Error: ${error.message}`, 'error');
+        resetPayButton();
+      }
+    }
+
+    // Add to payment history
+    function addToPaymentHistory(payment) {
+      paymentHistory.unshift(payment);
+      updatePaymentHistoryUI();
+    }
+
+    // Update payment history UI
+    function updatePaymentHistoryUI() {
+      const historyDiv = document.getElementById('paymentHistory');
+      
+      if (paymentHistory.length === 0) {
+        historyDiv.innerHTML = '<p style="color: #666; text-align: center;">No payments yet</p>';
+        return;
+      }
+
+      historyDiv.innerHTML = paymentHistory.map(p => `
+        <div style="padding: 10px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <strong>₹${formatCurrency(p.amount)}</strong>
+            <span style="color: ${p.status === 'Success' ? '#2e7d32' : '#c62828'};">${p.status}</span>
+          </div>
+          <div style="font-size: 0.85rem; color: #666;">
+            <p>Transaction: ${p.txnId}</p>
+            <p>Order: ${p.orderId}</p>
+            <p>Time: ${p.time}</p>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Reset pay button
+    function resetPayButton() {
+      const payBtn = document.getElementById('payBtn');
+      const amount = document.getElementById('amount').value;
+      payBtn.disabled = false;
+      payBtn.innerHTML = `Pay ₹<span id="payAmount">${formatCurrency(amount)}</span>`;
+    }
+  </script>
+</body>
+</html>
