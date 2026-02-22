@@ -154,14 +154,9 @@ const initiateBankTransfer = async (params) => {
 
 /**
  * Redirect to PhonePe checkout
- * @param {Object} params - Checkout parameters
- * @param {string} params.merchantId - Merchant ID
- * @param {string} params.orderId - PhonePe order ID
- * @param {number} params.amount - Amount in paise
- * @param {string} params.redirectUrl - Redirect URL after payment
- * @param {string} params.callbackUrl - Callback URL for server
+ * @param {string} checkoutUrl - PhonePe checkout URL
  */
-const redirectToCheckout = (params) => {
+const redirectToCheckout = (checkoutUrl) => {
   // For PhonePe, we need to handle the checkout differently
   // The checkout URL from API doesn't work directly
   // Instead, we'll open a popup or use the SDK
@@ -170,13 +165,8 @@ const redirectToCheckout = (params) => {
   if (window.PhonePe) {
     // Use SDK if available
     console.log('Using PhonePe SDK for checkout');
-    return { useSDK: true, params };
+    return { useSDK: true };
   }
-  
-  // Construct checkout URL with parameters
-  const checkoutUrl = params.redirectUrl 
-    ? `${params.redirectUrl}?orderId=${params.orderId}`
-    : `/payment/success?orderId=${params.orderId}`;
   
   // Fallback: Open in popup
   const width = 500;

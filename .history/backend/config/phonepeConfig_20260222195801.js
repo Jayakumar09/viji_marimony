@@ -24,12 +24,11 @@ module.exports = {
       : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
   },
 
-  // Checkout URL - uses the same domain as the API
-  // PhonePe Checkout v2 uses the API domain for checkout page
+  // Checkout URL (PhonePe checkout page domain)
+  // Note: PhonePe checkout uses checkout.phonepe.com for both sandbox and production
+  // The environment is determined by the merchant account configuration
   getCheckoutUrl() {
-    return this.environment === 'production'
-      ? 'https://api.phonepe.com/apis/pg/checkout/v2/pay'
-      : 'https://api-preprod.phonepe.com/apis/pg-sandbox/checkout/v2/pay';
+    return 'https://checkout.phonepe.com/v2/pay';
   },
 
   // Application URLs

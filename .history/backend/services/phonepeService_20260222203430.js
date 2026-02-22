@@ -153,9 +153,13 @@ const initiatePayment = async (params) => {
       throw new Error('No orderId in PhonePe response');
     }
 
-    // PhonePe Checkout v2: Return all necessary data for frontend SDK integration
-    // The frontend will use this data to open the checkout
-    console.log('PhonePe payment initiated:', { orderId, merchantOrderId, state });
+    // PhonePe Checkout v2: Use the redirectUrl from response with orderId appended
+    // The checkout flow redirects to our success page which will verify the payment
+    // For sandbox testing, we'll redirect directly to the success page with orderId
+    // In production, PhonePe would redirect here after payment completion
+    const checkoutUrl = `${phonepeConfig.getRedirectUrl()}?orderId=${orderId}&status=PENDING`;
+
+    console.log('PhonePe payment initiated:', { orderId, merchantOrderId, checkoutUrl, state });
 
     // Store payment record in database with phonepeOrderId in dedicated column
     const payment = await prisma.payments.create({
@@ -179,10 +183,7 @@ const initiatePayment = async (params) => {
       success: true,
       orderId: merchantOrderId,
       phonepeOrderId: orderId,
-      merchantId: phonepeConfig.merchantId,
-      amount: amount,
-      redirectUrl: phonepeConfig.getRedirectUrl(),
-      callbackUrl: phonepeConfig.getCallbackUrl(),
+      checkoutUrl,
       state,
       paymentId: payment.id
     };
