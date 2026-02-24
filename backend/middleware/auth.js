@@ -72,7 +72,8 @@ const adminAuthMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid admin token payload.' });
     }
     
-    const admin = await prisma.admin.findUnique({
+    // First try to find in Admin table
+    let admin = await prisma.admin.findUnique({
       where: { id: adminId },
       select: {
         id: true,
@@ -82,6 +83,31 @@ const adminAuthMiddleware = async (req, res, next) => {
         isActive: true
       }
     });
+
+    // If not found in Admin table, check if it's the super admin user
+    if (!admin) {
+      const user = await prisma.user.findUnique({
+        where: { id: adminId },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          isActive: true
+        }
+      });
+
+      // Check if this is the super admin email
+      if (user && user.email === 'vijayalakshmijayakumar45@gmail.com') {
+        admin = {
+          id: user.id,
+          email: user.email,
+          name: `${user.firstName} ${user.lastName}`,
+          role: 'SUPER_ADMIN',
+          isActive: user.isActive
+        };
+      }
+    }
 
     if (!admin) {
       return res.status(401).json({ error: 'Invalid admin token.' });

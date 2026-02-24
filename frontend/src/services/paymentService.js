@@ -1,162 +1,81 @@
 /**
  * Payment Service
  * 
- * Handles all payment-related API calls:
- * - Razorpay order creation and verification
- * - Bank transfer handling
- * - Payment status checks
+ * Handles all manual payment API calls:
+ * - Bank Transfer payments
+ * - UPI payments
+ * - Payment proof upload
+ * - Payment history
+ * 
+ * @version 2.0.0 - Simplified Manual Payments
  */
 
 import api from './api';
 
 const PAYMENT_URL = '/payments';
 
-// Subscription plan prices (should match backend config)
-// Using PhonePe-compatible plan IDs: BASIC, PRO, PREMIUM
-export const SUBSCRIPTION_PLANS = [
-  {
-    id: 'FREE',
-    name: 'Free',
-    price: 0,
-    duration: 0,
-    successFee: 0,
-    features: ['Basic profile creation', 'Limited searches', '5 interests per day']
-  },
-  {
-    id: 'BASIC',
-    name: 'Basic',
-    price: 199,
-    duration: 30,
-    successFee: 0,
-    features: ['Basic profile visibility', '10 interests per day', 'View contact details']
-  },
-  {
-    id: 'PRO',
-    name: 'Pro',
-    price: 499,
-    duration: 90,
-    successFee: 0,
-    features: ['All Basic features', 'Unlimited interests', 'Priority listing', 'AI verification included']
-  },
-  {
-    id: 'PREMIUM',
-    name: 'Premium',
-    price: 999,
-    duration: 180,
-    successFee: 0,
-    features: ['All Pro features', 'Profile highlighting', 'Dedicated support', 'Advanced AI verification']
-  }
-];
+// Note: SUBSCRIPTION_PLANS has been moved to frontend/src/config/subscription.js
+// Import from '../config/subscription' instead
 
-// Verification pricing
-export const VERIFICATION_PRICING = {
-  BASIC_AI: {
-    id: 'BASIC_AI',
-    name: 'Basic AI Verification',
-    price: 199,
-    features: ['Document format validation', 'Basic face matching', 'Tamper detection', 'AI recommendation']
-  },
-  ADVANCED_AI: {
-    id: 'ADVANCED_AI',
-    name: 'Advanced AI Verification',
-    price: 499,
-    features: ['Document format validation', 'Advanced face matching (AWS Rekognition)', 'Tamper detection', 'AI recommendation', 'Priority processing', 'Detailed verification report']
-  }
+// Payment methods
+export const PAYMENT_METHODS = {
+  BANK_TRANSFER: 'BANK_TRANSFER',
+  UPI: 'UPI'
+};
+
+// Payment status
+export const PAYMENT_STATUS = {
+  PENDING: 'PENDING',
+  PENDING_VERIFICATION: 'PENDING_VERIFICATION',
+  SUCCESS: 'SUCCESS',
+  FAILED: 'FAILED',
+  REJECTED: 'REJECTED',
+  CANCELLED: 'CANCELLED'
 };
 
 /**
- * Get payment configuration (Razorpay key, etc.)
+ * Get all subscription plans
  */
-const getPaymentConfig = async () => {
-  const response = await api.get(`${PAYMENT_URL}/config`);
+const getPlans = async () => {
+  const response = await api.get(`${PAYMENT_URL}/plans`);
   return response.data;
 };
 
 /**
- * Get pricing information
+ * Get bank details for manual transfer
  */
-const getPricing = async () => {
-  const response = await api.get(`${PAYMENT_URL}/pricing`);
+const getBankDetails = async () => {
+  const response = await api.get(`${PAYMENT_URL}/bank-details`);
   return response.data;
 };
 
 /**
- * Get current user's payment status
+ * Get UPI details for payment
  */
-const getPaymentStatus = async () => {
-  const response = await api.get(`${PAYMENT_URL}/status`);
+const getUPIDetails = async () => {
+  const response = await api.get(`${PAYMENT_URL}/upi-details`);
   return response.data;
 };
 
 /**
- * Get payment history
+ * Initiate a manual payment
+ * @param {string} planId - Plan ID (BASIC, PRO, PREMIUM)
+ * @param {string} paymentMethod - Payment method (BANK_TRANSFER, UPI)
  */
-const getPaymentHistory = async () => {
-  const response = await api.get(`${PAYMENT_URL}/history`);
-  return response.data;
-};
-
-/**
- * Create a Razorpay order for subscription payment
- * @param {string} planId - The subscription plan ID (STANDARD, PREMIUM, ELITE)
- * @param {string} currency - Currency code (default: INR)
- */
-const createSubscriptionOrder = async (planId, currency = 'INR') => {
-  const response = await api.post(`${PAYMENT_URL}/create-order`, {
-    type: 'SUBSCRIPTION',
+const initiatePayment = async (planId, paymentMethod) => {
+  const response = await api.post(`${PAYMENT_URL}/initiate`, {
     planId,
-    currency
+    paymentMethod
   });
   return response.data;
 };
 
 /**
- * Create a Razorpay order for verification payment
- * @param {string} verificationType - BASIC_AI or ADVANCED_AI
- * @param {string} currency - Currency code (default: INR)
+ * Upload payment proof
+ * @param {FormData} formData - Form data with proof file and details
  */
-const createVerificationOrder = async (verificationType, currency = 'INR') => {
-  const response = await api.post(`${PAYMENT_URL}/create-order`, {
-    type: 'VERIFICATION',
-    verificationType,
-    currency
-  });
-  return response.data;
-};
-
-/**
- * Verify Razorpay payment
- * @param {object} paymentData - Payment details from Razorpay
- */
-const verifyPayment = async (paymentData) => {
-  const response = await api.post(`${PAYMENT_URL}/verify`, paymentData);
-  return response.data;
-};
-
-/**
- * Verify payment using simple verification endpoint
- * @param {object} paymentData - Payment details from Razorpay
- */
-const verifyPaymentSimple = async (paymentData) => {
-  const response = await api.post('/simple-payment/verify', paymentData);
-  return response.data;
-};
-
-/**
- * Initiate bank transfer payment
- * @param {object} data - Payment details
- */
-const initiateBankTransfer = async (data) => {
-  const response = await api.post(`${PAYMENT_URL}/bank-transfer`, data);
-  return response.data;
-};
-
-/**
- * Upload payment proof for bank transfer
- * @param {FormData} formData - Form data with proof file
- */
-const uploadPaymentProof = async (formData) => {
-  const response = await api.post(`${PAYMENT_URL}/bank-transfer/proof`, formData, {
+const submitPaymentProof = async (formData) => {
+  const response = await api.post(`${PAYMENT_URL}/submit-proof`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -165,142 +84,162 @@ const uploadPaymentProof = async (formData) => {
 };
 
 /**
- * Get exchange rates for international payments
+ * Get user's payment history
  */
-const getExchangeRates = async () => {
-  const response = await api.get(`${PAYMENT_URL}/exchange-rates`);
+const getPaymentHistory = async () => {
+  const response = await api.get(`${PAYMENT_URL}/history`);
   return response.data;
 };
 
 /**
- * Convert currency for international payments
- * @param {string} from - Source currency
- * @param {string} to - Target currency
- * @param {number} amount - Amount to convert
+ * Get payment details
+ * @param {string} paymentId - Payment ID
  */
-const convertCurrency = async (from, to, amount) => {
-  const response = await api.post(`${PAYMENT_URL}/convert`, { from, to, amount });
+const getPaymentDetails = async (paymentId) => {
+  const response = await api.get(`${PAYMENT_URL}/${paymentId}`);
   return response.data;
 };
 
 /**
- * Load Razorpay SDK dynamically
+ * Cancel a pending payment
+ * @param {string} paymentId - Payment ID
  */
-const loadRazorpaySDK = () => {
-  return new Promise((resolve, reject) => {
-    if (window.Razorpay) {
-      resolve(window.Razorpay);
-      return;
-    }
-
-    const script = document.createElement('script');
-    // Use the older stable checkout API - this avoids the standard_checkout 400 errors
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.setAttribute('data-cfasync', 'false');
-    // Try to disable the newer checkout flow
-    script.setAttribute('data-sdk-integration', 'manual');
-    script.onload = () => {
-      console.log('Razorpay SDK loaded successfully');
-      resolve(window.Razorpay);
-    };
-    script.onerror = () => {
-      reject(new Error('Failed to load Razorpay SDK'));
-    };
-    document.body.appendChild(script);
-  });
+const cancelPayment = async (paymentId) => {
+  const response = await api.post(`${PAYMENT_URL}/${paymentId}/cancel`);
+  return response.data;
 };
 
+// ============ ADMIN FUNCTIONS ============
+
 /**
- * Open Razorpay checkout for subscription
- * @param {object} order - Order data from backend
- * @param {object} user - Current user data
- * @param {function} onSuccess - Success callback
- * @param {function} onFailure - Failure callback
+ * Get all payments (Admin)
+ * @param {number} page - Page number
+ * @param {number} limit - Items per page
+ * @param {string} status - Filter by status
  */
-const openRazorpayCheckout = async (order, user, onSuccess, onFailure) => {
-  try {
-    console.log('=== Razorpay Checkout Debug ===');
-    console.log('Order data:', JSON.stringify(order, null, 2));
-    console.log('User data:', JSON.stringify(user, null, 2));
-    
-    const Razorpay = await loadRazorpaySDK();
-    const config = await getPaymentConfig();
-    
-    console.log('Razorpay config:', JSON.stringify(config.config, null, 2));
-    console.log('Amount (paise):', Math.round(order.amount * 100));
-    console.log('Order ID:', order.orderId);
-
-    // Minimal options to avoid 400 errors from Razorpay's new checkout flow
-    const options = {
-      key: config.config.razorpayKeyId,
-      amount: Math.round(order.amount * 100), // Convert rupees to paise
-      currency: order.currency || 'INR',
-      order_id: order.orderId,
-      name: 'Vijayalakshmi Boyar Matrimony',
-      description: order.description || 'Subscription Payment',
-      prefill: {
-        name: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : '',
-        email: user.email || '',
-        contact: user.phone ? user.phone.replace('+91', '') : ''
-      },
-      theme: {
-        color: '#8B5CF6'
-      },
-      handler: async (response) => {
-        try {
-          const verificationData = {
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-            orderId: order.id
-          };
-          
-          console.log('Verifying payment with simple endpoint:', verificationData);
-          const result = await verifyPaymentSimple(verificationData);
-          console.log('Verification result:', result);
-          if (onSuccess) onSuccess(result);
-        } catch (error) {
-          console.error('Payment verification error:', error);
-          if (onFailure) onFailure(error);
-        }
-      },
-      modal: {
-        ondismiss: () => {
-          if (onFailure) onFailure(new Error('Payment cancelled by user'));
-        }
-      }
-    };
-
-    console.log('Creating Razorpay instance with minimal options');
-    const rzp = new Razorpay(options);
-    
-    rzp.on('payment.failed', function (response) {
-      console.error('Payment failed event:', response.error);
-      if (onFailure) onFailure(new Error(response.error.description || 'Payment failed'));
-    });
-    
-    rzp.open();
-  } catch (error) {
-    console.error('Razorpay checkout error:', error);
-    if (onFailure) onFailure(error);
+const getAdminPayments = async (page = 1, limit = 20, status = null) => {
+  let url = `${PAYMENT_URL}/admin/all?page=${page}&limit=${limit}`;
+  if (status) {
+    url += `&status=${status}`;
   }
+  const response = await api.get(url);
+  return response.data;
+};
+
+/**
+ * Get payment statistics (Admin)
+ */
+const getPaymentStats = async () => {
+  const response = await api.get(`${PAYMENT_URL}/admin/stats`);
+  return response.data;
+};
+
+/**
+ * Approve payment (Admin)
+ * @param {string} paymentId - Payment ID
+ * @param {string} notes - Admin notes
+ */
+const approvePayment = async (paymentId, notes = '') => {
+  const response = await api.post(`${PAYMENT_URL}/admin/${paymentId}/approve`, { notes });
+  return response.data;
+};
+
+/**
+ * Reject payment (Admin)
+ * @param {string} paymentId - Payment ID
+ * @param {string} reason - Rejection reason
+ */
+const rejectPayment = async (paymentId, reason) => {
+  const response = await api.post(`${PAYMENT_URL}/admin/${paymentId}/reject`, { reason });
+  return response.data;
+};
+
+/**
+ * Get admin notifications
+ * @param {boolean} unreadOnly - Get only unread notifications
+ */
+const getAdminNotifications = async (unreadOnly = false) => {
+  const response = await api.get(`${PAYMENT_URL}/admin/notifications?unreadOnly=${unreadOnly}`);
+  return response.data;
+};
+
+/**
+ * Mark notification as read
+ * @param {string} notificationId - Notification ID
+ */
+const markNotificationRead = async (notificationId) => {
+  const response = await api.post(`${PAYMENT_URL}/admin/notifications/${notificationId}/read`);
+  return response.data;
+};
+
+/**
+ * Mark all notifications as read
+ */
+const markAllNotificationsRead = async () => {
+  const response = await api.post(`${PAYMENT_URL}/admin/notifications/read-all`);
+  return response.data;
+};
+
+/**
+ * Get payment messages
+ * @param {string} paymentId - Payment ID
+ */
+const getPaymentMessages = async (paymentId) => {
+  const response = await api.get(`${PAYMENT_URL}/${paymentId}/messages`);
+  return response.data;
+};
+
+/**
+ * Send payment message (User)
+ * @param {string} paymentId - Payment ID
+ * @param {string} message - Message content
+ */
+const sendPaymentMessage = async (paymentId, message) => {
+  const response = await api.post(`${PAYMENT_URL}/${paymentId}/messages`, { message });
+  return response.data;
+};
+
+/**
+ * Send admin payment message (Admin)
+ * @param {string} paymentId - Payment ID
+ * @param {string} message - Message content
+ */
+const sendAdminPaymentMessage = async (paymentId, message) => {
+  const response = await api.post(`${PAYMENT_URL}/admin/${paymentId}/messages`, { message });
+  return response.data;
+};
+
+/**
+ * Get user's payment notifications
+ */
+const getUserPaymentNotifications = async () => {
+  const response = await api.get(`${PAYMENT_URL}/user/notifications`);
+  return response.data;
 };
 
 export default {
-  SUBSCRIPTION_PLANS,
-  VERIFICATION_PRICING,
-  getPaymentConfig,
-  getPricing,
-  getPaymentStatus,
+  PAYMENT_METHODS,
+  PAYMENT_STATUS,
+  getPlans,
+  getBankDetails,
+  getUPIDetails,
+  initiatePayment,
+  submitPaymentProof,
   getPaymentHistory,
-  createSubscriptionOrder,
-  createVerificationOrder,
-  verifyPayment,
-  verifyPaymentSimple,
-  initiateBankTransfer,
-  uploadPaymentProof,
-  getExchangeRates,
-  convertCurrency,
-  loadRazorpaySDK,
-  openRazorpayCheckout
+  getPaymentDetails,
+  cancelPayment,
+  // Admin
+  getAdminPayments,
+  getPaymentStats,
+  approvePayment,
+  rejectPayment,
+  // Notifications
+  getAdminNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  // Messages
+  getPaymentMessages,
+  sendPaymentMessage,
+  sendAdminPaymentMessage,
+  getUserPaymentNotifications
 };

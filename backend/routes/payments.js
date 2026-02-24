@@ -1,124 +1,162 @@
 /**
  * Payment Routes
  * 
- * All payment-related API endpoints:
- * - Razorpay order creation and verification
- * - Bank transfer handling
- * - Webhook handling
- * - Admin payment management
+ * Manual payment API endpoints:
+ * - Bank Transfer payments
+ * - UPI payments
+ * - Payment proof upload
+ * - Admin verification
  * 
- * @version 1.0.0
+ * @version 2.0.0 - Simplified Manual Payments
  */
 
 const express = require('express');
 const router = express.Router();
 
 // Import controller
-const paymentController = require('../controllers/paymentController');
+const manualPaymentController = require('../controllers/manualPaymentController');
 
 // Import middleware
-const { authMiddleware } = require('../middleware/auth');
-const { adminAuthMiddleware } = require('../middleware/auth');
+const { authMiddleware, adminAuthMiddleware } = require('../middleware/auth');
 
 // ============ PUBLIC ROUTES ============
 
 /**
- * GET /api/payments/pricing
- * Get verification pricing (public)
+ * GET /api/payments/plans
+ * Get all subscription plans (public)
  */
-router.get('/pricing', paymentController.getPricing);
+router.get('/plans', manualPaymentController.getPlans);
 
 /**
- * GET /api/payments/config
- * Get payment configuration (public - for frontend)
+ * GET /api/payments/bank-details
+ * Get bank details for manual transfer (public)
  */
-router.get('/config', paymentController.getPaymentConfig);
+router.get('/bank-details', manualPaymentController.getBankDetails);
 
 /**
- * GET /api/payments/exchange-rates
- * Get current exchange rates (public)
+ * GET /api/payments/upi-details
+ * Get UPI details for payment (public)
  */
-router.get('/exchange-rates', paymentController.getExchangeRates);
+router.get('/upi-details', manualPaymentController.getUPIDetails);
 
 /**
- * POST /api/payments/webhook
- * Razorpay webhook endpoint (no auth - verified by signature)
+ * GET /api/payments/upi-qr
+ * Get UPI QR code image (public)
  */
-router.post('/webhook', express.raw({ type: 'application/json' }), paymentController.handleWebhook);
+router.get('/upi-qr', manualPaymentController.getUPIQR);
 
 // ============ USER ROUTES (Authentication Required) ============
 
 /**
- * GET /api/payments/status
- * Get current user's payment status
+ * POST /api/payments/initiate
+ * Initiate a manual payment
  */
-router.get('/status', authMiddleware, paymentController.getPaymentStatus);
+router.post('/initiate', authMiddleware, manualPaymentController.initiatePayment);
 
 /**
- * GET /api/payments/history
- * Get current user's payment history
- */
-router.get('/history', authMiddleware, paymentController.getPaymentHistory);
-
-/**
- * POST /api/payments/create-order
- * Create a new Razorpay order for verification payment
- */
-router.post('/create-order', authMiddleware, paymentController.createOrder);
-
-/**
- * POST /api/payments/verify
- * Verify Razorpay payment
- */
-router.post('/verify', authMiddleware, paymentController.verifyPayment);
-
-/**
- * POST /api/payments/bank-transfer
- * Initiate bank transfer payment
- */
-router.post('/bank-transfer', authMiddleware, paymentController.initiateBankTransfer);
-
-/**
- * POST /api/payments/bank-transfer/proof
- * Upload payment proof for bank transfer
+ * POST /api/payments/submit-proof
+ * Upload payment proof
  */
 router.post(
-  '/bank-transfer/proof',
+  '/submit-proof',
   authMiddleware,
-  paymentController.getUploadMiddleware(),
-  paymentController.uploadPaymentProof
+  manualPaymentController.getUploadMiddleware(),
+  manualPaymentController.submitPaymentProof
 );
 
 /**
- * POST /api/payments/convert
- * Convert currency for international payments
+ * GET /api/payments/history
+ * Get user's payment history
  */
-router.post('/convert', authMiddleware, paymentController.convertCurrency);
-
-// ============ ADMIN ROUTES (Admin Authentication Required) ============
+router.get('/history', authMiddleware, manualPaymentController.getPaymentHistory);
 
 /**
- * GET /api/payments/admin/pending
- * Get pending bank transfers
+ * GET /api/payments/user/notifications
+ * Get user's payment notifications
  */
-router.get('/admin/pending', adminAuthMiddleware, paymentController.getPendingPayments);
+router.get('/user/notifications', authMiddleware, manualPaymentController.getUserPaymentNotifications);
+
+// ============ ADMIN ROUTES (Admin Authentication Required) ============
+// Note: Admin routes must come BEFORE /:id routes to avoid route conflicts
+
+/**
+ * GET /api/payments/admin/all
+ * Get all payments (Admin)
+ */
+router.get('/admin/all', adminAuthMiddleware, manualPaymentController.getAdminPayments);
 
 /**
  * GET /api/payments/admin/stats
- * Get payment statistics
+ * Get payment statistics (Admin)
  */
-router.get('/admin/stats', adminAuthMiddleware, paymentController.getPaymentStats);
+router.get('/admin/stats', adminAuthMiddleware, manualPaymentController.getPaymentStats);
+
+/**
+ * GET /api/payments/admin/notifications
+ * Get admin notifications (Admin)
+ */
+router.get('/admin/notifications', adminAuthMiddleware, manualPaymentController.getAdminNotifications);
+
+/**
+ * POST /api/payments/admin/notifications/:id/read
+ * Mark notification as read (Admin)
+ */
+router.post('/admin/notifications/:id/read', adminAuthMiddleware, manualPaymentController.markNotificationRead);
+
+/**
+ * POST /api/payments/admin/notifications/read-all
+ * Mark all notifications as read (Admin)
+ */
+router.post('/admin/notifications/read-all', adminAuthMiddleware, manualPaymentController.markAllNotificationsRead);
 
 /**
  * POST /api/payments/admin/:id/approve
- * Approve bank transfer payment
+ * Approve payment (Admin)
  */
-router.post('/admin/:id/approve', adminAuthMiddleware, paymentController.approvePayment);
+router.post('/admin/:id/approve', adminAuthMiddleware, manualPaymentController.approvePayment);
 
 /**
  * POST /api/payments/admin/:id/reject
- * Reject bank transfer payment
+ * Reject payment (Admin)
  */
-router.post('/admin/:id/reject', adminAuthMiddleware, paymentController.rejectPayment);
+router.post('/admin/:id/reject', adminAuthMiddleware, manualPaymentController.rejectPayment);
+
+/**
+ * POST /api/payments/admin/:id/messages
+ * Send admin payment message (Admin)
+ */
+router.post('/admin/:id/messages', adminAuthMiddleware, manualPaymentController.sendAdminPaymentMessage);
+
+/**
+ * GET /api/payments/admin/:id/messages
+ * Get payment messages (Admin)
+ */
+router.get('/admin/:id/messages', adminAuthMiddleware, manualPaymentController.getPaymentMessages);
+
+// ============ PARAMETERIZED ROUTES (Must come AFTER specific routes) ============
+
+/**
+ * GET /api/payments/:id
+ * Get payment details
+ */
+router.get('/:id', authMiddleware, manualPaymentController.getPaymentDetails);
+
+/**
+ * POST /api/payments/:id/cancel
+ * Cancel a pending payment
+ */
+router.post('/:id/cancel', authMiddleware, manualPaymentController.cancelPayment);
+
+/**
+ * GET /api/payments/:id/messages
+ * Get payment messages
+ */
+router.get('/:id/messages', authMiddleware, manualPaymentController.getPaymentMessages);
+
+/**
+ * POST /api/payments/:id/messages
+ * Send payment message (User)
+ */
+router.post('/:id/messages', authMiddleware, manualPaymentController.sendPaymentMessage);
 
 module.exports = router;

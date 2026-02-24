@@ -18,8 +18,8 @@ api.interceptors.request.use(
     const adminToken = localStorage.getItem('adminToken');
     const userToken = localStorage.getItem('token');
     
-    // Use admin token for admin API calls, user token for regular calls
-    if (adminToken && config.url.includes('/admin/')) {
+    // Use admin token for admin API calls (including /payments/admin/), user token for regular calls
+    if (adminToken && (config.url.includes('/admin/') || config.url.includes('/payments/admin/'))) {
       config.headers.Authorization = `Bearer ${adminToken}`;
     } else if (userToken) {
       config.headers.Authorization = `Bearer ${userToken}`;
@@ -35,11 +35,9 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
+    // Don't auto-redirect on 401, let the component handle it
+    // This prevents redirect loops when token is invalid
+    console.error('API Error:', error.response?.status, error.response?.data);
     return Promise.reject(error);
   }
 );

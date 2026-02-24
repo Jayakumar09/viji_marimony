@@ -100,6 +100,29 @@ router.put('/users/:id/manual-verify', manualVerifyUser);
 router.get('/users/:id/activity-logs', getUserActivityLogs);
 
 // Subscription management
+router.get('/subscriptions', async (req, res) => {
+  try {
+    const { prisma } = require('../utils/database');
+    const subscriptions = await prisma.subscription.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.json({ subscriptions });
+  } catch (error) {
+    console.error('Get subscriptions error:', error);
+    res.status(500).json({ error: 'Failed to fetch subscriptions' });
+  }
+});
 router.post('/subscriptions', createSubscription);
 router.put('/subscriptions/sync/:userId', syncUserSubscription);
 router.put('/subscriptions/:id', updateSubscription);

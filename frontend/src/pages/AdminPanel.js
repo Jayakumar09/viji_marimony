@@ -18,6 +18,7 @@ import {
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import AdminUserProfile from './AdminUserProfile';
+import toast from 'react-hot-toast';
 
 // Sidebar width
 const DRAWER_WIDTH = 280;
@@ -36,6 +37,7 @@ const AdminPanel = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [pendingPhotoCount, setPendingPhotoCount] = useState(0);
+  const [pendingPaymentCount, setPendingPaymentCount] = useState(0);
 
   // Fetch pending photo count for badge
   const fetchPendingPhotoCount = async () => {
@@ -47,6 +49,16 @@ const AdminPanel = () => {
     }
   };
 
+  // Fetch pending payment count for badge
+  const fetchPendingPaymentCount = async () => {
+    try {
+      const response = await api.get('/payments/admin/stats');
+      setPendingPaymentCount(response.pendingVerification || 0);
+    } catch (error) {
+      console.error('Failed to fetch pending payment count:', error);
+    }
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -55,8 +67,12 @@ const AdminPanel = () => {
   useEffect(() => {
     if (isAdmin) {
       fetchPendingPhotoCount();
+      fetchPendingPaymentCount();
       // Refresh count every 30 seconds
-      const interval = setInterval(fetchPendingPhotoCount, 30000);
+      const interval = setInterval(() => {
+        fetchPendingPhotoCount();
+        fetchPendingPaymentCount();
+      }, 30000);
       return () => clearInterval(interval);
     }
   }, [isAdmin]);
@@ -88,7 +104,7 @@ const AdminPanel = () => {
     { text: 'Photo Approvals', icon: <PhotoCamera />, path: '/admin/photos', badge: true },
     { text: 'Profile Verifications', icon: <VerifiedUser />, path: '/admin/profile-verifications', badge: true },
     { text: 'User Management', icon: <People />, path: '/admin/users' },
-    { text: 'Subscriptions', icon: <AttachMoney />, path: '/admin/subscriptions' },
+    { text: 'Subscriptions', icon: <AttachMoney />, path: '/admin/subscriptions', paymentBadge: true },
     { text: 'Activity Logs', icon: <History />, path: '/admin/logs' },
     { text: 'Settings', icon: <Settings />, path: '/admin/settings' },
   ];
@@ -140,6 +156,10 @@ const AdminPanel = () => {
               }}>
                 {item.badge ? (
                   <Badge badgeContent={pendingPhotoCount} color="error" showZero={false}>
+                    {item.icon}
+                  </Badge>
+                ) : item.paymentBadge ? (
+                  <Badge badgeContent={pendingPaymentCount} color="error" showZero={false}>
                     {item.icon}
                   </Badge>
                 ) : item.icon}
@@ -1488,120 +1508,536 @@ const UserManagement = () => {
   );
 };
 
-// Subscription Management Component
-const SubscriptionManagement = () => {
-  const [subscriptions, setSubscriptions] = useState([]);
+// Payment Messages Chat Component
+const PaymentMessagesChat = ({ paymentId }) => {
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, active: 0, revenue: 0 });
 
   useEffect(() => {
-    fetchSubscriptions();
-  }, []);
+    if (paymentId) {
+      fetchMessages();
+    }
+  }, [paymentId]);
 
-  const fetchSubscriptions = async () => {
+  const fetchMessages = async () => {
     try {
-      const response = await api.get('/admin/subscriptions');
-      setSubscriptions(response.data.subscriptions || []);
-      setStats(response.data.stats || { total: 0, active: 0, revenue: 0 });
+      // Use admin-specific endpoint for fetching messages
+      const response = await api.get(`/payments/admin/${paymentId}/messages`);
+      setMessages(response.data?.messages || response.messages || []);
     } catch (error) {
-      console.error('Failed to fetch subscriptions:', error);
-      // Mock data
-      setSubscriptions([
-        { id: '1', user: { firstName: 'Rama', lastName: 'Krishna' }, plan: 'Premium', status: 'active', amount: 2500, startDate: new Date(), endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
-        { id: '2', user: { firstName: 'Sowmya', lastName: 'Reddy' }, plan: 'Gold', status: 'active', amount: 5000, startDate: new Date(), endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) },
-      ]);
-      setStats({ total: 12, active: 8, revenue: 45000 });
+      console.error('Failed to fetch messages:', error);
+      // Try fallback endpoint
+      try {
+        const fallbackResponse = await api.get(`/payments/${paymentId}/messages`);
+        setMessages(fallbackResponse.data?.messages || fallbackResponse.messages || []);
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) return;
+    
+    try {
+      await api.post(`/payments/admin/${paymentId}/messages`, {
+        message: newMessage.trim()
+      });
+      setNewMessage('');
+      fetchMessages();
+    } catch (error) {
+      toast.error('Failed to send message');
+    }
+  };
+
+  if (loading) {
+    return <Typography variant="body2" color="textSecondary">Loading messages...</Typography>;
+  }
+
   return (
     <Box>
-      <Typography variant="h5" fontWeight="bold" gutterBottom>Subscription Management</Typography>
-      <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-        Manage user subscriptions and payments
-      </Typography>
+      {messages.length === 0 ? (
+        <Typography variant="body2" color="textSecondary" textAlign="center">
+          No messages yet
+        </Typography>
+      ) : (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {messages.map((msg) => (
+            <Box
+              key={msg.id}
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: msg.senderType === 'ADMIN' ? '#dbeafe' : '#dcfce7',
+                alignSelf: msg.senderType === 'ADMIN' ? 'flex-end' : 'flex-start',
+                maxWidth: '80%'
+              }}
+            >
+              <Typography variant="caption" color="textSecondary" fontWeight="bold">
+                {msg.senderType === 'ADMIN' ? 'Admin' : 'User'}
+              </Typography>
+              <Typography variant="body2">{msg.message}</Typography>
+              <Typography variant="caption" color="textSecondary" display="block">
+                {new Date(msg.createdAt).toLocaleString()}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      )}
+      <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+        <TextField
+          size="small"
+          fullWidth
+          placeholder="Type a message..."
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+        />
+        <Button variant="contained" size="small" onClick={handleSendMessage}>
+          Send
+        </Button>
+      </Box>
+    </Box>
+  );
+};
+
+// Subscription Management Component with Payment Verification
+const SubscriptionManagement = () => {
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ total: 0, active: 0, revenue: 0, pendingVerification: 0 });
+  const [tabValue, setTabValue] = useState(0);
+  const [proofDialog, setProofDialog] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [rejectDialog, setRejectDialog] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [adminNotes, setAdminNotes] = useState('');
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching payment data...');
+      
+      // Fetch payment stats
+      const statsRes = await api.get('/payments/admin/stats');
+      console.log('Stats response:', statsRes);
+      setStats(statsRes.data || statsRes);
+      
+      // Fetch pending payments
+      const paymentsRes = await api.get('/payments/admin/all?status=PENDING_VERIFICATION');
+      console.log('Payments response:', paymentsRes);
+      setPayments(paymentsRes.data?.payments || paymentsRes.payments || []);
+      
+      // Fetch subscriptions
+      const subRes = await api.get('/admin/subscriptions');
+      setSubscriptions(subRes.data?.subscriptions || []);
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+      toast.error('Failed to fetch payment data: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApprovePayment = async (paymentId) => {
+    try {
+      await api.post(`/payments/admin/${paymentId}/approve`, { notes: adminNotes });
+      toast.success('Payment approved successfully!');
+      fetchData();
+      setProofDialog(false);
+      setSelectedPayment(null);
+      setAdminNotes('');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to approve payment');
+    }
+  };
+
+  const handleRejectPayment = async () => {
+    if (!rejectReason.trim()) {
+      toast.error('Please provide a rejection reason');
+      return;
+    }
+    try {
+      await api.post(`/payments/admin/${selectedPayment.id}/reject`, { reason: rejectReason });
+      toast.success('Payment rejected');
+      fetchData();
+      setRejectDialog(false);
+      setSelectedPayment(null);
+      setRejectReason('');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to reject payment');
+    }
+  };
+
+  const viewPaymentProof = (payment) => {
+    setSelectedPayment(payment);
+    setProofDialog(true);
+  };
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h5" fontWeight="bold" gutterBottom>Subscription & Payment Management</Typography>
+          <Typography variant="body2" color="textSecondary">
+            Manage subscriptions and verify manual payments
+          </Typography>
+        </Box>
+        <Button 
+          variant="outlined" 
+          startIcon={<Refresh />}
+          onClick={fetchData}
+          disabled={loading}
+        >
+          Refresh
+        </Button>
+      </Box>
 
       {/* Stats */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={4}>
+        <Grid item xs={12} sm={3}>
           <Card sx={{ borderRadius: 3, textAlign: 'center', p: 3 }}>
             <Typography variant="h2" fontWeight="bold" color="primary">
               {stats.total}
             </Typography>
-            <Typography color="textSecondary">Total Subscriptions</Typography>
+            <Typography color="textSecondary">Total Payments</Typography>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <Card sx={{ borderRadius: 3, textAlign: 'center', p: 3 }}>
-            <Typography variant="h2" fontWeight="bold" color="success.main">
-              {stats.active}
-            </Typography>
-            <Typography color="textSecondary">Active Subscriptions</Typography>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={4}>
+        <Grid item xs={12} sm={3}>
           <Card sx={{ borderRadius: 3, textAlign: 'center', p: 3 }}>
             <Typography variant="h2" fontWeight="bold" color="warning.main">
-              ₹{stats.revenue.toLocaleString()}
+              {stats.pendingVerification}
+            </Typography>
+            <Typography color="textSecondary">Pending Verification</Typography>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={3}>
+          <Card sx={{ borderRadius: 3, textAlign: 'center', p: 3 }}>
+            <Typography variant="h2" fontWeight="bold" color="success.main">
+              {stats.successful}
+            </Typography>
+            <Typography color="textSecondary">Successful</Typography>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={3}>
+          <Card sx={{ borderRadius: 3, textAlign: 'center', p: 3 }}>
+            <Typography variant="h2" fontWeight="bold" color="info.main">
+              ₹{(stats.totalRevenue || 0).toLocaleString()}
             </Typography>
             <Typography color="textSecondary">Total Revenue</Typography>
           </Card>
         </Grid>
       </Grid>
 
+      {/* Tabs */}
+      <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 3 }}>
+        <Tab 
+          label={`Pending Verification (${payments.length})`} 
+          icon={<PendingActions />}
+          iconPosition="start"
+        />
+        <Tab label="All Subscriptions" />
+      </Tabs>
+
       {loading ? (
         <LinearProgress />
       ) : (
-        <Card sx={{ borderRadius: 3 }}>
-          <TableContainer>
-            <Table>
-              <TableHead sx={{ bgcolor: '#f8fafc' }}>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 600 }}>User</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Plan</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Expires</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {subscriptions.map((sub) => (
-                  <TableRow key={sub.id} hover>
-                    <TableCell>
-                      <Typography fontWeight="600">
-                        {sub.user.firstName} {sub.user.lastName}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={sub.plan}
-                        sx={{
-                          bgcolor: sub.plan === 'Premium' ? '#fef3c7' : '#dbeafe',
-                          color: sub.plan === 'Premium' ? '#d97706' : '#1d4ed8',
-                          fontWeight: 600
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>₹{sub.amount.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={sub.status}
-                        color={sub.status === 'active' ? 'success' : 'error'}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {new Date(sub.endDate).toLocaleDateString('en-IN')}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Card>
+        <>
+          {/* Pending Payments Tab */}
+          {tabValue === 0 && (
+            <Card sx={{ borderRadius: 3 }}>
+              {payments.length === 0 ? (
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <CheckCircle sx={{ fontSize: 60, color: 'success.main', mb: 2 }} />
+                  <Typography>No pending payments to verify</Typography>
+                </Box>
+              ) : (
+                <TableContainer>
+                  <Table>
+                    <TableHead sx={{ bgcolor: '#f8fafc' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Order ID</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>User</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Plan</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Method</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Transaction ID</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {payments.map((payment) => (
+                        <TableRow key={payment.id} hover>
+                          <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                            {payment.orderId}
+                          </TableCell>
+                          <TableCell>
+                            <Typography fontWeight="600">
+                              {payment.user?.firstName} {payment.user?.lastName}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary">
+                              {payment.user?.email}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={payment.planName || payment.planId}
+                              size="small"
+                              color="primary"
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell>₹{payment.amount}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={payment.method}
+                              size="small"
+                              sx={{
+                                bgcolor: payment.method === 'UPI' ? '#dcfce7' : '#dbeafe',
+                                color: payment.method === 'UPI' ? '#166534' : '#1e40af'
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ fontFamily: 'monospace' }}>
+                            {payment.transactionId || '-'}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(payment.createdAt).toLocaleDateString('en-IN')}
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                color="primary"
+                                startIcon={<Visibility />}
+                                onClick={() => viewPaymentProof(payment)}
+                              >
+                                View
+                              </Button>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Card>
+          )}
+
+          {/* All Subscriptions Tab */}
+          {tabValue === 1 && (
+            <Card sx={{ borderRadius: 3 }}>
+              <TableContainer>
+                <Table>
+                  <TableHead sx={{ bgcolor: '#f8fafc' }}>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>User</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Plan</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Expires</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {subscriptions.map((sub) => (
+                      <TableRow key={sub.id} hover>
+                        <TableCell>
+                          <Typography fontWeight="600">
+                            {sub.user?.firstName} {sub.user?.lastName}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={sub.plan}
+                            sx={{
+                              bgcolor: sub.plan === 'PREMIUM' ? '#fef3c7' : '#dbeafe',
+                              color: sub.plan === 'PREMIUM' ? '#d97706' : '#1d4ed8',
+                              fontWeight: 600
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>₹{(sub.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={sub.status}
+                            color={sub.status === 'ACTIVE' ? 'success' : 'error'}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {sub.endDate ? new Date(sub.endDate).toLocaleDateString('en-IN') : '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Card>
+          )}
+        </>
       )}
+
+      {/* Payment Proof Dialog */}
+      <Dialog 
+        open={proofDialog} 
+        onClose={() => setProofDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Payment Verification
+          <IconButton
+            onClick={() => setProofDialog(false)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {selectedPayment && (
+            <Box>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="textSecondary">Order ID</Typography>
+                  <Typography variant="body1" sx={{ fontFamily: 'monospace', mb: 2 }}>
+                    {selectedPayment.orderId}
+                  </Typography>
+                  
+                  <Typography variant="subtitle2" color="textSecondary">User</Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    {selectedPayment.user?.firstName} {selectedPayment.user?.lastName}
+                    <br />
+                    <Typography variant="caption">{selectedPayment.user?.email}</Typography>
+                  </Typography>
+                  
+                  <Typography variant="subtitle2" color="textSecondary">Plan</Typography>
+                  <Typography variant="body1" sx={{ mb: 2 }}>{selectedPayment.planName}</Typography>
+                  
+                  <Typography variant="subtitle2" color="textSecondary">Amount</Typography>
+                  <Typography variant="h5" color="primary" sx={{ mb: 2 }}>
+                    ₹{selectedPayment.amount}
+                  </Typography>
+                  
+                  <Typography variant="subtitle2" color="textSecondary">Transaction ID</Typography>
+                  <Typography variant="body1" sx={{ fontFamily: 'monospace', mb: 2 }}>
+                    {selectedPayment.transactionId || 'Not provided'}
+                  </Typography>
+                  
+                  <Typography variant="subtitle2" color="textSecondary">Payment Method</Typography>
+                  <Chip 
+                    label={selectedPayment.method} 
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                    Payment Proof
+                  </Typography>
+                  {selectedPayment.paymentProof ? (
+                    <Box
+                      component="img"
+                      src={selectedPayment.paymentProof}
+                      alt="Payment Proof"
+                      sx={{
+                        width: '100%',
+                        borderRadius: 2,
+                        border: '1px solid #e0e0e0',
+                        maxHeight: 400,
+                        objectFit: 'contain'
+                      }}
+                    />
+                  ) : (
+                    <Alert severity="warning">No payment proof uploaded</Alert>
+                  )}
+                </Grid>
+              </Grid>
+              
+              <Divider sx={{ my: 3 }} />
+              
+              <TextField
+                fullWidth
+                label="Admin Notes (Optional)"
+                multiline
+                rows={2}
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                placeholder="Add any notes about this payment verification..."
+              />
+
+              {/* Payment Messages/Chat Section */}
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+                  Messages with User
+                </Typography>
+                <Paper sx={{ maxHeight: 200, overflow: 'auto', p: 2, bgcolor: '#f8fafc', mb: 2 }}>
+                  <PaymentMessagesChat paymentId={selectedPayment.id} />
+                </Paper>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setProofDialog(false)}>Cancel</Button>
+          <Button 
+            color="error" 
+            variant="outlined"
+            onClick={() => {
+              setRejectDialog(true);
+            }}
+          >
+            Reject
+          </Button>
+          <Button 
+            variant="contained" 
+            color="success"
+            startIcon={<CheckCircle />}
+            onClick={() => handleApprovePayment(selectedPayment?.id)}
+          >
+            Approve & Activate
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reject Dialog */}
+      <Dialog open={rejectDialog} onClose={() => setRejectDialog(false)}>
+        <DialogTitle>Reject Payment</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This will reject the payment and notify the user.
+          </Alert>
+          <TextField
+            fullWidth
+            label="Rejection Reason *"
+            multiline
+            rows={3}
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Please provide a reason for rejection..."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRejectDialog(false)}>Cancel</Button>
+          <Button 
+            color="error" 
+            variant="contained"
+            onClick={handleRejectPayment}
+          >
+            Reject Payment
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

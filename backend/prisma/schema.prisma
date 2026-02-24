@@ -93,7 +93,6 @@ model User {
   userDocuments     UserDocument[] @relation("UserNewDocuments")
   verifications     Verification[] @relation("UserVerifications")
   payments          Payments[] @relation("UserPayments")
-  verificationPayments VerificationPayments[] @relation("UserVerificationPayments")
 
   @@map("users")
 }
@@ -351,27 +350,38 @@ model AdminActivityLog {
   @@map("admin_activity_logs")
 }
 
-// Payments Model - Comprehensive payment tracking
+// Payments Model - Manual payment tracking (Bank Transfer & UPI)
 model Payments {
   id               String    @id @default(cuid())
   userId           String    @map("user_id")
-  orderId          String    @unique @map("order_id")        // Razorpay Order ID or Internal Reference
-  phonepeOrderId   String?   @map("phonepe_order_id")        // PhonePe Order ID for reliable lookups
-  paymentId        String?   @map("payment_id")              // Razorpay Payment ID
+  orderId          String    @unique @map("order_id")        // Internal Reference ID
+  phonepeOrderId   String?   @map("phonepe_order_id")       // PhonePe order ID (for backward compatibility)
+  paymentId        String?   @map("payment_id")              // External payment ID
   amountINR        Float     @map("amount_inr")              // Final amount in INR
   currency         String    @default("INR")
-  paymentMethod    String    @map("payment_method")          // RAZORPAY, PHONEPE, BANK_TRANSFER
-  paymentStatus    String    @default("PENDING") @map("payment_status") // PENDING, SUCCESS, FAILED, PENDING_MANUAL
+  paymentMethod    String    @map("payment_method")          // BANK_TRANSFER, UPI
   international    Boolean   @default(false)
-  exchangeRate     Float?    @map("exchange_rate")           // USD to INR rate
-  commissionAmount Float?    @map("commission_amount")       // Currency conversion commission
-  originalAmount   Float?    @map("original_amount")         // Original amount in foreign currency
-  originalCurrency String?   @map("original_currency")       // Original currency (USD, EUR, etc.)
-  paymentProof     String?   @map("payment_proof")           // Bank transfer proof URL
-  referenceId      String?   @unique @map("reference_id")    // Unique reference for bank transfer
-  verifiedBy       String?   @map("verified_by")             // Admin who verified manual payment
+  exchangeRate     Float?    @map("exchange_rate")
+  commissionAmount Float?    @map("commission_amount")
+  originalAmount   Float?    @map("original_amount")
+  originalCurrency String?   @map("original_currency")
+  paymentStatus    String    @default("PENDING") @map("payment_status") // PENDING, PENDING_VERIFICATION, SUCCESS, FAILED, REJECTED
+  planId           String?   @map("plan_id")                 // Subscription plan ID (BASIC, PRO, PREMIUM)
+  planName         String?   @map("plan_name")               // Plan name for display
+  planDuration     Int?      @map("plan_duration")           // Plan duration in days
+  referenceId      String?   @map("reference_id")
+  
+  // Manual Payment Fields
+  transactionId    String?   @map("transaction_id")          // User-provided transaction ID
+  paymentProof     String?   @map("payment_proof")           // Screenshot/image URL
+  paymentDate      DateTime? @map("payment_date")            // When user made the payment
+  
+  // Admin Verification Fields
+  verifiedBy       String?   @map("verified_by")             // Admin who verified
   verifiedAt       DateTime? @map("verified_at")
   rejectionReason  String?   @map("rejection_reason")
+  adminNotes       String?   @map("admin_notes")
+  
   notes            String?
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
@@ -382,29 +392,42 @@ model Payments {
   @@index([userId])
   @@index([paymentStatus])
   @@index([createdAt])
-  @@index([phonepeOrderId])
+  @@index([paymentMethod])
   @@map("payments")
 }
 
-// Verification Payments Model - AI Verification specific payments
-model VerificationPayments {
-  id                String    @id @default(cuid())
-  userId            String    @map("user_id")
-  paymentId         String?   @map("payment_id")             // Link to Payments table
-  amount            Float
-  paymentStatus     String    @default("PENDING") @map("payment_status") // PENDING, SUCCESS, FAILED
-  verificationType  String    @map("verification_type")      // BASIC_AI, ADVANCED_AI
-  razorpayOrderId   String?   @map("razorpay_order_id")
-  razorpayPaymentId String?   @map("razorpay_payment_id")
-  razorpaySignature String?   @map("razorpay_signature")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+// Admin Notification for payment and other alerts
+model AdminNotification {
+  id          String   @id @default(cuid())
+  type        String                      // PAYMENT_PENDING, PAYMENT_APPROVED, PAYMENT_REJECTED, NEW_USER, etc.
+  title       String
+  message     String
+  paymentId   String?  @map("payment_id")
+  userId      String?  @map("user_id")
+  isRead      Boolean  @default(false) @map("is_read")
+  readAt      DateTime? @map("read_at")
+  readBy      String?  @map("read_by")    // Admin ID who read it
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  // Relations
-  user              User      @relation("UserVerificationPayments", fields: [userId], references: [id], onDelete: Cascade)
+  @@index([type])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("admin_notifications")
+}
 
-  @@index([userId])
-  @@index([paymentStatus])
-  @@index([verificationType])
-  @@map("verification_payments")
+// Payment Messages - Chat between admin and user about payments
+model PaymentMessage {
+  id          String   @id @default(cuid())
+  paymentId   String   @map("payment_id")
+  senderId    String   @map("sender_id")     // User ID or Admin ID
+  senderType  String   @map("sender_type")   // 'USER' or 'ADMIN'
+  message     String
+  isRead      Boolean  @default(false) @map("is_read")
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([paymentId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("payment_messages")
 }
