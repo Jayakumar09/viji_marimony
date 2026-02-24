@@ -122,3 +122,23 @@ coverage/
 # Build artifacts
 *.tgz
 *.tar.gz
+
+# VSCode Local History
+.history/
+
+# Demo folders
+instamojo-demo/
+paytm-demo/
+razorpay-demo/
+phonepe-demo/
+phonepe-payment-Ref/
+
+# Upload folders (user generated content)
+backend/uploads/payment_proofs/
+
+# Test scripts
+backend/test-*.js
+backend/check-*.js
+backend/cleanup-*.js
+backend/search-*.js
+backend/create-*.js
