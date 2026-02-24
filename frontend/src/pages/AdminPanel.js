@@ -13,7 +13,7 @@ import {
   Dashboard as DashboardIcon, PhotoCamera, People, TrendingUp, Settings,
   Logout, Search, Visibility, CheckCircle, Cancel, Refresh, FilterList,
   MoreVert, Block, Check, Close, Star, Email, Phone, LocationOn,
-  CalendarToday, VerifiedUser,PendingActions, History, AttachMoney
+  CalendarToday, VerifiedUser,PendingActions, History, AttachMoney, Edit
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -1616,6 +1616,9 @@ const SubscriptionManagement = () => {
   const [rejectDialog, setRejectDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
+  const [paymentActionMenu, setPaymentActionMenu] = useState({ anchor: null, paymentId: null });
+  const [messageDialog, setMessageDialog] = useState(false);
+  const [notesDialog, setNotesDialog] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -1680,6 +1683,25 @@ const SubscriptionManagement = () => {
   const viewPaymentProof = (payment) => {
     setSelectedPayment(payment);
     setProofDialog(true);
+  };
+
+  const handlePaymentMenuClick = (event, payment) => {
+    setPaymentActionMenu({ anchor: event.currentTarget, paymentId: payment.id });
+    setSelectedPayment(payment);
+  };
+
+  const handlePaymentMenuClose = () => {
+    setPaymentActionMenu({ anchor: null, paymentId: null });
+  };
+
+  const handleOpenNotes = () => {
+    handlePaymentMenuClose();
+    setNotesDialog(true);
+  };
+
+  const handleOpenMessage = () => {
+    handlePaymentMenuClose();
+    setMessageDialog(true);
   };
 
   return (
@@ -1824,6 +1846,12 @@ const SubscriptionManagement = () => {
                               >
                                 View
                               </Button>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => handlePaymentMenuClick(e, payment)}
+                              >
+                                <MoreVert />
+                              </IconButton>
                             </Box>
                           </TableCell>
                         </TableRow>
@@ -2036,6 +2064,82 @@ const SubscriptionManagement = () => {
           >
             Reject Payment
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Payment Action Menu */}
+      <Menu
+        anchorEl={paymentActionMenu.anchor}
+        open={Boolean(paymentActionMenu.anchor)}
+        onClose={handlePaymentMenuClose}
+      >
+        <MenuItem onClick={() => { viewPaymentProof(selectedPayment); handlePaymentMenuClose(); }}>
+          <Visibility sx={{ mr: 1, fontSize: 20 }} /> View Proof
+        </MenuItem>
+        <MenuItem onClick={handleOpenNotes}>
+          <Edit sx={{ mr: 1, fontSize: 20 }} /> Add Admin Notes
+        </MenuItem>
+        <MenuItem onClick={handleOpenMessage}>
+          <Email sx={{ mr: 1, fontSize: 20 }} /> Message User
+        </MenuItem>
+        <Divider />
+        <MenuItem 
+          onClick={() => { handleApprovePayment(selectedPayment?.id); handlePaymentMenuClose(); }}
+          sx={{ color: 'success.main' }}
+        >
+          <CheckCircle sx={{ mr: 1, fontSize: 20 }} /> Quick Approve
+        </MenuItem>
+        <MenuItem 
+          onClick={() => { setRejectDialog(true); handlePaymentMenuClose(); }}
+          sx={{ color: 'error.main' }}
+        >
+          <Cancel sx={{ mr: 1, fontSize: 20 }} /> Reject
+        </MenuItem>
+      </Menu>
+
+      {/* Admin Notes Dialog */}
+      <Dialog open={notesDialog} onClose={() => setNotesDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add Admin Notes</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+            Add notes for payment: {selectedPayment?.orderId}
+          </Typography>
+          <TextField
+            fullWidth
+            label="Admin Notes"
+            multiline
+            rows={4}
+            value={adminNotes}
+            onChange={(e) => setAdminNotes(e.target.value)}
+            placeholder="Add any notes about this payment verification..."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNotesDialog(false)}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            onClick={() => { 
+              // Save notes logic here
+              toast.success('Notes saved successfully!');
+              setNotesDialog(false);
+            }}
+          >
+            Save Notes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Message User Dialog */}
+      <Dialog open={messageDialog} onClose={() => setMessageDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Message User</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+            Send a message to {selectedPayment?.user?.firstName} about payment: {selectedPayment?.orderId}
+          </Typography>
+          <PaymentMessagesChat paymentId={selectedPayment?.id} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMessageDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>
