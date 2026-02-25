@@ -19,8 +19,7 @@ import Dashboard from './pages/Dashboard';
 import Verification from './pages/Verification';
 import AdminPanel from './pages/AdminPanel';
 import NotFound from './pages/NotFound';
-import PhonePePayment from './pages/PhonePePayment';
-import PaymentSuccess from './pages/PaymentSuccess';
+import ManualPayment from './pages/ManualPayment';
 
 // Context/Hooks
 import { useAuth } from './hooks/useAuth';
@@ -50,8 +49,7 @@ function App() {
           <Route path="/search" element={user ? <Search /> : <Navigate to="/login" />} />
           <Route path="/messages" element={user ? <Messages /> : <Navigate to="/login" />} />
           <Route path="/interests" element={user ? <Interests /> : <Navigate to="/login" />} />
-          <Route path="/subscription" element={user ? <PhonePePayment /> : <Navigate to="/login" />} />
-          <Route path="/payment/success" element={user ? <PaymentSuccess /> : <Navigate to="/login" />} />
+          <Route path="/subscription" element={user ? <ManualPayment /> : <Navigate to="/login" />} />
 
           {/* Admin Routes */}
           <Route path="/admin/*" element={<AdminPanel />} />

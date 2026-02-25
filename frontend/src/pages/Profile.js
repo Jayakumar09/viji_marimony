@@ -63,9 +63,9 @@ import {
   RAASI_CHOICES,
   NATCHATHIRAM_CHOICES,
   DHOSAM_CHOICES,
-  getNatchathiramForRasi,
-  SUBSCRIPTION_TIERS
+  getNatchathiramForRasi
 } from '../data/horoscopeData';
+import { SUBSCRIPTION_TIERS } from '../config/subscription';
 
 const DOCUMENT_TYPES = [
   { id: 'GOVERNMENT_ID', label: 'Government ID (Aadhaar, PAN, etc.)', required: true },
@@ -294,7 +294,7 @@ const Profile = () => {
       return;
     }
 
-    // For paid plans, redirect to PhonePe payment page
+    // For paid plans, redirect to manual payment page
     navigate(`/subscription?plan=${tier}`);
   };
 

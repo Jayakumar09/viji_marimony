@@ -68,8 +68,7 @@ const adminFileServeRoutes = require('./routes/adminFileServe');
 const adminPhotosRoutes = require('./routes/adminPhotos');
 const adminVerificationRoutes = require('./routes/adminVerification');
 const paymentRoutes = require('./routes/payments');
-const simplePaymentRoutes = require('./routes/simplePayment');
-const phonepeRoutes = require('./routes/phonepe');
+// const phonepeRoutes = require('./routes/phonepe'); // PhonePe integration not implemented - using manual payments
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -84,8 +83,7 @@ app.use('/api/admin', adminFileServeRoutes);
 app.use('/api/admin', adminPhotosRoutes);
 app.use('/api/admin', adminVerificationRoutes);
 app.use('/api/payments', paymentRoutes);
-app.use('/api/simple-payment', require('./middleware/auth').authMiddleware, simplePaymentRoutes);
-app.use('/api/phonepe', phonepeRoutes);
+// app.use('/api/phonepe', phonepeRoutes); // PhonePe integration not implemented - using manual payments
 
 // Error handling middleware
 app.use((err, req, res, next) => {

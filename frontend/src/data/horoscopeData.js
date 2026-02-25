@@ -96,41 +96,8 @@ export const getNatchathiramForRasi = (rasi) => {
   return NATCHATHIRAM_CHOICES.filter(n => n.rasi === rasi);
 };
 
-// Subscription tiers - must match backend config/payments.js
-export const SUBSCRIPTION_TIERS = [
-  { 
-    id: 'FREE', 
-    name: 'Free', 
-    price: 0, 
-    duration: 0,
-    successFee: 0,
-    features: ['Basic profile creation', 'Limited searches', '5 interests per day']
-  },
-  { 
-    id: 'BASIC', 
-    name: 'Basic', 
-    price: 199, 
-    duration: 30,
-    successFee: 0,
-    features: ['Basic profile visibility', '10 interests per day', 'View contact details']
-  },
-  { 
-    id: 'PRO', 
-    name: 'Pro', 
-    price: 499, 
-    duration: 90,
-    successFee: 0,
-    features: ['All Basic features', 'Unlimited interests', 'Priority listing', 'AI verification included']
-  },
-  { 
-    id: 'PREMIUM', 
-    name: 'Premium', 
-    price: 999, 
-    duration: 180,
-    successFee: 0,
-    features: ['All Pro features', 'Profile highlighting', 'Dedicated support', 'Advanced AI verification']
-  }
-];
-
 // Success fee by Indian marriage law guidelines
 export const SUCCESS_FEE_NOTE = "Success fee is applicable only when marriage is fixed through our platform. This follows the guidelines set by the Government of India for matrimonial services.";
+
+// Note: SUBSCRIPTION_TIERS has been moved to frontend/src/config/subscription.js
+// Import from '../config/subscription' instead
