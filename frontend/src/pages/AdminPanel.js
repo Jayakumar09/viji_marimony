@@ -2417,8 +2417,14 @@ const AdminChat = () => {
       setMessages(prev => prev.filter(m => m.id !== messageId));
       toast.success('Message deleted');
     } catch (error) {
-      console.error('Error deleting message:', error);
-      toast.error('Failed to delete message');
+      // If 404, message was already deleted - remove from UI anyway
+      if (error.response?.status === 404) {
+        setMessages(prev => prev.filter(m => m.id !== messageId));
+        toast.success('Message removed');
+      } else {
+        console.error('Error deleting message:', error);
+        toast.error('Failed to delete message');
+      }
     }
   };
 
