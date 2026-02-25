@@ -1,11 +1,71 @@
 const { prisma } = require('../utils/database');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configure multer for chat image uploads
+const chatStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads/chat');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '_' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `chat_${req.user?.id || req.admin?.id}_${uniqueSuffix}${ext}`);
+  }
+});
+
+const chatUpload = multer({
+  storage: chatStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 // User sends message to admin
 const sendUserMessage = async (req, res) => {
   try {
-    const { message } = req.body;
+    const { message, messageType } = req.body;
     const userId = req.user.id;
+    const isImage = messageType === 'image' || req.file;
 
+    // Check if it's an image message
+    if (isImage) {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Image file is required for image messages' });
+      }
+      
+      // Create image URL
+      const imageUrl = `/uploads/chat/${req.file.filename}`;
+      
+      const chatMessage = await prisma.chatMessage.create({
+        data: {
+          userId,
+          senderType: 'USER',
+          messageType: 'image',
+          message: imageUrl
+        }
+      });
+
+      return res.status(201).json({
+        message: 'Image sent successfully',
+        data: chatMessage
+      });
+    }
+
+    // Text message
     if (!message || message.trim().length === 0) {
       return res.status(400).json({ error: 'Message content is required' });
     }
@@ -15,6 +75,7 @@ const sendUserMessage = async (req, res) => {
       data: {
         userId,
         senderType: 'USER',
+        messageType: 'text',
         message: message.trim()
       }
     });
@@ -33,15 +94,12 @@ const sendUserMessage = async (req, res) => {
 // Admin sends message to user
 const sendAdminMessage = async (req, res) => {
   try {
-    const { userId, message } = req.body;
+    const { userId, message, messageType } = req.body;
     const adminId = req.admin?.id || 'admin';
+    const isImage = messageType === 'image' || req.file;
 
     if (!userId) {
       return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    if (!message || message.trim().length === 0) {
-      return res.status(400).json({ error: 'Message content is required' });
     }
 
     // Verify user exists
@@ -54,12 +112,43 @@ const sendAdminMessage = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Check if it's an image message
+    if (isImage) {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Image file is required for image messages' });
+      }
+      
+      // Create image URL
+      const imageUrl = `/uploads/chat/${req.file.filename}`;
+      
+      const chatMessage = await prisma.chatMessage.create({
+        data: {
+          userId,
+          adminId,
+          senderType: 'ADMIN',
+          messageType: 'image',
+          message: imageUrl
+        }
+      });
+
+      return res.status(201).json({
+        message: 'Image sent successfully',
+        data: chatMessage
+      });
+    }
+
+    // Text message
+    if (!message || message.trim().length === 0) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+
     // Create chat message from admin
     const chatMessage = await prisma.chatMessage.create({
       data: {
         userId,
         adminId,
         senderType: 'ADMIN',
+        messageType: 'text',
         message: message.trim()
       }
     });
@@ -392,7 +481,15 @@ const deleteMessage = async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to delete this message' });
     }
 
-    // Delete the message
+    // If it's an image message, delete the image file
+    if (message.messageType === 'image' && message.message) {
+      const imagePath = path.join(__dirname, '../uploads/chat', path.basename(message.message));
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
+    }
+
+    // Delete the message from database
     await prisma.chatMessage.delete({
       where: { id: messageId }
     });
@@ -409,6 +506,7 @@ const deleteMessage = async (req, res) => {
 };
 
 module.exports = {
+  chatUpload,
   sendUserMessage,
   sendAdminMessage,
   getUserChat,

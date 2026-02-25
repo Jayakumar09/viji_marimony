@@ -14,7 +14,7 @@ import {
   Logout, Search, Visibility, CheckCircle, Cancel, Refresh, FilterList,
   MoreVert, Block, Check, Close, Star, Email, Phone, LocationOn,
   CalendarToday, VerifiedUser,PendingActions, History, AttachMoney, Edit, Chat,
-  Send as SendIcon, Delete as DeleteIcon
+  Send as SendIcon, Delete as DeleteIcon, Image as ImageIcon
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -2325,33 +2325,42 @@ const AdminChat = () => {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Fetch conversations
-  const fetchConversations = async () => {
+  const fetchConversations = async (isPolling = false) => {
     try {
       const response = await api.get('/chat/admin/conversations');
       // API returns { conversations: [...] }
       const conversationsData = response.data?.conversations || response.conversations || [];
       setConversations(conversationsData);
     } catch (error) {
-      console.error('Error fetching conversations:', error);
-      toast.error('Failed to load conversations');
+      // Only show toast on initial load, not on polling errors
+      if (!isPolling) {
+        console.error('Error fetching conversations:', error);
+        toast.error('Failed to load conversations');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   // Fetch messages for selected user
-  const fetchMessages = async (userId) => {
+  const fetchMessages = async (userId, isPolling = false) => {
     try {
       const response = await api.get(`/chat/admin/chat/${userId}`);
       // API returns { user: {...}, messages: [...], pagination: {...} }
       const messagesData = response.data?.messages || response.messages || [];
       setMessages(messagesData);
     } catch (error) {
-      console.error('Error fetching messages:', error);
-      toast.error('Failed to load messages');
+      // Only show toast on initial load, not on polling errors
+      if (!isPolling) {
+        console.error('Error fetching messages:', error);
+        toast.error('Failed to load messages');
+      }
     }
   };
 
@@ -2369,9 +2378,9 @@ const AdminChat = () => {
   // Poll for new messages every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchConversations();
+      fetchConversations(true);  // Pass true to indicate polling
       if (selectedUser) {
-        fetchMessages(selectedUser.id);
+        fetchMessages(selectedUser.id, true);  // Pass true to indicate polling
       }
     }, 5000);
     return () => clearInterval(interval);
@@ -2383,17 +2392,75 @@ const AdminChat = () => {
     fetchMessages(user.id);
   };
 
-  // Send message
+  // Handle image selection
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Only image files are allowed');
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
+    setSelectedImage(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Clear image selection
+  const clearImageSelection = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Send message (text or image)
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedUser) return;
+    if ((!newMessage.trim() && !selectedImage) || !selectedUser) return;
 
     setSending(true);
     try {
-      const response = await api.post('/chat/admin/send', {
-        userId: selectedUser.id,
-        message: newMessage.trim()
-      });
+      let response;
+      
+      if (selectedImage) {
+        // Send image message
+        const formData = new FormData();
+        formData.append('image', selectedImage);
+        formData.append('messageType', 'image');
+        formData.append('userId', selectedUser.id);
+        if (newMessage.trim()) {
+          formData.append('message', newMessage.trim());
+        }
+        
+        response = await api.post('/chat/admin/send', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        
+        // Clear image selection after successful send
+        clearImageSelection();
+      } else {
+        // Send text message
+        response = await api.post('/chat/admin/send', {
+          userId: selectedUser.id,
+          message: newMessage.trim()
+        });
+      }
       
       // API returns { message: '...', data: chatMessage }
       const newMsg = response.data?.data || response.data;
@@ -2581,6 +2648,15 @@ const AdminChat = () => {
                     }
 
                     const isAdminMsg = item.senderType === 'ADMIN';
+                    const isImage = item.messageType === 'image';
+                    
+                    // Get image URL
+                    const getImageUrl = (url) => {
+                      if (!url) return null;
+                      if (url.startsWith('http')) return url;
+                      return `http://localhost:5001${url}`;
+                    };
+                    
                     return (
                       <Box
                         key={item.id}
@@ -2602,7 +2678,22 @@ const AdminChat = () => {
                             boxShadow: 1
                           }}
                         >
-                          <Typography variant="body2">{item.message}</Typography>
+                          {isImage ? (
+                            <Box>
+                              <img 
+                                src={getImageUrl(item.message)} 
+                                alt="Shared image" 
+                                style={{ 
+                                  maxWidth: '100%', 
+                                  borderRadius: 8,
+                                  cursor: 'pointer'
+                                }}
+                                onClick={() => window.open(getImageUrl(item.message), '_blank')}
+                              />
+                            </Box>
+                          ) : (
+                            <Typography variant="body2">{item.message}</Typography>
+                          )}
                           <Typography
                             variant="caption"
                             sx={{ display: 'block', textAlign: 'right', mt: 0.5, opacity: 0.7 }}
@@ -2629,15 +2720,59 @@ const AdminChat = () => {
                   <div ref={messagesEndRef} />
                 </Box>
 
+                {/* Image Preview */}
+                {imagePreview && (
+                  <Box sx={{ p: 2, bgcolor: '#f0f0f0', position: 'relative' }}>
+                    <IconButton
+                      size="small"
+                      onClick={clearImageSelection}
+                      sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'white' }}
+                    >
+                      <Close sx={{ fontSize: 16 }} />
+                    </IconButton>
+                    <img 
+                      src={imagePreview} 
+                      alt="Preview" 
+                      style={{ 
+                        maxWidth: '200px', 
+                        maxHeight: '150px', 
+                        borderRadius: 8,
+                        objectFit: 'cover'
+                      }} 
+                    />
+                  </Box>
+                )}
+
                 {/* Input */}
                 <Box
                   component="form"
                   onSubmit={handleSendMessage}
-                  sx={{ p: 2, bgcolor: 'white', display: 'flex', gap: 1 }}
+                  sx={{ p: 2, bgcolor: 'white', display: 'flex', gap: 1, alignItems: 'flex-end' }}
                 >
+                  {/* Hidden file input */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImageSelect}
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    style={{ display: 'none' }}
+                  />
+                  
+                  {/* Image upload button */}
+                  <IconButton
+                    onClick={() => fileInputRef.current?.click()}
+                    sx={{
+                      bgcolor: '#f0f0f0',
+                      '&:hover': { bgcolor: '#e0e0e0' }
+                    }}
+                    disabled={sending}
+                  >
+                    <ImageIcon />
+                  </IconButton>
+                  
                   <TextField
                     fullWidth
-                    placeholder="Type your reply..."
+                    placeholder={selectedImage ? "Add a caption (optional)..." : "Type your reply..."}
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     disabled={sending}
@@ -2647,7 +2782,7 @@ const AdminChat = () => {
                   <IconButton
                     type="submit"
                     color="primary"
-                    disabled={!newMessage.trim() || sending}
+                    disabled={(!newMessage.trim() && !selectedImage) || sending}
                     sx={{
                       bgcolor: '#8B5CF6',
                       color: 'white',

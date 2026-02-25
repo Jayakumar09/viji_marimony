@@ -438,7 +438,8 @@ model ChatMessage {
   userId      String   @map("user_id")       // User ID
   adminId     String?  @map("admin_id")      // Admin ID (null if user is sender)
   senderType  String   @map("sender_type")   // 'USER' or 'ADMIN'
-  message     String
+  messageType String   @default("text") @map("message_type") // 'text' or 'image'
+  message     String   // Text message or image URL for image type
   isRead      Boolean  @default(false) @map("is_read")
   readAt      DateTime? @map("read_at")
   createdAt   DateTime @default(now()) @map("created_at")

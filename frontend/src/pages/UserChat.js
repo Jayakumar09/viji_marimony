@@ -4,7 +4,8 @@ import {
   CircularProgress, Divider, Badge, AppBar, Toolbar
 } from '@mui/material';
 import {
-  Send as SendIcon, SupportAgent, ArrowBack, Delete as DeleteIcon
+  Send as SendIcon, SupportAgent, ArrowBack, Delete as DeleteIcon,
+  Image as ImageIcon, Close as CloseIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -19,12 +20,16 @@ const UserChat = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
   const initialLoadDone = useRef(false);
+  const shouldScrollRef = useRef(false);
 
   // Fetch messages
-  const fetchMessages = async () => {
+  const fetchMessages = async (isPolling = false) => {
     try {
       const response = await api.get('/chat/user/messages');
       // API returns { messages: [...], pagination: {...} }
@@ -32,8 +37,8 @@ const UserChat = () => {
       setMessages(messagesData);
     } catch (error) {
       console.error('Error fetching messages:', error);
-      // Don't show toast on polling errors to avoid spam
-      if (loading) {
+      // Only show toast on initial load, not on polling errors
+      if (!isPolling && loading) {
         toast.error('Failed to load messages');
       }
     } finally {
@@ -42,13 +47,16 @@ const UserChat = () => {
   };
 
   // Fetch unread count
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = async (isPolling = false) => {
     try {
       const response = await api.get('/chat/user/unread-count');
       const count = response.data?.unreadCount || response.unreadCount || 0;
       setUnreadCount(count);
     } catch (error) {
-      console.error('Error fetching unread count:', error);
+      // Silently fail for polling requests
+      if (!isPolling) {
+        console.error('Error fetching unread count:', error);
+      }
     }
   };
 
@@ -67,28 +75,84 @@ const UserChat = () => {
   // Poll for new messages every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchMessages();
-      fetchUnreadCount();
+      fetchMessages(true);  // Pass true to indicate polling
+      fetchUnreadCount(true);  // Pass true to indicate polling
     }, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // Send message
+  // Handle image selection
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Only image files are allowed');
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
+    setSelectedImage(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Clear image selection
+  const clearImageSelection = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Send message (text or image)
   const handleSendMessage = async (e) => {
     e.preventDefault();
     
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() && !selectedImage) return;
 
-    const messageText = newMessage.trim();
     setSending(true);
     
-    // Clear input immediately for better UX
-    setNewMessage('');
-    
     try {
-      const response = await api.post('/chat/user/send', {
-        message: messageText
-      });
+      let response;
+      
+      if (selectedImage) {
+        // Send image message
+        const formData = new FormData();
+        formData.append('image', selectedImage);
+        formData.append('messageType', 'image');
+        if (newMessage.trim()) {
+          formData.append('message', newMessage.trim());
+        }
+        
+        response = await api.post('/chat/user/send', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        
+        // Clear image selection after successful send
+        clearImageSelection();
+      } else {
+        // Send text message
+        response = await api.post('/chat/user/send', {
+          message: newMessage.trim()
+        });
+      }
+      
+      // Clear input immediately for better UX
+      setNewMessage('');
       
       // The API returns { message: '...', data: chatMessage }
       const newMsg = response.data?.data || response.data;
@@ -114,8 +178,6 @@ const UserChat = () => {
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
-      // Restore the message text on error
-      setNewMessage(messageText);
     } finally {
       setSending(false);
     }
@@ -184,6 +246,14 @@ const UserChat = () => {
     });
 
     return groups;
+  };
+
+  // Get image URL
+  const getImageUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    // Backend is running on port 5001
+    return `http://localhost:5001${url}`;
   };
 
   if (loading) {
@@ -264,6 +334,8 @@ const UserChat = () => {
               }
 
               const isUser = item.senderType === 'USER';
+              const isImage = item.messageType === 'image';
+              
               return (
                 <Box
                   key={item.id || `msg-${index}`}
@@ -291,7 +363,22 @@ const UserChat = () => {
                       position: 'relative'
                     }}
                   >
-                    <Typography variant="body2">{item.message}</Typography>
+                    {isImage ? (
+                      <Box>
+                        <img 
+                          src={getImageUrl(item.message)} 
+                          alt="Shared image" 
+                          style={{ 
+                            maxWidth: '100%', 
+                            borderRadius: 8,
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => window.open(getImageUrl(item.message), '_blank')}
+                        />
+                      </Box>
+                    ) : (
+                      <Typography variant="body2">{item.message}</Typography>
+                    )}
                     <Typography
                       variant="caption"
                       sx={{
@@ -328,6 +415,29 @@ const UserChat = () => {
 
         <Divider />
 
+        {/* Image Preview */}
+        {imagePreview && (
+          <Box sx={{ p: 2, bgcolor: '#f0f0f0', position: 'relative' }}>
+            <IconButton
+              size="small"
+              onClick={clearImageSelection}
+              sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'white' }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+            <img 
+              src={imagePreview} 
+              alt="Preview" 
+              style={{ 
+                maxWidth: '200px', 
+                maxHeight: '150px', 
+                borderRadius: 8,
+                objectFit: 'cover'
+              }} 
+            />
+          </Box>
+        )}
+
         {/* Input Area */}
         <Box
           component="form"
@@ -336,13 +446,35 @@ const UserChat = () => {
             p: 2,
             bgcolor: 'white',
             display: 'flex',
-            gap: 1
+            gap: 1,
+            alignItems: 'flex-end'
           }}
         >
+          {/* Hidden file input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImageSelect}
+            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+            style={{ display: 'none' }}
+          />
+          
+          {/* Image upload button */}
+          <IconButton
+            onClick={() => fileInputRef.current?.click()}
+            sx={{
+              bgcolor: '#f0f0f0',
+              '&:hover': { bgcolor: '#e0e0e0' }
+            }}
+            disabled={sending}
+          >
+            <ImageIcon />
+          </IconButton>
+          
           <TextField
             inputRef={inputRef}
             fullWidth
-            placeholder="Type your message..."
+            placeholder={selectedImage ? "Add a caption (optional)..." : "Type your message..."}
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             disabled={sending}
@@ -357,7 +489,7 @@ const UserChat = () => {
           <IconButton
             type="submit"
             color="primary"
-            disabled={!newMessage.trim() || sending}
+            disabled={(!newMessage.trim() && !selectedImage) || sending}
             sx={{
               bgcolor: '#8B5CF6',
               color: 'white',
