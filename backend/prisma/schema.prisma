@@ -431,3 +431,22 @@ model PaymentMessage {
   @@index([createdAt])
   @@map("payment_messages")
 }
+
+// Chat Messages - General chat between admin and users (no restrictions)
+model ChatMessage {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")       // User ID
+  adminId     String?  @map("admin_id")      // Admin ID (null if user is sender)
+  senderType  String   @map("sender_type")   // 'USER' or 'ADMIN'
+  message     String
+  isRead      Boolean  @default(false) @map("is_read")
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([adminId])
+  @@index([senderType])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("chat_messages")
+}

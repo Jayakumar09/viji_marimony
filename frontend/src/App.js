@@ -20,6 +20,7 @@ import Verification from './pages/Verification';
 import AdminPanel from './pages/AdminPanel';
 import NotFound from './pages/NotFound';
 import ManualPayment from './pages/ManualPayment';
+import UserChat from './pages/UserChat';
 
 // Context/Hooks
 import { useAuth } from './hooks/useAuth';
@@ -50,6 +51,7 @@ function App() {
           <Route path="/messages" element={user ? <Messages /> : <Navigate to="/login" />} />
           <Route path="/interests" element={user ? <Interests /> : <Navigate to="/login" />} />
           <Route path="/subscription" element={user ? <ManualPayment /> : <Navigate to="/login" />} />
+          <Route path="/chat" element={user ? <UserChat /> : <Navigate to="/login" />} />
 
           {/* Admin Routes */}
           <Route path="/admin/*" element={<AdminPanel />} />

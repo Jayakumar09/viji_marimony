@@ -17,6 +17,7 @@ A community-focused matrimony platform for the Boyar community.
 - ✅ Family Background (Father & Mother details)
 - ✅ Subscription Plans with Success Fee
 - ✅ Mandatory Documents Upload
+- ✅ **Chat System** (User-Admin real-time chat with message deletion)
 
 ## Project Structure
 
@@ -83,6 +84,12 @@ A community-focused matrimony platform for the Boyar community.
 - **Interest System**: Connect with other profiles
 - **Messaging**: Direct messaging between matched users
 - **Search/Matching**: Find compatible profiles
+- **Chat System** (New!):
+  - Real-time chat between users and admin
+  - Message history stored in database
+  - Delete messages functionality
+  - Unread message count badges
+  - 5-second polling for new messages
 - **Verification System**:
   - Email OTP verification (via Gmail SMTP)
   - Phone OTP verification (via Twilio SMS)

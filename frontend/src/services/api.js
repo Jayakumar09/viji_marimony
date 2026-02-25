@@ -16,11 +16,17 @@ api.interceptors.request.use(
   (config) => {
     // Check for admin token first (for admin API calls)
     const adminToken = localStorage.getItem('adminToken');
+    const adminUser = localStorage.getItem('adminUser');
     const userToken = localStorage.getItem('token');
     
-    // Use admin token for admin API calls (including /payments/admin/), user token for regular calls
-    if (adminToken && (config.url.includes('/admin/') || config.url.includes('/payments/admin/'))) {
+    // Use admin token for admin API calls (including /payments/admin/ and /chat/admin/), user token for regular calls
+    if (adminToken && (config.url.includes('/admin/') || config.url.includes('/payments/admin/') || config.url.includes('/chat/admin/'))) {
       config.headers.Authorization = `Bearer ${adminToken}`;
+      // Add admin user info for chat routes
+      if (adminUser && config.url.includes('/chat/admin/')) {
+        config.headers['x-admin-user'] = adminUser;
+        config.headers['x-admin-token'] = adminToken;
+      }
     } else if (userToken) {
       config.headers.Authorization = `Bearer ${userToken}`;
     }

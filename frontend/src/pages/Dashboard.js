@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Container, Paper, Grid, Button, Avatar, CircularProgress } from '@mui/material';
-import { Person, Search, Message, FavoriteBorder } from '@mui/icons-material';
+import { Person, Search, Message, FavoriteBorder, SupportAgent } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getImageUrl } from '../utils/imageUrl';
@@ -51,6 +51,12 @@ const Dashboard = () => {
       title: 'Messages',
       description: 'Chat with matches',
       action: () => navigate('/messages')
+    },
+    {
+      icon: <SupportAgent style={{ fontSize: 40, color: '#8B5CF6' }} />,
+      title: 'Chat with Admin',
+      description: 'Get support & assistance',
+      action: () => navigate('/chat')
     }
   ];
 

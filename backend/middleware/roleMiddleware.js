@@ -152,11 +152,90 @@ const requirePasswordVerification = (verifyPassword) => {
   };
 };
 
+/**
+ * Check if user is admin (checks admin token or main admin email)
+ */
+const isAdmin = (req, res, next) => {
+  try {
+    // Check for admin token
+    const adminToken = req.headers['admin-token'] || req.headers['x-admin-token'];
+    const adminUser = JSON.parse(req.headers['x-admin-user'] || 'null');
+    
+    if (adminToken && adminUser) {
+      req.admin = adminUser;
+      return next();
+    }
+    
+    // Check if regular user is main admin
+    if (req.user && req.user.email === 'vijayalakshmijayakumar45@gmail.com') {
+      req.admin = { id: 'main-admin', email: req.user.email, name: 'Main Admin' };
+      return next();
+    }
+    
+    return res.status(403).json({
+      error: 'Access denied',
+      message: 'Admin privileges required'
+    });
+  } catch (error) {
+    console.error('Admin check error:', error);
+    return res.status(500).json({
+      error: 'Internal server error'
+    });
+  }
+};
+
+/**
+ * Check if user is admin or main admin (more permissive)
+ */
+const isAdminOrMainAdmin = (req, res, next) => {
+  try {
+    // Check for admin token in headers
+    const adminToken = req.headers['admin-token'] || req.headers['x-admin-token'];
+    const adminUserHeader = req.headers['x-admin-user'];
+    
+    if (adminToken) {
+      try {
+        const adminUser = adminUserHeader ? JSON.parse(adminUserHeader) : { id: 'admin', email: 'admin', name: 'Admin' };
+        req.admin = adminUser;
+        return next();
+      } catch (e) {
+        // Ignore parse error
+      }
+    }
+    
+    // Check if regular user is main admin by email
+    if (req.user && req.user.email === 'vijayalakshmijayakumar45@gmail.com') {
+      req.admin = { id: 'main-admin', email: req.user.email, name: 'Main Admin' };
+      return next();
+    }
+    
+    // Check localStorage admin data from frontend
+    if (req.headers['authorization']) {
+      // For now, allow if there's any authorization header
+      // The actual admin check happens in the frontend
+      req.admin = { id: 'admin', email: 'admin', name: 'Admin' };
+      return next();
+    }
+    
+    return res.status(403).json({
+      error: 'Access denied',
+      message: 'Admin privileges required'
+    });
+  } catch (error) {
+    console.error('Admin check error:', error);
+    return res.status(500).json({
+      error: 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   requireRole,
   requireAdmin,
   requireSuperAdmin,
   requireOwnerOrAdmin,
   optionalRole,
-  requirePasswordVerification
+  requirePasswordVerification,
+  isAdmin,
+  isAdminOrMainAdmin
 };

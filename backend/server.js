@@ -18,25 +18,28 @@ const PORT = process.env.PORT || 5001;
 // Trust proxy for rate limiter (fixes X-Forwarded-For warning)
 app.set('trust proxy', 1);
 
+// CORS configuration - MUST be before other middleware for preflight requests
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'admin-token', 'x-admin-token', 'x-admin-user']
+}));
+
 // Security middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(compression());
 
-// Rate limiting
+// Rate limiting - after CORS to allow preflight requests
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  trustProxy: true
+  trustProxy: true,
+  skipPreflightRequests: true // Skip rate limiting for OPTIONS requests
 });
 app.use(limiter);
-
-// CORS configuration - allow ALL origins for development
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
 
 // Body parsing middleware - increased limit for file uploads
 app.use(express.json({ limit: '50mb' }));
@@ -68,6 +71,7 @@ const adminFileServeRoutes = require('./routes/adminFileServe');
 const adminPhotosRoutes = require('./routes/adminPhotos');
 const adminVerificationRoutes = require('./routes/adminVerification');
 const paymentRoutes = require('./routes/payments');
+const chatRoutes = require('./routes/chat');
 // const phonepeRoutes = require('./routes/phonepe'); // PhonePe integration not implemented - using manual payments
 
 // Use routes
@@ -83,6 +87,7 @@ app.use('/api/admin', adminFileServeRoutes);
 app.use('/api/admin', adminPhotosRoutes);
 app.use('/api/admin', adminVerificationRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/chat', chatRoutes);
 // app.use('/api/phonepe', phonepeRoutes); // PhonePe integration not implemented - using manual payments
 
 // Error handling middleware

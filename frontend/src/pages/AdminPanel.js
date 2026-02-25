@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Drawer, AppBar, Toolbar, Typography, List, ListItem, ListItemButton,
@@ -7,13 +7,14 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Paper, LinearProgress,
   Alert, Snackbar, Tabs, Tab, Menu, MenuItem, Select, FormControl,
-  InputLabel, Tooltip, Switch, FormControlLabel
+  InputLabel, Tooltip, Switch, FormControlLabel, CircularProgress
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon, PhotoCamera, People, TrendingUp, Settings,
   Logout, Search, Visibility, CheckCircle, Cancel, Refresh, FilterList,
   MoreVert, Block, Check, Close, Star, Email, Phone, LocationOn,
-  CalendarToday, VerifiedUser,PendingActions, History, AttachMoney, Edit
+  CalendarToday, VerifiedUser,PendingActions, History, AttachMoney, Edit, Chat,
+  Send as SendIcon, Delete as DeleteIcon
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -38,6 +39,7 @@ const AdminPanel = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [pendingPhotoCount, setPendingPhotoCount] = useState(0);
   const [pendingPaymentCount, setPendingPaymentCount] = useState(0);
+  const [pendingChatCount, setPendingChatCount] = useState(0);
 
   // Fetch pending photo count for badge
   const fetchPendingPhotoCount = async () => {
@@ -59,6 +61,16 @@ const AdminPanel = () => {
     }
   };
 
+  // Fetch pending chat count for badge
+  const fetchPendingChatCount = async () => {
+    try {
+      const response = await api.get('/chat/admin/unread-count');
+      setPendingChatCount(response.unreadCount || 0);
+    } catch (error) {
+      console.error('Failed to fetch pending chat count:', error);
+    }
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -68,10 +80,12 @@ const AdminPanel = () => {
     if (isAdmin) {
       fetchPendingPhotoCount();
       fetchPendingPaymentCount();
+      fetchPendingChatCount();
       // Refresh count every 30 seconds
       const interval = setInterval(() => {
         fetchPendingPhotoCount();
         fetchPendingPaymentCount();
+        fetchPendingChatCount();
       }, 30000);
       return () => clearInterval(interval);
     }
@@ -105,6 +119,7 @@ const AdminPanel = () => {
     { text: 'Profile Verifications', icon: <VerifiedUser />, path: '/admin/profile-verifications', badge: true },
     { text: 'User Management', icon: <People />, path: '/admin/users' },
     { text: 'Subscriptions', icon: <AttachMoney />, path: '/admin/subscriptions', paymentBadge: true },
+    { text: 'Client Chat', icon: <Chat />, path: '/admin/chat', chatBadge: true },
     { text: 'Activity Logs', icon: <History />, path: '/admin/logs' },
     { text: 'Settings', icon: <Settings />, path: '/admin/settings' },
   ];
@@ -160,6 +175,10 @@ const AdminPanel = () => {
                   </Badge>
                 ) : item.paymentBadge ? (
                   <Badge badgeContent={pendingPaymentCount} color="error" showZero={false}>
+                    {item.icon}
+                  </Badge>
+                ) : item.chatBadge ? (
+                  <Badge badgeContent={pendingChatCount} color="error" showZero={false}>
                     {item.icon}
                   </Badge>
                 ) : item.icon}
@@ -305,6 +324,7 @@ const AdminPanel = () => {
           <Route path="/users" element={<UserManagement />} />
           <Route path="/users/:id" element={<AdminUserProfile />} />
           <Route path="/subscriptions" element={<SubscriptionManagement />} />
+          <Route path="/chat" element={<AdminChat />} />
           <Route path="/logs" element={<ActivityLogs />} />
           <Route path="/settings" element={<AdminSettings />} />
         </Routes>
@@ -2293,6 +2313,363 @@ const AdminSettings = () => {
           Save Settings
         </Button>
       </Box>
+    </Box>
+  );
+};
+
+// Admin Chat Component
+const AdminChat = () => {
+  const [conversations, setConversations] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  // Fetch conversations
+  const fetchConversations = async () => {
+    try {
+      const response = await api.get('/chat/admin/conversations');
+      // API returns { conversations: [...] }
+      const conversationsData = response.data?.conversations || response.conversations || [];
+      setConversations(conversationsData);
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+      toast.error('Failed to load conversations');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch messages for selected user
+  const fetchMessages = async (userId) => {
+    try {
+      const response = await api.get(`/chat/admin/chat/${userId}`);
+      // API returns { user: {...}, messages: [...], pagination: {...} }
+      const messagesData = response.data?.messages || response.messages || [];
+      setMessages(messagesData);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      toast.error('Failed to load messages');
+    }
+  };
+
+  // Scroll to bottom (only when admin sends a message)
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    fetchConversations();
+  }, []);
+
+  // No automatic scrolling - admin controls scroll position
+
+  // Poll for new messages every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchConversations();
+      if (selectedUser) {
+        fetchMessages(selectedUser.id);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [selectedUser]);
+
+  // Handle user selection
+  const handleSelectUser = (user) => {
+    setSelectedUser(user);
+    fetchMessages(user.id);
+  };
+
+  // Send message
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedUser) return;
+
+    setSending(true);
+    try {
+      const response = await api.post('/chat/admin/send', {
+        userId: selectedUser.id,
+        message: newMessage.trim()
+      });
+      
+      // API returns { message: '...', data: chatMessage }
+      const newMsg = response.data?.data || response.data;
+      if (newMsg && newMsg.id) {
+        setMessages(prev => [...prev, newMsg]);
+      }
+      setNewMessage('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Delete message
+  const handleDeleteMessage = async (messageId) => {
+    try {
+      await api.delete(`/chat/admin/message/${messageId}`);
+      // Remove message from local state
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+      toast.success('Message deleted');
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      toast.error('Failed to delete message');
+    }
+  };
+
+  // Format time
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    }
+  };
+
+  // Group messages by date
+  const groupMessagesByDate = (messages) => {
+    const groups = [];
+    let currentDate = null;
+
+    messages.forEach((message) => {
+      const messageDate = new Date(message.createdAt).toDateString();
+      if (messageDate !== currentDate) {
+        currentDate = messageDate;
+        groups.push({ type: 'date', date: message.createdAt });
+      }
+      groups.push({ type: 'message', ...message });
+    });
+
+    return groups;
+  };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      <Typography variant="h5" fontWeight="bold" gutterBottom>Client Chat</Typography>
+      <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+        Chat with users for support and assistance
+      </Typography>
+
+      <Grid container spacing={2} sx={{ height: '70vh' }}>
+        {/* Conversations List */}
+        <Grid item xs={12} md={4}>
+          <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ p: 2, bgcolor: '#8B5CF6', color: 'white' }}>
+              <Typography variant="subtitle1" fontWeight="bold">
+                Conversations ({conversations.length})
+              </Typography>
+            </Box>
+            <Divider />
+            <List sx={{ flexGrow: 1, overflow: 'auto', p: 0 }}>
+              {conversations.length === 0 ? (
+                <Box p={3} textAlign="center">
+                  <Typography variant="body2" color="textSecondary">
+                    No conversations yet
+                  </Typography>
+                </Box>
+              ) : (
+                conversations.map((conv) => (
+                  <ListItem
+                    key={conv.user.id}
+                    button
+                    onClick={() => handleSelectUser(conv.user)}
+                    sx={{
+                      bgcolor: selectedUser?.id === conv.user.id ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
+                      borderLeft: selectedUser?.id === conv.user.id ? '4px solid #8B5CF6' : '4px solid transparent'
+                    }}
+                  >
+                    <ListItemIcon>
+                      <Badge badgeContent={conv.unreadCount} color="error">
+                        <Avatar sx={{ bgcolor: '#8B5CF6' }}>
+                          {conv.user.firstName?.charAt(0)}
+                        </Avatar>
+                      </Badge>
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={`${conv.user.firstName} ${conv.user.lastName}`}
+                      secondary={
+                        <Typography variant="caption" noWrap display="block">
+                          {conv.lastMessage?.substring(0, 30)}...
+                        </Typography>
+                      }
+                    />
+                    <Typography variant="caption" color="textSecondary">
+                      {formatTime(conv.lastMessageTime)}
+                    </Typography>
+                  </ListItem>
+                ))
+              )}
+            </List>
+          </Card>
+        </Grid>
+
+        {/* Chat Area */}
+        <Grid item xs={12} md={8}>
+          <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {selectedUser ? (
+              <>
+                {/* Chat Header */}
+                <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }}>
+                  <Box display="flex" alignItems="center">
+                    <Avatar sx={{ bgcolor: '#8B5CF6', mr: 2 }}>
+                      {selectedUser.firstName?.charAt(0)}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="bold">
+                        {selectedUser.firstName} {selectedUser.lastName}
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary">
+                        {selectedUser.email}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+
+                {/* Messages */}
+                <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, bgcolor: '#fafafa' }}>
+                  {groupMessagesByDate(messages).map((item, index) => {
+                    if (item.type === 'date') {
+                      return (
+                        <Box key={`date-${index}`} sx={{ textAlign: 'center', my: 2 }}>
+                          <Typography
+                            variant="caption"
+                            sx={{ bgcolor: '#e0e0e0', px: 2, py: 0.5, borderRadius: 10 }}
+                          >
+                            {formatDate(item.date)}
+                          </Typography>
+                        </Box>
+                      );
+                    }
+
+                    const isAdminMsg = item.senderType === 'ADMIN';
+                    return (
+                      <Box
+                        key={item.id}
+                        sx={{
+                          display: 'flex',
+                          justifyContent: isAdminMsg ? 'flex-end' : 'flex-start',
+                          mb: 2,
+                          alignItems: 'flex-start',
+                          gap: 0.5
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            maxWidth: '70%',
+                            bgcolor: isAdminMsg ? '#8B5CF6' : 'white',
+                            color: isAdminMsg ? 'white' : 'text.primary',
+                            borderRadius: 2,
+                            p: 1.5,
+                            boxShadow: 1
+                          }}
+                        >
+                          <Typography variant="body2">{item.message}</Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{ display: 'block', textAlign: 'right', mt: 0.5, opacity: 0.7 }}
+                          >
+                            {formatTime(item.createdAt)}
+                          </Typography>
+                        </Box>
+                        {/* Delete button - admin can delete any message */}
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDeleteMessage(item.id)}
+                          sx={{
+                            opacity: 0.5,
+                            '&:hover': { opacity: 1, color: 'error.main' },
+                            mt: 0.5
+                          }}
+                          title="Delete message"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </Box>
+
+                {/* Input */}
+                <Box
+                  component="form"
+                  onSubmit={handleSendMessage}
+                  sx={{ p: 2, bgcolor: 'white', display: 'flex', gap: 1 }}
+                >
+                  <TextField
+                    fullWidth
+                    placeholder="Type your reply..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    disabled={sending}
+                    multiline
+                    maxRows={3}
+                  />
+                  <IconButton
+                    type="submit"
+                    color="primary"
+                    disabled={!newMessage.trim() || sending}
+                    sx={{
+                      bgcolor: '#8B5CF6',
+                      color: 'white',
+                      '&:hover': { bgcolor: '#7C3AED' },
+                      '&.Mui-disabled': { bgcolor: '#e0e0e0', color: '#9e9e9e' }
+                    }}
+                  >
+                    {sending ? <CircularProgress size={24} color="inherit" /> : <SendIcon sx={{ fontSize: 20 }} />}
+                  </IconButton>
+                </Box>
+              </>
+            ) : (
+              <Box
+                display="flex"
+                flexDirection="column"
+                alignItems="center"
+                justifyContent="center"
+                height="100%"
+              >
+                <Chat sx={{ fontSize: 80, color: '#e0e0e0', mb: 2 }} />
+                <Typography variant="h6" color="textSecondary">
+                  Select a conversation to start chatting
+                </Typography>
+              </Box>
+            )}
+          </Card>
+        </Grid>
+      </Grid>
     </Box>
   );
 };
