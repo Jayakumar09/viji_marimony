@@ -20,7 +20,7 @@ app.set('trust proxy', 1);
 
 // CORS configuration - MUST be before other middleware for preflight requests
 app.use(cors({
-  origin: true,
+  origin: 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'admin-token', 'x-admin-token', 'x-admin-user']
