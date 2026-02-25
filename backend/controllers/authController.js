@@ -109,8 +109,30 @@ const login = async (req, res) => {
         firstName: true,
         lastName: true,
         gender: true,
+        dateOfBirth: true,
+        age: true,
+        community: true,
+        subCaste: true,
+        city: true,
+        state: true,
+        country: true,
+        education: true,
+        profession: true,
+        income: true,
+        maritalStatus: true,
+        height: true,
+        weight: true,
+        complexion: true,
+        profilePhoto: true,
+        photos: true,
+        bio: true,
+        familyValues: true,
+        aboutFamily: true,
         isVerified: true,
         isPremium: true,
+        subscriptionTier: true,
+        subscriptionStart: true,
+        subscriptionEnd: true,
         isActive: true,
         lastLoginAt: true
       }
@@ -141,6 +163,69 @@ const login = async (req, res) => {
 
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
+
+    // Normalize profile photo path
+    if (userWithoutPassword.profilePhoto && !userWithoutPassword.profilePhoto.startsWith('http') && !userWithoutPassword.profilePhoto.startsWith('/')) {
+      userWithoutPassword.profilePhoto = `/${userWithoutPassword.profilePhoto}`;
+    }
+
+    // Normalize photos array paths (photos is stored as JSON string in SQLite)
+    if (userWithoutPassword.photos) {
+      try {
+        const photosArray = typeof userWithoutPassword.photos === 'string' 
+          ? JSON.parse(userWithoutPassword.photos) 
+          : userWithoutPassword.photos;
+        if (Array.isArray(photosArray)) {
+          userWithoutPassword.photos = photosArray.map(photo => {
+            if (!photo.startsWith('http') && !photo.startsWith('/')) {
+              return `/${photo}`;
+            }
+            return photo;
+          });
+        }
+      } catch (e) {
+        userWithoutPassword.photos = [];
+      }
+    }
+
+    // Sync subscription status from Subscription table
+    // Get the most recent active subscription (with furthest end date)
+    const activeSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId: user.id,
+        status: 'ACTIVE',
+        endDate: { gte: new Date() }
+      },
+      orderBy: {
+        endDate: 'desc'
+      }
+    });
+    
+    if (activeSubscription) {
+      const planTier = activeSubscription.plan.toUpperCase();
+      if (planTier !== userWithoutPassword.subscriptionTier) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            subscriptionTier: planTier,
+            isPremium: true,
+            subscriptionStart: activeSubscription.startDate,
+            subscriptionEnd: activeSubscription.endDate
+          }
+        });
+        userWithoutPassword.subscriptionTier = planTier;
+        userWithoutPassword.isPremium = true;
+        userWithoutPassword.subscriptionStart = activeSubscription.startDate;
+        userWithoutPassword.subscriptionEnd = activeSubscription.endDate;
+      }
+    } else if (userWithoutPassword.subscriptionEnd && new Date(userWithoutPassword.subscriptionEnd) < new Date()) {
+      // Subscription expired
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { isPremium: false }
+      });
+      userWithoutPassword.isPremium = false;
+    }
 
     res.json({
       message: 'Login successful',
@@ -186,6 +271,9 @@ const getMe = async (req, res) => {
         aboutFamily: true,
         isVerified: true,
         isPremium: true,
+        subscriptionTier: true,
+        subscriptionStart: true,
+        subscriptionEnd: true,
         emailVerified: true,
         phoneVerified: true,
         createdAt: true
@@ -201,14 +289,62 @@ const getMe = async (req, res) => {
       user.profilePhoto = `/${user.profilePhoto}`;
     }
 
-    // Normalize photos array paths
-    if (user.photos && Array.isArray(user.photos)) {
-      user.photos = user.photos.map(photo => {
-        if (!photo.startsWith('http') && !photo.startsWith('/')) {
-          return `/${photo}`;
+    // Normalize photos array paths (photos is stored as JSON string in SQLite)
+    if (user.photos) {
+      try {
+        const photosArray = typeof user.photos === 'string' 
+          ? JSON.parse(user.photos) 
+          : user.photos;
+        if (Array.isArray(photosArray)) {
+          user.photos = photosArray.map(photo => {
+            if (!photo.startsWith('http') && !photo.startsWith('/')) {
+              return `/${photo}`;
+            }
+            return photo;
+          });
         }
-        return photo;
+      } catch (e) {
+        user.photos = [];
+      }
+    }
+
+    // Sync subscription status from Subscription table
+    // Get the most recent active subscription (with furthest end date)
+    const activeSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId: user.id,
+        status: 'ACTIVE',
+        endDate: { gte: new Date() }
+      },
+      orderBy: {
+        endDate: 'desc'
+      }
+    });
+    
+    if (activeSubscription) {
+      const planTier = activeSubscription.plan.toUpperCase();
+      if (planTier !== user.subscriptionTier) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            subscriptionTier: planTier,
+            isPremium: true,
+            subscriptionStart: activeSubscription.startDate,
+            subscriptionEnd: activeSubscription.endDate
+          }
+        });
+        user.subscriptionTier = planTier;
+        user.isPremium = true;
+        user.subscriptionStart = activeSubscription.startDate;
+        user.subscriptionEnd = activeSubscription.endDate;
+      }
+    } else if (user.subscriptionEnd && new Date(user.subscriptionEnd) < new Date()) {
+      // Subscription expired
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { isPremium: false }
       });
+      user.isPremium = false;
     }
 
     res.json({ user });

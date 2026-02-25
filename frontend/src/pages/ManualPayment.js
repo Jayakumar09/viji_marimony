@@ -361,19 +361,22 @@ const ManualPayment = () => {
             </Typography>
             <Grid container spacing={2} sx={{ mb: 4 }}>
               {SUBSCRIPTION_PLANS.filter(p => p.id !== 'FREE').map((plan) => (
-                <Grid item xs={12} sm={4} key={plan.id}>
+                <Grid item xs={12} sm={4} key={plan.id} sx={{ display: 'flex' }}>
                   <Card 
                     sx={{ 
                       cursor: 'pointer',
                       border: selectedPlan === plan.id ? 4 : 2,
                       borderColor: selectedPlan === plan.id ? 'primary.main' : 'grey.300',
-                      transform: selectedPlan === plan.id ? 'scale(1.05)' : 'scale(1)',
+                      transform: selectedPlan === plan.id ? 'scale(1.02)' : 'scale(1)',
                       transition: 'all 0.3s ease',
                       bgcolor: selectedPlan === plan.id ? 'primary.50' : 'white',
                       boxShadow: selectedPlan === plan.id ? '0 8px 24px rgba(139, 92, 246, 0.4)' : '0 2px 8px rgba(0,0,0,0.1)',
                       position: 'relative',
+                      width: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
                       '&:hover': { 
-                        transform: 'scale(1.03)', 
+                        transform: 'scale(1.02)', 
                         borderColor: 'primary.light',
                         boxShadow: '0 4px 16px rgba(139, 92, 246, 0.2)'
                       }
@@ -400,7 +403,7 @@ const ManualPayment = () => {
                         <CheckCircle sx={{ color: 'white', fontSize: 20 }} />
                       </Box>
                     )}
-                    <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                    <CardContent sx={{ textAlign: 'center', py: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
                       {plan.id === 'PRO' && (
                         <Chip 
                           label="Popular" 
@@ -419,7 +422,7 @@ const ManualPayment = () => {
                         {plan.duration} days
                       </Typography>
                       <Divider sx={{ my: 2 }} />
-                      <Box sx={{ textAlign: 'left' }}>
+                      <Box sx={{ textAlign: 'left', flexGrow: 1 }}>
                         {plan.features.map((feature, idx) => (
                           <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                             <CheckCircle sx={{ fontSize: 16, color: 'success.main', mr: 1 }} />

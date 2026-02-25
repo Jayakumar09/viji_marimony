@@ -71,7 +71,18 @@ const Dashboard = () => {
     ];
     
     const completedFields = fields.filter(field => {
-      const value = user?.[field];
+      let value = user?.[field];
+      
+      // Handle photos field - could be JSON string or array
+      if (field === 'photos' && value) {
+        try {
+          const photosArray = typeof value === 'string' ? JSON.parse(value) : value;
+          return Array.isArray(photosArray) && photosArray.length > 0;
+        } catch (e) {
+          return false;
+        }
+      }
+      
       if (Array.isArray(value)) {
         return value.length > 0;
       }

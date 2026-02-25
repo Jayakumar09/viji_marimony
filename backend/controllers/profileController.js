@@ -116,11 +116,15 @@ const getProfile = async (req, res) => {
 
     // Sync isPremium with subscription status
     // Check both user fields and Subscription table for active subscriptions
+    // Get the most recent active subscription (with furthest end date)
     const activeSubscription = await prisma.subscription.findFirst({
       where: {
         userId: user.id,
         status: 'ACTIVE',
         endDate: { gte: new Date() }
+      },
+      orderBy: {
+        endDate: 'desc'
       }
     });
     
