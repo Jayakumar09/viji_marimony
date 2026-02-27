@@ -132,4 +132,29 @@ router.get('/profile-verifications/pending', getPendingProfileVerifications);
 router.put('/profile-verifications/:userId/approve', approveProfileVerification);
 router.put('/profile-verifications/:userId/reject', rejectProfileVerification);
 
+// Share profile via email
+router.post('/share-profile-email', async (req, res) => {
+  try {
+    const { pdf, email, profileName, shareType } = req.body;
+    
+    // For now, we'll just return success since the frontend handles the email client fallback
+    // In production, you would integrate with an email service like SendGrid, Mailgun, etc.
+    
+    console.log('Profile share request:', {
+      email,
+      profileName,
+      shareType,
+      pdfSize: pdf ? 'PDF attached' : 'No PDF'
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Email endpoint ready. In production, this would send the PDF via email service.' 
+    });
+  } catch (error) {
+    console.error('Share profile email error:', error);
+    res.status(500).json({ error: 'Failed to send email' });
+  }
+});
+
 module.exports = router;

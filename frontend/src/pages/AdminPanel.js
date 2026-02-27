@@ -14,11 +14,12 @@ import {
   Logout, Search, Visibility, CheckCircle, Cancel, Refresh, FilterList,
   MoreVert, Block, Check, Close, Star, Email, Phone, LocationOn,
   CalendarToday, VerifiedUser,PendingActions, History, AttachMoney, Edit, Chat,
-  Send as SendIcon, Delete as DeleteIcon, Image as ImageIcon
+  Send as SendIcon, Delete as DeleteIcon, Image as ImageIcon, Share
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import AdminUserProfile from './AdminUserProfile';
+import ProfileShareModal from '../components/ProfileShareModal';
 import toast from 'react-hot-toast';
 
 // Sidebar width
@@ -1161,6 +1162,7 @@ const UserManagement = () => {
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [selectedUser, setSelectedUser] = useState(null);
   const [actionMenu, setActionMenu] = useState({ anchor: null, userId: null });
+  const [shareModal, setShareModal] = useState({ open: false, userId: null, userName: '' });
 
   useEffect(() => {
     fetchUsers();
@@ -1391,6 +1393,19 @@ const UserManagement = () => {
                         <MenuItem onClick={() => { navigate(`/admin/users/${user.id}`); setActionMenu({ anchor: null, userId: null }); }}>
                           <Visibility sx={{ mr: 1, fontSize: 20 }} /> View Full Profile
                         </MenuItem>
+                        <MenuItem 
+                          onClick={() => { 
+                            setShareModal({ 
+                              open: true, 
+                              userId: user.id, 
+                              userName: `${user.firstName} ${user.lastName}` 
+                            }); 
+                            setActionMenu({ anchor: null, userId: null }); 
+                          }}
+                          sx={{ color: '#8B5CF6' }}
+                        >
+                          <Share sx={{ mr: 1, fontSize: 20 }} /> Share Profile
+                        </MenuItem>
                         {!user.isVerified && (
                           <MenuItem 
                             onClick={() => { handleVerifyUser(user.id); setActionMenu({ anchor: null, userId: null }); }}
@@ -1524,6 +1539,14 @@ const UserManagement = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Profile Share Modal */}
+      <ProfileShareModal
+        open={shareModal.open}
+        onClose={() => setShareModal({ open: false, userId: null, userName: '' })}
+        userId={shareModal.userId}
+        userName={shareModal.userName}
+      />
     </Box>
   );
 };

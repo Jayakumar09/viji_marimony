@@ -112,6 +112,14 @@ export const profileService = {
       profilePhotoX: response.data.user?.profilePhotoX,
       profilePhotoY: response.data.user?.profilePhotoY
     };
+  },
+
+  // Download profile PDF
+  downloadProfilePdf: async (userId) => {
+    const response = await api.get(`/profile-pdf/download-profile/${userId}`, {
+      responseType: 'blob',
+    });
+    return response.data;
   }
 };
 

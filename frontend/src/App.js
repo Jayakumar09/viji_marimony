@@ -21,6 +21,7 @@ import AdminPanel from './pages/AdminPanel';
 import NotFound from './pages/NotFound';
 import ManualPayment from './pages/ManualPayment';
 import UserChat from './pages/UserChat';
+import TestPDF from './TestPDF';
 
 // Context/Hooks
 import { useAuth } from './hooks/useAuth';
@@ -39,6 +40,7 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Home />} />
+          <Route path="/test-pdf" element={<TestPDF />} />
           <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
           <Route path="/register" element={!user ? <Register /> : <Navigate to="/dashboard" />} />
 
