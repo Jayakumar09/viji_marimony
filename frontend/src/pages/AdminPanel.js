@@ -992,7 +992,7 @@ const ProfileVerifications = () => {
                             {user.firstName} {user.lastName}
                           </Typography>
                           <Typography variant="caption" color="textSecondary">
-                            ID: {user.id.slice(-8)}
+                            ID: {user.customId || user.id.slice(-8)}
                           </Typography>
                         </Box>
                       </Box>
@@ -1320,7 +1320,7 @@ const UserManagement = () => {
                             {user.firstName} {user.lastName}
                           </Typography>
                           <Typography variant="caption" color="textSecondary">
-                            ID: {user.id.slice(-6)}
+                            ID: {user.customId || user.id.slice(-6)}
                           </Typography>
                         </Box>
                       </Box>

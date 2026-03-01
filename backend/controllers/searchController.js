@@ -63,6 +63,7 @@ const searchProfiles = async (req, res) => {
       where,
       select: {
         id: true,
+        customId: true,
         firstName: true,
         lastName: true,
         gender: true,
@@ -146,6 +147,7 @@ const getProfileById = async (req, res) => {
       where: { id: profileId },
       select: {
         id: true,
+        customId: true,
         firstName: true,
         lastName: true,
         gender: true,
@@ -354,6 +356,7 @@ const getRecommendedProfiles = async (req, res) => {
       where,
       select: {
         id: true,
+        customId: true,
         firstName: true,
         lastName: true,
         gender: true,

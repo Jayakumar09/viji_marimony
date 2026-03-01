@@ -67,11 +67,13 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
   const [profileData, setProfileData] = useState(null);
   const [previewMode, setPreviewMode] = useState(false);
   const [sanitizedPreview, setSanitizedPreview] = useState(null);
+  const [pageCount, setPageCount] = useState(null);
 
   // Fetch full profile data when modal opens
   useEffect(() => {
     if (open && userId) {
       fetchProfileData();
+      fetchPageCount();
     }
   }, [open, userId]);
 
@@ -82,20 +84,31 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
       const response = await api.get(`/admin/users/${userId}/profile`).catch(() => null);
       
       if (response?.data) {
-        const adminData = response.data?.profile || response.data?.user || response.data;
+        // Admin API returns: { success: true, data: { personalDetails: {...}, ... } }
+        // Extract the actual data object
+        const responseData = response.data.data || response.data;
+        const adminData = responseData.personalDetails ? responseData : (response.data.profile || responseData);
         
-        if (adminData && adminData.personalDetails) {
+        if (adminData && (adminData.personalDetails || adminData.firstName)) {
+          // DEBUG: Log what we're receiving
+          console.log('Admin API response - adminData:', adminData);
+          console.log('Has customId in personalDetails?', adminData.personalDetails?.customId);
+          
           // Flatten the nested structure from admin API
           const flatData = {
-            ...adminData.personalDetails,
-            ...adminData.locationDetails,
-            ...adminData.professionalDetails,
-            ...adminData.familyDetails,
-            ...adminData.horoscopeDetails,
+            ...adminData, // Include top-level fields
+            ...(adminData.personalDetails || {}),
+            ...(adminData.locationDetails || {}),
+            ...(adminData.professionalDetails || {}),
+            ...(adminData.familyDetails || {}),
+            ...(adminData.horoscopeDetails || {}),
             profilePhoto: adminData.profilePhoto,
             isVerified: adminData.verificationDetails?.isVerified,
             isPremium: adminData.accountStatus?.isPremium,
           };
+          
+          // DEBUG: Log flattened data
+          console.log('Flat data - customId:', flatData.customId, 'firstName:', flatData.firstName);
           
           // Map field name differences
           flatData.dateOfBirth = flatData.birthDate || flatData.dateOfBirth;
@@ -132,6 +145,17 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
     }
   };
 
+  // Fetch page count for PDF preview
+  const fetchPageCount = async () => {
+    try {
+      const pageInfo = await profileService.getPageCount(userId);
+      setPageCount(pageInfo);
+    } catch (error) {
+      console.error('Failed to fetch page count:', error);
+      setPageCount(null);
+    }
+  };
+
   // Update sanitized preview when share option changes
   useEffect(() => {
     if (profileData && shareOption === 'other') {
@@ -156,10 +180,13 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
       // Use backend PDF generation for better quality
       const pdfBlob = await profileService.downloadProfilePdf(userId);
       
+      // DEBUG: Log what's being used for filename
+      console.log('PDF download - customId:', profileData?.customId, 'firstName:', profileData?.firstName);
+      
       // Create download link
       const url = window.URL.createObjectURL(new Blob([pdfBlob]));
       const link = document.createElement('a');
-      const name = `${profileData.firstName || 'Profile'}_${profileData.lastName || ''}`.trim();
+      const name = profileData.customId || `${profileData.firstName || 'Profile'}_${profileData.lastName || ''}`.trim();
       link.href = url;
       link.setAttribute('download', `${name.replace(/\s+/g, '_')}_Profile.pdf`);
       document.body.appendChild(link);
@@ -201,7 +228,7 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
         // Create download link for PDF
         const url = window.URL.createObjectURL(new Blob([pdfBlob]));
         const link = document.createElement('a');
-        const name = `${profileData.firstName || 'Profile'}_${profileData.lastName || ''}`.trim();
+        const name = profileData.customId || `${profileData.firstName || 'Profile'}_${profileData.lastName || ''}`.trim();
         link.href = url;
         link.setAttribute('download', `${name.replace(/\s+/g, '_')}_Profile.pdf`);
         document.body.appendChild(link);
@@ -269,7 +296,7 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
         pdfBlob = getProfilePDFBlob(profileData, isSanitized);
       }
       
-      const name = `${profileData.firstName || 'Profile'}_${profileData.lastName || ''}`.trim();
+      const name = profileData.customId || `${profileData.firstName || 'Profile'}_${profileData.lastName || ''}`.trim();
       
       // Create form data for email
       const formData = new FormData();
@@ -513,6 +540,24 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
             <Divider sx={{ my: 2 }}>
               <Chip label="Share Options" size="small" />
             </Divider>
+
+            {/* Page Count Preview */}
+            {pageCount && (
+              <Alert 
+                severity="info" 
+                icon={<PictureAsPdf />}
+                sx={{ mb: 2, borderRadius: 2, bgcolor: '#f0f9ff' }}
+              >
+                <Typography variant="body2" fontWeight={600}>
+                  📄 PDF will have {pageCount.totalPages} pages
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  • {pageCount.profilePages} page(s) for profile details
+                  {pageCount.galleryPages > 0 && ` • ${pageCount.galleryPages} page(s) for ${pageCount.galleryCount} photo(s)`}
+                  {pageCount.documentPages > 0 && ` • ${pageCount.documentPages} page(s) for ${pageCount.documentCount} document(s)`}
+                </Typography>
+              </Alert>
+            )}
 
             {/* Share Actions */}
             <Grid container spacing={2}>

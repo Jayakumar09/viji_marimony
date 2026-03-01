@@ -114,11 +114,17 @@ export const profileService = {
     };
   },
 
-  // Download profile PDF
+  // Download profile PDF (uses shared profile API with watermark)
   downloadProfilePdf: async (userId) => {
-    const response = await api.get(`/profile-pdf/download-profile/${userId}`, {
+    const response = await api.get(`/shared-profile/${userId}`, {
       responseType: 'blob',
     });
+    return response.data;
+  },
+
+  // Get page count info for shared profile PDF
+  getPageCount: async (userId) => {
+    const response = await api.get(`/shared-profile/${userId}/pages`);
     return response.data;
   }
 };

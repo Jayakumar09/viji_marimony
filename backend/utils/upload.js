@@ -33,8 +33,11 @@ if (isCloudinaryConfigured()) {
     params: {
       folder: 'boyar-matrimony',
       allowed_formats: ['jpg', 'jpeg', 'png', 'gif'],
-      // Let Cloudinary auto-generate unique public_id to avoid duplicates
-      // Cloudinary will add unique identifier automatically
+      transformation: [
+        { width: 1500, height: 1500, crop: 'limit' }, // Max dimensions
+        { quality: 'auto:good' }, // Compress to ~500KB max
+        { fetch_format: 'auto' }
+      ],
     },
   });
 } else {
@@ -53,11 +56,11 @@ if (isCloudinaryConfigured()) {
   });
 }
 
-// Multer upload middleware - increased limit
+// Multer upload middleware - 1MB limit for images
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+    fileSize: 1 * 1024 * 1024, // 1MB limit per file
   },
   fileFilter: (req, file, cb) => {
     // Check file type
@@ -68,6 +71,19 @@ const upload = multer({
     }
   },
 });
+
+// Error handler for multer
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'File too large. Maximum size is 1MB.' });
+    }
+    return res.status(400).json({ error: err.message });
+  } else if (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  next();
+};
 
 // Upload single file (profile photo)
 const uploadSingle = upload.single('photo');
@@ -119,5 +135,6 @@ module.exports = {
   uploadMultiple,
   deleteImage,
   extractPublicId,
+  handleMulterError,
   cloudinary
 };

@@ -380,7 +380,7 @@ const AdminUserProfile = () => {
                 {personalDetails.firstName} {personalDetails.lastName}
               </Typography>
               <Typography variant="body2" sx={{ color: '#94a3b8' }}>
-                ID: {personalDetails.id?.slice(-8)}
+                ID: {personalDetails.customId || personalDetails.id?.slice(-8)}
               </Typography>
               <Chip
                 label={verificationDetails.isVerified ? 'Verified' : 'Unverified'}

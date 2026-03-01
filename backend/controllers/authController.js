@@ -1,6 +1,10 @@
 const { prisma } = require('../utils/database');
 const { generateToken } = require('../utils/jwt');
 const { hashPassword, comparePassword } = require('../utils/password');
+const { generateUserId, initCounter } = require('../utils/userIdGenerator');
+
+// Initialize counter on first registration call
+initCounter().catch(console.error);
 
 const register = async (req, res) => {
   try {
@@ -50,7 +54,10 @@ const register = async (req, res) => {
 
     // Hash password
     const hashedPassword = await hashPassword(password);
-
+    
+    // Generate custom user ID
+    const customId = generateUserId(firstName, lastName);
+    
     // Create user
     const user = await prisma.user.create({
       data: {
@@ -59,6 +66,7 @@ const register = async (req, res) => {
         phone,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        customId: customId,
         gender,
         dateOfBirth: birthDate,
         age,

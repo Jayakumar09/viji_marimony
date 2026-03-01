@@ -11,6 +11,8 @@ const express = require('express');
 const router = express.Router();
 const PDFDocument = require('pdfkit');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 const { prisma } = require('../utils/database');
 const { authMiddleware } = require('../middleware/auth');
 
@@ -474,6 +476,328 @@ router.get('/my-profile-pdf', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('PDF generation error:', error);
     res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+});
+
+/**
+ * Public shareable profile link - generates realistic watermark PDF
+ * Accessible without authentication using profile ID
+ * This creates a web link for sharing profiles with watermarks
+ * 
+ * Web link format: /api/profile-pdf/share/:id
+ */
+router.get('/share/:id', async (req, res) => {
+  try {
+    const profileId = req.params.id;
+    const sanitize = req.query.sanitize === 'true'; // Remove contact info
+    
+    // Fetch profile from database
+    const profile = await prisma.user.findUnique({
+      where: { id: profileId }
+    });
+
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    if (!profile.isActive) {
+      return res.status(404).json({ error: 'Profile not available' });
+    }
+
+    // Normalize profile photo path
+    if (profile.profilePhoto && !profile.profilePhoto.startsWith('http') && !profile.profilePhoto.startsWith('/')) {
+      profile.profilePhoto = `/${profile.profilePhoto}`;
+    }
+
+    // Normalize photos array paths
+    let photosArray = [];
+    if (profile.photos) {
+      try {
+        photosArray = JSON.parse(profile.photos);
+      } catch (e) {
+        photosArray = [];
+      }
+    }
+    if (Array.isArray(photosArray)) {
+      profile.photos = photosArray.map(photo => {
+        if (!photo.startsWith('http') && !photo.startsWith('/')) {
+          return `/${photo}`;
+        }
+        return photo;
+      });
+    } else {
+      profile.photos = [];
+    }
+
+    // Prepare profile name and ID for filename
+    const fullName = `${profile.firstName || ''}${profile.lastName || ''}`.replace(/\s+/g, '');
+    const profileIdShort = profile.id.slice(-6).toUpperCase();
+    const fileName = sanitize 
+      ? `${fullName}${profileIdShort}_Shared__Profile.pdf`
+      : `${fullName}${profileIdShort}_Profile.pdf`;
+
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=${fileName}`);
+
+    // Watermark configuration - same as test file
+    const WATERMARK_TEXT = 'Vijayalakshmi Boyar Matrimony';
+    const WATERMARK_FONT = 'Helvetica';
+
+    // Create PDF document
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: 40,
+      info: {
+        Title: `${fullName} Profile`,
+        Author: 'Vijayalakshmi Boyar Matrimony',
+        Subject: 'Matrimony Profile'
+      }
+    });
+
+    doc.pipe(res);
+
+    // ========== HEADER FUNCTION ==========
+    const addHeader = (doc, subtitle = '') => {
+      // Purple banner rectangle
+      doc.fillColor('#8B5CF6').rect(0, 0, doc.page.width, 50).fill();
+      // White text
+      doc.fillColor('#FFFFFF').fontSize(20).text(WATERMARK_TEXT, 0, 15, { align: 'center', width: doc.page.width });
+      if (subtitle) {
+        doc.fontSize(10).text(subtitle, 0, 38, { align: 'center', width: doc.page.width });
+      }
+      return 60;
+    };
+
+    // ========== WATERMARK FUNCTION ==========
+    const addWatermark = (doc, text = WATERMARK_TEXT, opacity = 0.15) => {
+      const pageWidth = doc.page.width;
+      const pageHeight = doc.page.height;
+      
+      doc.save();
+      
+      // Watermark configuration - diagonal tile pattern at 45 degrees
+      const fontSize = 20;
+      const angle = -45;
+      const spacingX = 200;
+      const spacingY = 200;
+      
+      // Set watermark properties - dark green color for better visibility
+      doc.fillColor('#632704').opacity(opacity).font(WATERMARK_FONT).fontSize(fontSize);
+      
+      const diagonal = Math.sqrt(pageWidth * pageWidth + pageHeight * pageHeight);
+      
+      // Create multiple rows of diagonal watermarks
+      for (let row = -3; row < 10; row++) {
+        const yOffset = row * spacingY;
+        for (let col = -3; col < 12; col++) {
+          const xOffset = col * spacingX + (row % 2) * (spacingX / 2);
+          
+          doc.save();
+          doc.translate(xOffset, yOffset);
+          doc.rotate(angle);
+          doc.text(text, 0, 0, { align: 'center', lineBreak: false });
+          doc.restore();
+        }
+      }
+      
+      doc.restore();
+      doc.opacity(1);
+    };
+
+    // ========== FIELD FORMATTER ==========
+    const addField = (doc, label, value, x, y, w = 130) => {
+      if (!value || value === 'Not provided') return y;
+      doc.fontSize(10).fillColor('#64748b').text(label, x, y, { width: w });
+      doc.fillColor('#1e293b').text(String(value), x + w, y, { width: 220 });
+      return y + 14;
+    };
+
+    // ========== SECTION HEADER ==========
+    const addSectionHeader = (doc, title, y) => {
+      doc.fontSize(14).fillColor('#8B5CF6').text(title, 40, y);
+      return y + 18;
+    };
+
+    // ========== FORMAT DATE ==========
+    const formatDate = (dateString) => {
+      if (!dateString) return 'N/A';
+      return new Date(dateString).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
+    };
+
+    // ========== FETCH IMAGE ==========
+    const fetchImage = async (imagePath) => {
+      try {
+        if (!imagePath || imagePath === 'null') return null;
+        let filename = imagePath.split('/').pop().split('\\').pop();
+        const paths = [
+          path.join(__dirname, '..', 'uploads', filename),
+          path.join(__dirname, '..', 'uploads', 'user_' + filename)
+        ];
+        for (const fullPath of paths) {
+          if (fs.existsSync(fullPath)) return fs.readFileSync(fullPath);
+        }
+        return null;
+      } catch { return null; }
+    };
+
+    let y = 0;
+    let pageNum = 1;
+
+    // ========== PAGE 1 ==========
+    y = addHeader(doc, 'User Profile Details');
+    
+    // Add watermark to first page
+    addWatermark(doc, WATERMARK_TEXT, 0.15);
+
+    // Profile Photo
+    const pBuf = await fetchImage(profile.profilePhoto);
+    if (pBuf) { 
+      try { 
+        doc.image(pBuf, 40, y, { width: 80, height: 80 }); 
+      } catch {} 
+    }
+
+    doc.fontSize(20).fillColor('#333').text(`${profile.firstName || ''} ${profile.lastName || ''}`.toUpperCase(), 130, y);
+    doc.fontSize(10).fillColor('#666').text(`ID: ${profile.id?.slice(-8)}`, 130, y + 22);
+    doc.fillColor('#059669').text('✓ Verified', 130, y + 35);
+    doc.fillColor('#d97706').text('★ Premium', 130, y + 48);
+
+    y = 200;
+    y = addSectionHeader(doc, 'Contact Information', y);
+    
+    if (sanitize) {
+      y = addField(doc, 'Email:', 'Hidden for privacy', 40, y);
+      y = addField(doc, 'Phone:', 'Hidden for privacy', 40, y);
+    } else {
+      y = addField(doc, 'Email:', profile.email || 'Not provided', 40, y);
+      y = addField(doc, 'Phone:', profile.phone || 'Not provided', 40, y);
+    }
+    y = addField(doc, 'DOB / Age:', `${formatDate(profile.dateOfBirth)} (${profile.age} years)`, 40, y);
+    
+    y = addSectionHeader(doc, 'Location', y);
+    y = addField(doc, 'City:', profile.city, 40, y);
+    y = addField(doc, 'State:', profile.state, 40, y);
+    y = addField(doc, 'Country:', profile.country, 40, y);
+    
+    y = addSectionHeader(doc, 'Personal Details', y);
+    y = addField(doc, 'Gender:', profile.gender, 40, y);
+    y = addField(doc, 'Marital Status:', profile.maritalStatus, 40, y);
+    y = addField(doc, 'Community:', profile.community, 40, y);
+    y = addField(doc, 'Sub Caste:', profile.subCaste || 'Not provided', 40, y);
+    y = addField(doc, 'Height:', profile.height || 'Not provided', 40, y);
+    y = addField(doc, 'Weight:', profile.weight || 'Not provided', 40, y);
+    y = addField(doc, 'Complexion:', profile.complexion || 'Not provided', 40, y);
+
+    // ========== PAGE 2 ==========
+    doc.addPage();
+    pageNum++;
+    
+    y = addHeader(doc);
+    
+    // Add watermark to second page
+    addWatermark(doc, WATERMARK_TEXT, 0.12);
+    
+    y = addSectionHeader(doc, 'Professional Details', y);
+    y = addField(doc, 'Education:', profile.education || 'Not provided', 40, y);
+    y = addField(doc, 'Profession:', profile.profession || 'Not provided', 40, y);
+    y = addField(doc, 'Income:', profile.income || 'Not provided', 40, y);
+    
+    y = addSectionHeader(doc, 'Family Details', y);
+    y = addField(doc, 'Father Name:', profile.fatherName || 'Not provided', 40, y);
+    y = addField(doc, 'Father Occupation:', profile.fatherOccupation || 'Not provided', 40, y);
+    y = addField(doc, 'Mother Name:', profile.motherName || 'Not provided', 40, y);
+    y = addField(doc, 'Mother Occupation:', profile.motherOccupation || 'Not provided', 40, y);
+    y = addField(doc, 'Family Values:', profile.familyValues || 'Not provided', 40, y);
+    y = addField(doc, 'About Family:', profile.aboutFamily || 'Not provided', 40, y);
+    
+    y = addSectionHeader(doc, 'Horoscope Details', y);
+    y = addField(doc, 'Raasi:', profile.raasi || 'Not provided', 40, y);
+    y = addField(doc, 'Natchathiram:', profile.natchathiram || 'Not provided', 40, y);
+    y = addField(doc, 'Dhosam:', profile.dhosam || 'Not provided', 40, y);
+    y = addField(doc, 'Birth Time:', profile.birthTime || 'Not provided', 40, y);
+    y = addField(doc, 'Birth Place:', profile.birthPlace || 'Not provided', 40, y);
+    
+    y = addSectionHeader(doc, 'About', y);
+    doc.fontSize(10).fillColor('#444').text(profile.bio || 'Not provided', 40, y, { width: 480 });
+
+    // ========== GALLERY - ONE PHOTO PER PAGE ==========
+    const gallery = profile.photos || [];
+    for (let i = 0; i < gallery.length; i++) {
+      doc.addPage();
+      pageNum++;
+      
+      // Purple banner header
+      y = addHeader(doc, `Gallery Photo ${i + 1} of ${gallery.length}`);
+      
+      const buf = await fetchImage(gallery[i]);
+      if (buf) {
+        try {
+          const imgWidth = doc.page.width - 80;
+          const imgHeight = doc.page.height - 110;
+          doc.image(buf, 40, 70, { width: imgWidth, height: imgHeight });
+          
+          // Add diagonal tile watermark to gallery image
+          addWatermark(doc, WATERMARK_TEXT, 0.18);
+        } catch (e) {
+          doc.fontSize(12).fillColor('#666').text('Unable to display image', 40, 200);
+        }
+      } else {
+        doc.fontSize(12).fillColor('#666').text('Image not found', 40, 200);
+      }
+      
+      // Add watermark to gallery pages
+      addWatermark(doc, WATERMARK_TEXT, 0.12);
+    }
+
+    // ========== DOCUMENTS ==========
+    const docs = await prisma.userDocument.findMany({
+      where: { userId: profileId }
+    });
+
+    for (let i = 0; i < docs.length; i++) {
+      doc.addPage();
+      pageNum++;
+      
+      doc.fontSize(14).fillColor('#8B5CF6').text(`Document ${i + 1} of ${docs.length}`, 40, 30, { align: 'center' });
+      
+      // Add watermark to document pages
+      addWatermark(doc, WATERMARK_TEXT, 0.12);
+      
+      y = 60;
+      doc.fontSize(12).fillColor('#333').text(`Type: ${docs[i].documentType || 'N/A'}`, 40, y);
+      doc.fontSize(12).fillColor('#333').text(`Number: ${docs[i].documentNumber || 'N/A'}`, 40, y + 18);
+      if (docs[i].isVerified) {
+        doc.fontSize(12).fillColor('#059669').text('✓ Verified', 40, y + 36);
+      }
+    }
+
+    // ========== FOOTER ON LAST PAGE ==========
+    const footerY = doc.page.height - 30;
+    doc.moveTo(40, footerY - 10)
+       .lineTo(doc.page.width - 40, footerY - 10)
+       .strokeColor('#e5e7eb')
+       .lineWidth(1)
+       .stroke();
+    
+    doc.fontSize(9)
+       .fillColor('#9ca3af')
+       .text(
+         `Generated by Vijayalakshmi Boyar Matrimony | ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+         40,
+         footerY,
+         { align: 'center', width: doc.page.width - 80 }
+       );
+
+    doc.end();
+    
+    console.log(`Shared profile PDF generated for ${profileId}, pages: ${pageNum}, sanitize: ${sanitize}`);
+
+  } catch (error) {
+    console.error('Share PDF generation error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to generate shared profile PDF' });
+    }
   }
 });
 

@@ -209,6 +209,7 @@ const getAllUsers = async (req, res) => {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
+        customId: true,
         firstName: true,
         lastName: true,
         email: true,
@@ -555,6 +556,7 @@ const getPendingProfileVerifications = async (req, res) => {
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,
+        customId: true,
         firstName: true,
         lastName: true,
         email: true,

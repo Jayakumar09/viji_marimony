@@ -241,6 +241,7 @@ const getAdminUserProfile = async (req, res) => {
     const responseData = {
       personalDetails: {
         id: user.id,
+        customId: user.customId || null,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,

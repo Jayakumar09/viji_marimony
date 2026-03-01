@@ -15,6 +15,7 @@ const getProfile = async (req, res) => {
       where: { id: req.user.id },
       select: {
         id: true,
+        customId: true,
         email: true,
         phone: true,
         firstName: true,
@@ -224,6 +225,7 @@ const updateProfile = async (req, res) => {
       data: updateData,
       select: {
         id: true,
+        customId: true,
         email: true,
         phone: true,
         firstName: true,
