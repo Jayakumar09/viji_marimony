@@ -20,7 +20,8 @@ const {
   validateProfileUpdate,
   handleValidationErrors 
 } = require('../middleware/validation');
-const { uploadSingle, uploadMultiple } = require('../utils/upload');
+const multer = require('multer');
+const { upload, uploadSingle, uploadMultiple } = require('../utils/upload');
 
 // All routes are protected
 router.use(authMiddleware);
@@ -43,7 +44,7 @@ router.get('/subscription/plans', getSubscriptionPlans);
 
 // ============ DOCUMENT ROUTES ============
 router.post('/documents', (req, res, next) => {
-  uploadSingle(req, res, (err) => {
+  upload.single('document')(req, res, (err) => {
     if (err) {
       console.error('Multer error (document):', err);
       return res.status(400).json({ 

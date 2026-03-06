@@ -3,31 +3,52 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001'
 
 // Helper to construct full image URLs via backend
 export const getImageUrl = (imagePath) => {
-  if (!imagePath) return '';
+  // Handle null, undefined, or empty string
+  if (!imagePath || typeof imagePath !== 'string') {
+    console.warn('getImageUrl: Invalid imagePath:', imagePath);
+    return '';
+  }
+  
+  const trimmedPath = imagePath.trim();
+  if (!trimmedPath) {
+    return '';
+  }
   
   // If already a full URL (Cloudinary or external), return as-is
-  if (imagePath.startsWith('http')) return imagePath;
+  if (trimmedPath.startsWith('http')) {
+    return trimmedPath;
+  }
   
   // If it's a file:// URL, extract the filename and use relative path
-  if (imagePath.startsWith('file://')) {
-    const filename = imagePath.split('/').pop();
+  if (trimmedPath.startsWith('file://')) {
+    const filename = trimmedPath.split('/').pop();
     return `${BACKEND_URL}/uploads/${filename}`;
   }
   
   // If it contains an absolute Windows path (D:/...), extract the filename
-  if (imagePath.includes('D:/') || imagePath.includes('D:\\')) {
-    const filename = imagePath.split(/[\\/]/).pop();
+  if (trimmedPath.includes('D:/') || trimmedPath.includes('D:\\')) {
+    const filename = trimmedPath.split(/[\\/]/).pop();
     return `${BACKEND_URL}/uploads/${filename}`;
   }
   
+  // Normalize path - ensure it starts with / for local uploads
+  let normalizedPath = trimmedPath;
+  if (!normalizedPath.startsWith('/')) {
+    normalizedPath = '/' + normalizedPath;
+  }
+  
   // If local path starting with /uploads, prepend backend domain
-  if (imagePath.startsWith('/uploads/')) return `${BACKEND_URL}${imagePath}`;
+  if (normalizedPath.startsWith('/uploads/')) {
+    return `${BACKEND_URL}${normalizedPath}`;
+  }
   
   // If local path starting with /, prepend backend domain
-  if (imagePath.startsWith('/')) return `${BACKEND_URL}${imagePath}`;
+  if (normalizedPath.startsWith('/')) {
+    return `${BACKEND_URL}${normalizedPath}`;
+  }
   
   // Otherwise assume it's a relative path in uploads folder
-  return `${BACKEND_URL}/uploads/${imagePath}`;
+  return `${BACKEND_URL}/uploads/${normalizedPath}`;
 };
 
 export default getImageUrl;

@@ -231,6 +231,13 @@ router.get('/documents/:encodedPath(*)', adminFileMiddleware, async (req, res) =
       return res.status(400).json({ error: 'Invalid document path encoding' });
     }
 
+    // Check if it's a Cloudinary URL - redirect to Cloudinary for streaming
+    if (filepath.includes('cloudinary.com') || filepath.startsWith('http')) {
+      // Redirect to Cloudinary URL for the document
+      return res.redirect(filepath);
+    }
+
+    // Local file handling (fallback)
     const filename = sanitizeFilename(path.basename(filepath));
     if (!filename) {
       return res.status(400).json({ error: 'Invalid filename' });

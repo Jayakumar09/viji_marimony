@@ -249,6 +249,30 @@ const AdminUserProfile = () => {
     }
   };
 
+  // Approve document handler
+  const handleApproveDocument = async (docId) => {
+    try {
+      await api.put(`/admin/documents/${docId}/approve`);
+      setSnackbar({ open: true, message: 'Document approved successfully!', severity: 'success' });
+      fetchUserProfile();
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.error || 'Failed to approve document', severity: 'error' });
+    }
+  };
+
+  // Reject document handler
+  const handleRejectDocument = async (docId) => {
+    const reason = prompt('Please enter reason for rejection:');
+    if (!reason) return;
+    try {
+      await api.put(`/admin/documents/${docId}/reject`, { reason });
+      setSnackbar({ open: true, message: 'Document rejected', severity: 'warning' });
+      fetchUserProfile();
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.error || 'Failed to reject document', severity: 'error' });
+    }
+  };
+
   // Helper to get verification badge color
   const getVerificationBadgeColor = (status) => {
     switch (status) {
@@ -771,21 +795,48 @@ const AdminUserProfile = () => {
                       <TableRow key={doc.id}>
                         <TableCell sx={{ color: 'white' }}>{doc.documentType}</TableCell>
                         <TableCell>
-                          <Chip label={doc.status} color={getVerificationBadgeColor(doc.status)} size="small" sx={{ color: 'white' }} />
+                          <Chip 
+                            label={doc.status} 
+                            color={getVerificationBadgeColor(doc.status)} 
+                            size="small" 
+                            sx={{ color: 'white' }} 
+                          />
                         </TableCell>
                         <TableCell sx={{ color: 'white' }}>{formatDate(doc.uploadedAt)}</TableCell>
                         <TableCell>
-                          {doc.documentUrl && (
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              href={getFullImageUrl(doc.documentUrl)}
-                              target="_blank"
-                              sx={{ color: '#a78bfa', borderColor: '#a78bfa' }}
-                            >
-                              Preview
-                            </Button>
-                          )}
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            {doc.documentUrl && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                href={getFullImageUrl(doc.documentUrl)}
+                                target="_blank"
+                                sx={{ color: '#a78bfa', borderColor: '#a78bfa' }}
+                              >
+                                Preview
+                              </Button>
+                            )}
+                            {doc.status === 'PENDING' && (
+                              <>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  color="success"
+                                  onClick={() => handleApproveDocument(doc.id)}
+                                >
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  color="error"
+                                  onClick={() => handleRejectDocument(doc.id)}
+                                >
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                          </Box>
                         </TableCell>
                       </TableRow>
                     ))}

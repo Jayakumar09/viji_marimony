@@ -109,6 +109,7 @@ const getProfile = async (req, res) => {
         id: true,
         documentType: true,
         documentUrl: true,
+        fileName: true,
         status: true,
         uploadedAt: true
       }
@@ -439,6 +440,7 @@ const uploadDocument = async (req, res) => {
         userId: req.user.id,
         documentType: documentType,
         documentUrl: documentUrl,
+        fileName: req.file.originalname,
         status: 'PENDING'
       }
     });
@@ -449,6 +451,7 @@ const uploadDocument = async (req, res) => {
         id: document.id,
         documentType: document.documentType,
         documentUrl: document.documentUrl,
+        fileName: document.fileName,
         status: document.status,
         uploadedAt: document.uploadedAt
       }
@@ -468,6 +471,7 @@ const getDocuments = async (req, res) => {
         id: true,
         documentType: true,
         documentUrl: true,
+        fileName: true,
         status: true,
         rejectedReason: true,
         uploadedAt: true
@@ -485,18 +489,27 @@ const getDocuments = async (req, res) => {
 const deleteDocument = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('Delete document request:', { id, userId: req.user?.id });
 
-    const document = await prisma.document.findFirst({
-      where: { id: id, userId: req.user.id }
+    // First check if document exists at all
+    const existingDoc = await prisma.document.findUnique({
+      where: { id: id }
     });
+    
+    console.log('Existing document:', existingDoc);
 
-    if (!document) {
+    if (!existingDoc) {
       return res.status(404).json({ error: 'Document not found' });
     }
 
+    // Check if user owns this document
+    if (existingDoc.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized to delete this document' });
+    }
+
     // Delete file from storage
-    if (document.documentUrl) {
-      const publicId = extractPublicId(document.documentUrl);
+    if (existingDoc.documentUrl) {
+      const publicId = extractPublicId(existingDoc.documentUrl);
       if (publicId) {
         try {
           await deleteImage(publicId);
@@ -515,6 +528,69 @@ const deleteDocument = async (req, res) => {
 
   } catch (error) {
     console.error('Delete document error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Admin: Approve document
+const approveDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { adminId } = req.body;
+
+    const document = await prisma.document.findUnique({
+      where: { id: id }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const updated = await prisma.document.update({
+      where: { id: id },
+      data: {
+        status: 'APPROVED',
+        reviewedBy: adminId,
+        reviewedAt: new Date()
+      }
+    });
+
+    res.json({ message: 'Document approved successfully', document: updated });
+
+  } catch (error) {
+    console.error('Approve document error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Admin: Reject document
+const rejectDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason, adminId } = req.body;
+
+    const document = await prisma.document.findUnique({
+      where: { id: id }
+    });
+
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const updated = await prisma.document.update({
+      where: { id: id },
+      data: {
+        status: 'REJECTED',
+        rejectedReason: reason,
+        reviewedBy: adminId,
+        reviewedAt: new Date()
+      }
+    });
+
+    res.json({ message: 'Document rejected', document: updated });
+
+  } catch (error) {
+    console.error('Reject document error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -559,6 +635,13 @@ const uploadProfilePhoto = async (req, res) => {
       photoUrl = `/uploads/${req.file.filename}`;
     }
     
+    console.log('Upload profile photo - file info:', {
+      originalName: req.file.originalname,
+      filename: req.file.filename,
+      path: req.file.path,
+      photoUrl: photoUrl
+    });
+    
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
       data: { profilePhoto: photoUrl },
@@ -570,6 +653,11 @@ const uploadProfilePhoto = async (req, res) => {
     });
 
     res.json({
+      message: 'Profile photo uploaded successfully',
+      profilePhoto: updatedUser.profilePhoto
+    });
+    
+    console.log('Profile photo upload response:', {
       message: 'Profile photo uploaded successfully',
       profilePhoto: updatedUser.profilePhoto
     });
@@ -808,6 +896,8 @@ module.exports = {
   uploadDocument,
   getDocuments,
   deleteDocument,
+  approveDocument,
+  rejectDocument,
   uploadProfilePhoto,
   uploadGalleryPhotos,
   deletePhoto,

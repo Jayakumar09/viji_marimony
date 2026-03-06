@@ -45,8 +45,19 @@ app.use(limiter);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Serve static files (uploaded images)
-app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
+// Serve static files (uploaded images) - serve from temp dir if uploads doesn't exist
+const uploadsPath = require('path').join(__dirname, 'uploads');
+const fs = require('fs');
+
+// Create uploads directory if it doesn't exist (for serving uploaded files)
+if (!fs.existsSync(uploadsPath)) {
+  try {
+    fs.mkdirSync(uploadsPath, { recursive: true });
+  } catch (err) {
+    console.log('Note: uploads folder not created');
+  }
+}
+app.use('/uploads', express.static(uploadsPath));
 
 // API routes
 app.get('/', (req, res) => {
@@ -141,13 +152,28 @@ async function terminatePort5001() {
 }
 
 // Configure Cloudinary
-if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-  });
-  console.log(`✅ Cloudinary configured: ${process.env.CLOUDINARY_CLOUD_NAME}`);
+const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+const cloudApiKey = process.env.CLOUDINARY_API_KEY;
+const cloudApiSecret = process.env.CLOUDINARY_API_SECRET;
+
+// Check if Cloudinary is properly configured
+if (cloudName && cloudApiKey && cloudApiSecret) {
+  // Check for common placeholder values
+  const isPlaceholder = cloudApiSecret.includes('your_') || 
+                       cloudApiSecret.includes('_here') || 
+                       cloudApiSecret.length < 10;
+  
+  if (isPlaceholder) {
+    console.log('⚠️  WARNING: Cloudinary API_SECRET appears to be a placeholder. Please update .env with your actual secret.');
+    console.log('⚠️  Cloudinary not fully configured. Documents will be stored locally.');
+  } else {
+    cloudinary.config({
+      cloud_name: cloudName,
+      api_key: cloudApiKey,
+      api_secret: cloudApiSecret,
+    });
+    console.log(`✅ Cloudinary configured: ${cloudName}`);
+  }
 } else {
   console.log('⚠️  Cloudinary not configured. Using local file storage for development.');
 }

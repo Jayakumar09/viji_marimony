@@ -1,3 +1,6 @@
+// Profile Page - Main Component
+// Refactored to use modular components for better maintainability
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
@@ -26,7 +29,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Slider,
   Tabs,
   Tab,
   Table,
@@ -46,8 +48,6 @@ import {
   Save,
   CameraAlt,
   Add,
-  ZoomIn,
-  ZoomOut,
   Verified,
   Star,
   Description,
@@ -66,6 +66,17 @@ import {
   getNatchathiramForRasi
 } from '../data/horoscopeData';
 import { SUBSCRIPTION_TIERS } from '../config/subscription';
+
+// Import from modular files
+import { getCroppedImg } from '../utils/profileUtils';
+import {
+  ProfilePhotoSection,
+  BasicInfoSection,
+  HoroscopeSection,
+  FamilySection,
+  DocumentsSection,
+  GallerySection
+} from './ProfileSections';
 
 const DOCUMENT_TYPES = [
   { id: 'GOVERNMENT_ID', label: 'Government ID (Aadhaar, PAN, etc.)', required: true },
@@ -110,7 +121,6 @@ const Profile = () => {
   // Cropper states
   const [imageToCrop, setImageToCrop] = useState(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
 
@@ -146,7 +156,6 @@ const Profile = () => {
   // Update natchathiram when rasi changes
   useEffect(() => {
     if (selectedRasi) {
-      // Keep the current natchathiram if it belongs to the new rasi
       const currentNatchathiram = watch('natchathiram');
       const availableNatchathiram = getNatchathiramForRasi(selectedRasi);
       const isValidNatchathiram = availableNatchathiram.some(n => n.value === currentNatchathiram);
@@ -156,6 +165,17 @@ const Profile = () => {
     }
   }, [selectedRasi, setValue, watch]);
 
+  // Format date helper
+  const formatDateToInput = (d) => {
+    if (!d) return '';
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return '';
+    const yyyy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const fetchProfile = async () => {
     try {
       setLoading(true);
@@ -164,16 +184,6 @@ const Profile = () => {
 
       const GENDER_MAP = { MALE: 'Male', FEMALE: 'Female', OTHER: 'Other', male: 'Male', female: 'Female' };
       const MARITAL_MAP = { SINGLE: 'Never Married', NEVER_MARRIED: 'Never Married', DIVORCED: 'Divorced', WIDOWED: 'Widowed', SEPARATED: 'Separated' };
-
-      const formatDateToInput = (d) => {
-        if (!d) return '';
-        const dt = new Date(d);
-        if (isNaN(dt.getTime())) return '';
-        const yyyy = dt.getFullYear();
-        const mm = String(dt.getMonth() + 1).padStart(2, '0');
-        const dd = String(dt.getDate()).padStart(2, '0');
-        return `${yyyy}-${mm}-${dd}`;
-      };
 
       const normalized = { ...apiUser };
       normalized.gender = GENDER_MAP[apiUser.gender] || (apiUser.gender || '');
@@ -211,16 +221,6 @@ const Profile = () => {
 
       const response = await profileService.updateProfile(data);
       updateUser(response.user);
-      
-      const formatDateToInput = (d) => {
-        if (!d) return '';
-        const dt = new Date(d);
-        if (isNaN(dt.getTime())) return '';
-        const yyyy = dt.getFullYear();
-        const mm = String(dt.getMonth() + 1).padStart(2, '0');
-        const dd = String(dt.getDate()).padStart(2, '0');
-        return `${yyyy}-${mm}-${dd}`;
-      };
       
       const normalized = { ...response.user };
       normalized.dateOfBirth = formatDateToInput(response.user.dateOfBirth);
@@ -276,7 +276,6 @@ const Profile = () => {
 
   // ============ SUBSCRIPTION ============
   const handleUpdateSubscription = async (tier) => {
-    // Free tier doesn't require payment
     if (tier === 'FREE') {
       try {
         setUploading(true);
@@ -293,8 +292,6 @@ const Profile = () => {
       }
       return;
     }
-
-    // For paid plans, redirect to manual payment page
     navigate(`/subscription?plan=${tier}`);
   };
 
@@ -306,13 +303,23 @@ const Profile = () => {
     try {
       setDocumentUploading(true);
       const response = await profileService.uploadDocument(file, selectedDocType);
-      setProfileData(prev => ({
-        ...prev,
-        documents: [...(prev.documents || []), response.document]
-      }));
+      
+      // Update documents in profile data - replace existing doc of same type or add new
+      setProfileData(prev => {
+        const existingDocs = prev.documents || [];
+        const filteredDocs = existingDocs.filter(d => d.documentType !== selectedDocType);
+        return {
+          ...prev,
+          documents: [...filteredDocs, response.document]
+        };
+      });
+      
       setDocumentDialog(false);
       setSelectedDocType('');
       toast.success('Document uploaded successfully!');
+      
+      // Refresh profile to get latest data
+      fetchProfile();
     } catch (error) {
       setError(error.response?.data?.error || 'Failed to upload document');
     } finally {
@@ -333,25 +340,7 @@ const Profile = () => {
     }
   };
 
-  // Cropper helpers
-  const getCroppedImg = useCallback(async (imageSrc, pixelCrop) => {
-    const image = await new Promise((resolve) => {
-      const img = new Image();
-      img.src = imageSrc;
-      img.onload = () => resolve(img);
-    });
-
-    const canvas = document.createElement('canvas');
-    canvas.width = pixelCrop.width;
-    canvas.height = pixelCrop.height;
-    const ctx = canvas.getContext('2d');
-
-    ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, pixelCrop.width, pixelCrop.height);
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => resolve(blob), 'image/jpeg');
-    });
-  }, []);
-
+  // Cropper handlers
   const onCropComplete = useCallback((_area, pixels) => {
     setCroppedAreaPixels(pixels);
   }, []);
@@ -364,7 +353,6 @@ const Profile = () => {
       reader.onload = () => {
         setImageToCrop(reader.result);
         setCrop({ x: 0, y: 0 });
-        setZoom(1);
         setIsCropDialogOpen(true);
       };
     }
@@ -383,8 +371,30 @@ const Profile = () => {
       const compressedFile = blobToFile(compressedBlob, 'profile.jpg');
       
       const response = await profileService.uploadProfilePhoto(compressedFile);
-      setProfileData(prev => ({ ...prev, profilePhoto: response.profilePhoto }));
-      updateUser({ ...user, profilePhoto: response.profilePhoto });
+      
+      console.log('Profile photo upload response:', response);
+      
+      if (response.profilePhoto) {
+        const timestamp = Date.now();
+        
+        setProfileData(prev => ({ 
+          ...prev, 
+          profilePhoto: response.profilePhoto,
+          profilePhotoScale: 1,
+          profilePhotoX: 0,
+          profilePhotoY: 0,
+          _refresh: timestamp
+        }));
+        updateUser(user ? { ...user, profilePhoto: response.profilePhoto } : { profilePhoto: response.profilePhoto });
+        
+        setPhotoScale(1);
+        setPhotoPosX(0);
+        setPhotoPosY(0);
+        setIsEditingPhoto(true);
+      } else {
+        console.error('No profilePhoto in upload response:', response);
+        toast.error('Photo uploaded but path not received. Please refresh the page.');
+      }
       
       setIsCropDialogOpen(false);
       setImageToCrop(null);
@@ -401,46 +411,10 @@ const Profile = () => {
     }
   };
 
-  // ============ PROFILE PHOTO ZOOM/PAN ADJUSTMENTS ============
-  const minScale = 0.5;
-  const maxScale = 5;
-  const zoomIntensity = 0.1;
-  
+  // ============ PROFILE PHOTO PAN ADJUSTMENTS ============
   let isDragging = false;
   let startX = 0;
   let startY = 0;
-
-  const handleZoomIn = () => {
-    setPhotoScale(prev => Math.min(prev + zoomIntensity, maxScale));
-  };
-
-  const handleZoomOut = () => {
-    setPhotoScale(prev => Math.max(prev - zoomIntensity, minScale));
-  };
-
-  const handleWheel = (e) => {
-    if (!isEditingPhoto) return;
-    e.preventDefault();
-    
-    const rect = photoWrapper.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    const prevScale = photoScale;
-    let newScale = photoScale;
-    
-    if (e.deltaY < 0) {
-      newScale = Math.min(photoScale + zoomIntensity, maxScale);
-    } else {
-      newScale = Math.max(photoScale - zoomIntensity, minScale);
-    }
-    
-    const scaleFactor = newScale / prevScale;
-    
-    setPhotoPosX(prevX => mouseX - (mouseX - prevX) * scaleFactor);
-    setPhotoPosY(prevY => mouseY - (mouseY - prevY) * scaleFactor);
-    setPhotoScale(newScale);
-  };
 
   const handleMouseDown = (e) => {
     if (!isEditingPhoto) return;
@@ -508,11 +482,9 @@ const Profile = () => {
   useEffect(() => {
     if (photoWrapper) {
       if (isEditingPhoto) {
-        photoWrapper.addEventListener('wheel', handleWheel, { passive: false });
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
       } else {
-        photoWrapper.removeEventListener('wheel', handleWheel);
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
       }
@@ -520,12 +492,11 @@ const Profile = () => {
     
     return () => {
       if (photoWrapper) {
-        photoWrapper.removeEventListener('wheel', handleWheel);
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
       }
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isEditingPhoto, photoWrapper, photoPosX, photoPosY, photoScale]);
+  }, [isEditingPhoto, photoWrapper]);
 
   // Handle photo upload - enable editing mode
   const handleNewPhotoUpload = (event) => {
@@ -535,16 +506,10 @@ const Profile = () => {
       reader.onload = (e) => {
         setImageToCrop(e.target.result);
         setCrop({ x: 0, y: 0 });
-        setZoom(1);
         setIsCropDialogOpen(true);
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  // Override handleProfilePhotoSelect to enable editing mode after upload
-  const handleProfilePhotoSelectWrapper = (event) => {
-    handleNewPhotoUpload(event);
   };
 
   const handleGalleryUpload = async (event) => {
@@ -573,7 +538,7 @@ const Profile = () => {
       
       const response = await profileService.uploadGalleryPhotos(compressedFiles);
       setProfileData(prev => ({ ...prev, photos: response.photos }));
-      updateUser({ ...user, photos: response.photos });
+      updateUser(user ? { ...user, photos: response.photos } : { photos: response.photos });
       toast.success('Gallery photos uploaded successfully!');
       
       if (galleryInputRef.current) {
@@ -598,7 +563,7 @@ const Profile = () => {
       await profileService.deletePhoto(photoToDelete);
       const updatedPhotos = profileData.photos.filter(photo => photo !== photoToDelete);
       setProfileData(prev => ({ ...prev, photos: updatedPhotos }));
-      updateUser({ ...user, photos: updatedPhotos });
+      updateUser(user ? { ...user, photos: updatedPhotos } : { photos: updatedPhotos });
       toast.success('Photo deleted successfully!');
       setDeleteDialog(false);
       setPhotoToDelete('');
@@ -617,729 +582,277 @@ const Profile = () => {
     );
   }
 
-  const tabSections = [
-    { label: 'Basic Info', icon: <Person /> },
-    { label: 'Horoscope', icon: <Star /> },
-    { label: 'Family', icon: <Person /> },
-    { label: 'Subscription', icon: <Verified /> },
-    { label: 'Documents', icon: <Description /> }
-  ];
-
   return (
-    <Container maxWidth="lg" style={{ marginTop: '2rem' }}>
-      <Typography variant="h4" gutterBottom style={{ color: '#8B5CF6', fontWeight: 'bold' }}>
-        My Profile
-      </Typography>
+    <Container maxWidth="md" style={{ marginTop: '2rem', paddingBottom: '2rem' }}>
+      <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+        {/* Header */}
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Typography variant="h5" fontWeight="bold" color="#8B5CF6">
+            My Profile
+          </Typography>
+          <Box>
+            {!editing && (
+              <Button
+                variant="contained"
+                startIcon={<Edit />}
+                onClick={() => setEditing(true)}
+                sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' }, mr: 1 }}
+              >
+                Edit Profile
+              </Button>
+            )}
+            {profileData?.subscriptionTier === 'FREE' && (
+              <Button
+                variant="outlined"
+                onClick={() => navigate('/subscription')}
+                sx={{ borderColor: '#8B5CF6', color: '#8B5CF6' }}
+              >
+                Upgrade
+              </Button>
+            )}
+          </Box>
+        </Box>
 
-      {error && (
-        <Alert severity="error" style={{ marginBottom: '1rem' }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
+        {/* Profile Photo Section using modular component */}
+        <ProfilePhotoSection
+          profileData={profileData}
+          isEditingPhoto={isEditingPhoto}
+          photoScale={photoScale}
+          photoPosX={photoPosX}
+          photoPosY={photoPosY}
+          photoWrapper={photoWrapper}
+          photoImg={photoImg}
+          uploading={uploading}
+          isCropDialogOpen={isCropDialogOpen}
+          imageToCrop={imageToCrop}
+          crop={crop}
+          croppedAreaPixels={croppedAreaPixels}
+          onPhotoSelect={handleProfilePhotoSelect}
+          onConfirmCrop={handleConfirmCrop}
+          onCancelCrop={() => { setIsCropDialogOpen(false); setImageToCrop(null); }}
+          onCropComplete={onCropComplete}
+          setCrop={setCrop}
+          setImageToCrop={setImageToCrop}
+          setIsCropDialogOpen={setIsCropDialogOpen}
+          setPhotoScale={setPhotoScale}
+          setPhotoPosX={setPhotoPosX}
+          setPhotoPosY={setPhotoPosY}
+          resetPhotoAdjustments={resetPhotoAdjustments}
+          savePhotoAdjustments={savePhotoAdjustments}
+          setIsEditingPhoto={setIsEditingPhoto}
+          handleMouseDown={handleMouseDown}
+          handleMouseUp={handleMouseUp}
+        />
 
-      {success && (
-        <Alert severity="success" style={{ marginBottom: '1rem' }} onClose={() => setSuccess('')}>
-          {success}
-        </Alert>
-      )}
-
-      {/* Tab Navigation */}
-      <Paper elevation={3} style={{ marginBottom: '1rem' }}>
-        <Tabs
-          value={activeTab}
+        {/* Tabs */}
+        <Tabs 
+          value={activeTab} 
           onChange={(_, newValue) => setActiveTab(newValue)}
+          sx={{ mt: 3, borderBottom: 1, borderColor: 'divider' }}
           variant="scrollable"
           scrollButtons="auto"
         >
-          {tabSections.map((section, index) => (
-            <Tab
-              key={index}
-              label={section.label}
-              icon={section.icon}
-              iconPosition="start"
-            />
-          ))}
+          <Tab label="Basic Info" />
+          <Tab label="Horoscope" />
+          <Tab label="Family" />
+          <Tab label="Gallery" />
+          <Tab label="Documents" />
         </Tabs>
+
+        {/* Tab Panels */}
+        {activeTab === 0 && (
+          <Box sx={{ pt: 3 }}>
+            {/* Basic Info using modular component */}
+            <BasicInfoSection
+              register={register}
+              errors={errors}
+              editing={editing}
+              control={control}
+            />
+            
+            {/* Additional Basic Info Fields */}
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>State</InputLabel>
+                  <Select
+                    {...register('state')}
+                    label="State"
+                    disabled={!editing}
+                    onChange={(e) => {
+                      setValue('state', e.target.value);
+                      setValue('city', '');
+                    }}
+                  >
+                    {STATES.map(state => (
+                      <MenuItem key={state} value={state}>{state}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>City</InputLabel>
+                  <Select
+                    {...register('city')}
+                    label="City"
+                    disabled={!editing}
+                  >
+                    {availableCities.map(city => (
+                      <MenuItem key={city} value={city}>{city}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Country"
+                  {...register('country')}
+                  disabled={!editing}
+                  defaultValue="India"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Education</InputLabel>
+                  <Select
+                    {...register('education')}
+                    label="Education"
+                    disabled={!editing}
+                  >
+                    <MenuItem value="High School">High School</MenuItem>
+                    <MenuItem value="Intermediate">Intermediate</MenuItem>
+                    <MenuItem value="Diploma">Diploma</MenuItem>
+                    <MenuItem value="Bachelor's Degree">Bachelor's Degree</MenuItem>
+                    <MenuItem value="Master's Degree">Master's Degree</MenuItem>
+                    <MenuItem value="Doctorate">Doctorate</MenuItem>
+                    <MenuItem value="Other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Profession"
+                  {...register('profession')}
+                  disabled={!editing}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Annual Income</InputLabel>
+                  <Select
+                    {...register('income')}
+                    label="Annual Income"
+                    disabled={!editing}
+                  >
+                    <MenuItem value="Below 1 Lakh">Below 1 Lakh</MenuItem>
+                    <MenuItem value="1-3 Lakhs">1-3 Lakhs</MenuItem>
+                    <MenuItem value="3-5 Lakhs">3-5 Lakhs</MenuItem>
+                    <MenuItem value="5-10 Lakhs">5-10 Lakhs</MenuItem>
+                    <MenuItem value="10-20 Lakhs">10-20 Lakhs</MenuItem>
+                    <MenuItem value="Above 20 Lakhs">Above 20 Lakhs</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  label="About Me"
+                  {...register('bio')}
+                  disabled={!editing}
+                />
+              </Grid>
+            </Grid>
+
+            {/* Save/Cancel buttons */}
+            {editing && (
+              <Box display="flex" gap={2} justifyContent="flex-end" sx={{ mt: 3 }}>
+                <Button onClick={() => { setEditing(false); reset(profileData); }}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  onClick={handleSubmit(handleUpdateProfile)}
+                  disabled={uploading}
+                  sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
+                >
+                  {uploading ? <CircularProgress size={24} color="inherit" /> : 'Save Changes'}
+                </Button>
+              </Box>
+            )}
+          </Box>
+        )}
+
+        {activeTab === 1 && (
+          <Box sx={{ pt: 3 }}>
+            {/* Horoscope using modular component */}
+            <HoroscopeSection
+              profileData={profileData}
+              editingHoroscope={editingHoroscope}
+              setEditingHoroscope={setEditingHoroscope}
+              register={register}
+              control={control}
+              errors={errors}
+              watch={watch}
+              onSave={handleSubmit(handleUpdateHoroscope)}
+            />
+          </Box>
+        )}
+
+        {activeTab === 2 && (
+          <Box sx={{ pt: 3 }}>
+            {/* Family using modular component */}
+            <FamilySection
+              profileData={profileData}
+              editingFamily={editingFamily}
+              setEditingFamily={setEditingFamily}
+              register={register}
+              errors={errors}
+              onSave={handleSubmit(handleUpdateFamily)}
+            />
+          </Box>
+        )}
+
+        {activeTab === 3 && (
+          <Box sx={{ pt: 3 }}>
+            {/* Gallery using modular component */}
+            <GallerySection
+              profileData={profileData}
+              editing={editing}
+              uploading={uploading}
+              galleryInputRef={galleryInputRef}
+              onUpload={handleGalleryUpload}
+              onDelete={handleDeletePhoto}
+              MAX_GALLERY_IMAGES={MAX_GALLERY_IMAGES}
+            />
+          </Box>
+        )}
+
+        {activeTab === 4 && (
+          <Box sx={{ pt: 3 }}>
+            {/* Documents using modular component */}
+            <DocumentsSection
+              profileData={profileData}
+              documentDialog={documentDialog}
+              setDocumentDialog={setDocumentDialog}
+              selectedDocType={selectedDocType}
+              setSelectedDocType={setSelectedDocType}
+              documentUploading={documentUploading}
+              documentInputRef={documentInputRef}
+              onUpload={handleDocumentUpload}
+              onDelete={handleDeleteDocument}
+              DOCUMENT_TYPES={DOCUMENT_TYPES}
+            />
+          </Box>
+        )}
       </Paper>
 
-      <Grid container spacing={4}>
-        {/* Profile Photo Section */}
-        <Grid item xs={12} md={4}>
-          <Paper elevation={3} style={{ padding: '2rem', textAlign: 'center' }}>
-            <Typography variant="h6" gutterBottom>Profile Photo</Typography>
-            
-            <Box mb={2}>
-              {profileData?.profilePhoto ? (
-                <Box
-                  id="photo-wrapper"
-                  ref={setPhotoWrapper}
-                  sx={{
-                    width: 180,
-                    height: 180,
-                    margin: '0 auto',
-                    borderRadius: '50%',
-                    border: '4px solid #8B5CF6',
-                    overflow: 'hidden',
-                    bgcolor: '#f5f5f5',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: isEditingPhoto ? 'grab' : 'default',
-                    position: 'relative',
-                    '&:active': {
-                      cursor: isEditingPhoto ? 'grabbing' : 'default'
-                    }
-                  }}
-                >
-                  <img
-                    id="profileImage"
-                    ref={setPhotoImg}
-                    src={getImageUrl(profileData.profilePhoto)}
-                    alt={profileData.firstName}
-                    style={{
-                      maxWidth: 'none',
-                      transformOrigin: '0 0',
-                      transform: `translate(${photoPosX}px, ${photoPosY}px) scale(${photoScale})`
-                    }}
-                    draggable={false}
-                  />
-                </Box>
-              ) : (
-                <Avatar
-                  style={{ width: 150, height: 150, margin: '0 auto', backgroundColor: '#E0E0E0', fontSize: '4rem' }}
-                >
-                  <Person style={{ fontSize: '4rem', color: '#757575' }} />
-                </Avatar>
-              )}
-            </Box>
-
-            {/* Zoom Controls - Only visible when editing */}
-            {isEditingPhoto && (
-              <Box mb={2} display="flex" justifyContent="center" gap={1}>
-                <IconButton 
-                  onClick={() => handleZoomOut()}
-                  size="small"
-                  sx={{ bgcolor: '#8B5CF6', color: 'white', '&:hover': { bgcolor: '#7C3AED' } }}
-                >
-                  <ZoomOut />
-                </IconButton>
-                <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center' }}>
-                  {Math.round(photoScale * 100)}%
-                </Typography>
-                <IconButton 
-                  onClick={() => handleZoomIn()}
-                  size="small"
-                  sx={{ bgcolor: '#8B5CF6', color: 'white', '&:hover': { bgcolor: '#7C3AED' } }}
-                >
-                  <ZoomIn />
-                </IconButton>
-              </Box>
-            )}
-
-            <input
-              accept="image/*"
-              id="profile-photo-upload"
-              type="file"
-              hidden
-              onChange={handleProfilePhotoSelectWrapper}
-            />
-            {!isEditingPhoto ? (
-              <label htmlFor="profile-photo-upload">
-                <Button
-                  variant="contained"
-                  component="span"
-                  startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : <CameraAlt />}
-                  fullWidth
-                  sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
-                  disabled={uploading}
-                >
-                  {uploading ? 'Uploading...' : 'Change Photo'}
-                </Button>
-              </label>
-            ) : (
-              <Button
-                variant="outlined"
-                fullWidth
-                onClick={() => {
-                  setIsEditingPhoto(false);
-                  // Reset to saved values from profileData
-                  if (profileData?.profilePhotoScale !== undefined) {
-                    setPhotoScale(profileData.profilePhotoScale || 1);
-                  }
-                  if (profileData?.profilePhotoX !== undefined) {
-                    setPhotoPosX(profileData.profilePhotoX || 0);
-                  }
-                  if (profileData?.profilePhotoY !== undefined) {
-                    setPhotoPosY(profileData.profilePhotoY || 0);
-                  }
-                }}
-                disabled={uploading}
-              >
-                Cancel
-              </Button>
-            )}
-
-            {/* Save/Reset Buttons - Only visible when editing */}
-            {isEditingPhoto && (
-              <Box mt={2} display="flex" gap={1}>
-                <Button
-                  variant="outlined"
-                  fullWidth
-                  onClick={resetPhotoAdjustments}
-                  size="small"
-                >
-                  Reset
-                </Button>
-                <Button
-                  variant="contained"
-                  fullWidth
-                  onClick={savePhotoAdjustments}
-                  disabled={uploading}
-                  sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
-                  startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : <Save />}
-                >
-                  {uploading ? 'Saving...' : 'Save'}
-                </Button>
-              </Box>
-            )}
-
-            {/* Verification Status */}
-            <Box mt={3}>
-              <Typography variant="subtitle2" gutterBottom>Verification Status</Typography>
-              <Box display="flex" flexDirection="column" gap={1}>
-                <Box display="flex" alignItems="center" justifyContent="space-between">
-                  <Typography variant="body2">Email</Typography>
-                  {profileData?.emailVerified ? (
-                    <CheckCircle color="success" fontSize="small" />
-                  ) : (
-                    <Typography variant="body2" color="warning.main">Pending</Typography>
-                  )}
-                </Box>
-                <Box display="flex" alignItems="center" justifyContent="space-between">
-                  <Typography variant="body2">Phone</Typography>
-                  {profileData?.phoneVerified ? (
-                    <CheckCircle color="success" fontSize="small" />
-                  ) : (
-                    <Typography variant="body2" color="warning.main">Pending</Typography>
-                  )}
-                </Box>
-              </Box>
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* Tab Content */}
-        <Grid item xs={12} md={8}>
-          {/* Basic Information Tab */}
-          {activeTab === 0 && (
-            <Paper elevation={3} style={{ padding: '2rem' }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6">Profile Information</Typography>
-                <Button
-                  variant={editing ? "contained" : "outlined"}
-                  startIcon={editing ? (uploading ? <CircularProgress size={20} color="inherit" /> : <Save />) : <Edit />}
-                  onClick={() => editing ? handleSubmit(handleUpdateProfile)() : setEditing(true)}
-                  sx={{ bgcolor: editing ? '#8B5CF6' : 'inherit', '&:hover': { bgcolor: editing ? '#7C3AED' : 'inherit' } }}
-                  disabled={uploading}
-                >
-                  {uploading ? 'Saving...' : (editing ? 'Save' : 'Edit')}
-                </Button>
-              </Box>
-
-              <form onSubmit={handleSubmit(handleUpdateProfile)}>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={6}>
-                    <TextField fullWidth label="First Name" value={profileData?.firstName || ''} disabled variant={editing ? "outlined" : "filled"} />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField fullWidth label="Last Name" value={profileData?.lastName || ''} disabled variant={editing ? "outlined" : "filled"} />
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth disabled={!editing}>
-                      <InputLabel>Gender</InputLabel>
-                      <Controller name="gender" control={control} defaultValue={profileData?.gender || ''} render={({ field }) => (
-                        <Select {...field} label="Gender">
-                          <MenuItem value="Male">Male</MenuItem>
-                          <MenuItem value="Female">Female</MenuItem>
-                          <MenuItem value="Other">Other</MenuItem>
-                        </Select>
-                      )} />
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <TextField fullWidth label="Date of Birth" type="date" {...register('dateOfBirth')} disabled={!editing} variant={editing ? "outlined" : "filled"} InputLabelProps={{ shrink: true }} defaultValue={profileData?.dateOfBirth || ''} />
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <TextField fullWidth label="Email" value={profileData?.email || ''} disabled variant="filled" />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField fullWidth label="Phone" {...register('phone')} disabled={!editing} variant={editing ? "outlined" : "filled"} defaultValue={profileData?.phone || ''} />
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth disabled={!editing}>
-                      <InputLabel>State</InputLabel>
-                      <Controller name="state" control={control} defaultValue={profileData?.state || ''} render={({ field }) => (
-                        <Select {...field} label="State">
-                          <MenuItem value="">Select State</MenuItem>
-                          {STATES.map(state => <MenuItem key={state} value={state}>{state}</MenuItem>)}
-                        </Select>
-                      )} />
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth disabled={!editing || !selectedState}>
-                      <InputLabel>City</InputLabel>
-                      <Controller name="city" control={control} defaultValue={profileData?.city || ''} render={({ field }) => (
-                        <Select {...field} label="City">
-                          <MenuItem value="">Select City</MenuItem>
-                          {availableCities.map(city => <MenuItem key={city} value={city}>{city}</MenuItem>)}
-                        </Select>
-                      )} />
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <TextField fullWidth label="Country" {...register('country')} disabled={!editing} variant={editing ? "outlined" : "filled"} defaultValue={profileData?.country || 'India'} />
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth disabled={!editing}>
-                      <InputLabel>Marital Status</InputLabel>
-                      <Controller name="maritalStatus" control={control} defaultValue={profileData?.maritalStatus || ''} render={({ field }) => (
-                        <Select {...field} label="Marital Status">
-                          <MenuItem value="Never Married">Never Married</MenuItem>
-                          <MenuItem value="Divorced">Divorced</MenuItem>
-                          <MenuItem value="Widowed">Widowed</MenuItem>
-                          <MenuItem value="Separated">Separated</MenuItem>
-                        </Select>
-                      )} />
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <TextField fullWidth label="Education" {...register('education')} disabled={!editing} variant={editing ? "outlined" : "filled"} placeholder="e.g., B.Tech Computer Science" defaultValue={profileData?.education || ''} />
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <TextField fullWidth label="Profession" {...register('profession')} disabled={!editing} variant={editing ? "outlined" : "filled"} placeholder="e.g., Software Engineer" defaultValue={profileData?.profession || ''} />
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth disabled={!editing}>
-                      <InputLabel>Annual Income</InputLabel>
-                      <Controller name="income" control={control} defaultValue={profileData?.income || ''} render={({ field }) => (
-                        <Select {...field} label="Annual Income">
-                          <MenuItem value="Below 3 Lakhs">Below 3 Lakhs</MenuItem>
-                          <MenuItem value="3-6 Lakhs">3-6 Lakhs</MenuItem>
-                          <MenuItem value="6-10 Lakhs">6-10 Lakhs</MenuItem>
-                          <MenuItem value="10-15 Lakhs">10-15 Lakhs</MenuItem>
-                          <MenuItem value="15-25 Lakhs">15-25 Lakhs</MenuItem>
-                          <MenuItem value="Above 25 Lakhs">Above 25 Lakhs</MenuItem>
-                        </Select>
-                      )} />
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <TextField fullWidth label="Height (cm)" type="number" {...register('height')} disabled={!editing} variant={editing ? "outlined" : "filled"} defaultValue={profileData?.height || ''} />
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <TextField fullWidth label="Bio" {...register('bio')} disabled={!editing} variant={editing ? "outlined" : "filled"} multiline rows={3} placeholder="Tell us about yourself..." defaultValue={profileData?.bio || ''} />
-                  </Grid>
-
-                  <Grid item xs={12}>
-                    <TextField fullWidth label="About Family" {...register('aboutFamily')} disabled={!editing} variant={editing ? "outlined" : "filled"} multiline rows={3} placeholder="Tell us about your family..." defaultValue={profileData?.aboutFamily || ''} />
-                  </Grid>
-                </Grid>
-              </form>
-            </Paper>
-          )}
-
-          {/* Horoscope Tab */}
-          {activeTab === 1 && (
-            <Paper elevation={3} style={{ padding: '2rem' }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6">Horoscope Details</Typography>
-                <Button
-                  variant={editingHoroscope ? "contained" : "outlined"}
-                  startIcon={editingHoroscope ? (uploading ? <CircularProgress size={20} color="inherit" /> : <Save />) : <Edit />}
-                  onClick={() => editingHoroscope ? handleSubmit(handleUpdateHoroscope)() : setEditingHoroscope(true)}
-                  sx={{ bgcolor: editingHoroscope ? '#8B5CF6' : 'inherit', '&:hover': { bgcolor: editingHoroscope ? '#7C3AED' : 'inherit' } }}
-                  disabled={uploading}
-                >
-                  {uploading ? 'Saving...' : (editingHoroscope ? 'Save' : 'Edit')}
-                </Button>
-              </Box>
-
-              <form onSubmit={handleSubmit(handleUpdateHoroscope)}>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth disabled={!editingHoroscope}>
-                      <InputLabel>Raasi (Moon Sign)</InputLabel>
-                      <Controller name="raasi" control={control} defaultValue={profileData?.raasi || ''} render={({ field }) => (
-                        <Select {...field} label="Raasi (Moon Sign)">
-                          <MenuItem value="">Select Raasi</MenuItem>
-                          {RAASI_CHOICES.map(rasi => (
-                            <MenuItem key={rasi.value} value={rasi.value}>{rasi.label}</MenuItem>
-                          ))}
-                        </Select>
-                      )} />
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth disabled={!editingHoroscope || !selectedRasi}>
-                      <InputLabel>Natchathiram (Star)</InputLabel>
-                      <Controller name="natchathiram" control={control} defaultValue={profileData?.natchathiram || ''} render={({ field }) => (
-                        <Select {...field} label="Natchathiram (Star)">
-                          <MenuItem value="">Select Natchathiram</MenuItem>
-                          {getNatchathiramForRasi(selectedRasi || profileData?.raasi).map(n => (
-                            <MenuItem key={n.value} value={n.value}>{n.label}</MenuItem>
-                          ))}
-                        </Select>
-                      )} />
-                    </FormControl>
-                  </Grid>
-
-                  
-
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth disabled={!editingHoroscope}>
-                      <InputLabel>Dhosam</InputLabel>
-                      <Controller name="dhosam" control={control} defaultValue={profileData?.dhosam || ''} render={({ field }) => (
-                        <Select {...field} label="Dhosam">
-                          <MenuItem value="">Select Dhosam</MenuItem>
-                          {DHOSAM_CHOICES.map(d => (
-                            <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>
-                          ))}
-                        </Select>
-                      )} />
-                    </FormControl>
-                  </Grid>
-
-                  <Grid item xs={12} sm={4}>
-                    <TextField fullWidth label="Birth Date" type="date" {...register('birthDate')} disabled={!editingHoroscope} variant={editingHoroscope ? "outlined" : "filled"} InputLabelProps={{ shrink: true }} defaultValue={profileData?.birthDate || ''} />
-                  </Grid>
-
-                  <Grid item xs={12} sm={4}>
-                    <TextField fullWidth label="Birth Time" type="time" {...register('birthTime')} disabled={!editingHoroscope} variant={editingHoroscope ? "outlined" : "filled"} InputLabelProps={{ shrink: true }} defaultValue={profileData?.birthTime || ''} />
-                  </Grid>
-
-                  <Grid item xs={12} sm={4}>
-                    <TextField fullWidth label="Birth Place" {...register('birthPlace')} disabled={!editingHoroscope} variant={editingHoroscope ? "outlined" : "filled"} defaultValue={profileData?.birthPlace || ''} />
-                  </Grid>
-                </Grid>
-              </form>
-            </Paper>
-          )}
-
-          {/* Family Background Tab */}
-          {activeTab === 2 && (
-            <Paper elevation={3} style={{ padding: '2rem' }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6">Family Background</Typography>
-                <Button
-                  variant={editingFamily ? "contained" : "outlined"}
-                  startIcon={editingFamily ? (uploading ? <CircularProgress size={20} color="inherit" /> : <Save />) : <Edit />}
-                  onClick={() => editingFamily ? handleSubmit(handleUpdateFamily)() : setEditingFamily(true)}
-                  sx={{ bgcolor: editingFamily ? '#8B5CF6' : 'inherit', '&:hover': { bgcolor: editingFamily ? '#7C3AED' : 'inherit' } }}
-                  disabled={uploading}
-                >
-                  {uploading ? 'Saving...' : (editingFamily ? 'Save' : 'Edit')}
-                </Button>
-              </Box>
-
-              <form onSubmit={handleSubmit(handleUpdateFamily)}>
-                <Typography variant="subtitle1" gutterBottom sx={{ mt: 2, fontWeight: 'bold' }}>Father's Details</Typography>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={4}>
-                    <TextField fullWidth label="Father's Name" {...register('fatherName')} disabled={!editingFamily} variant={editingFamily ? "outlined" : "filled"} defaultValue={profileData?.fatherName || ''} />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField fullWidth label="Father's Occupation" {...register('fatherOccupation')} disabled={!editingFamily} variant={editingFamily ? "outlined" : "filled"} defaultValue={profileData?.fatherOccupation || ''} />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField fullWidth label="Father's Caste" {...register('fatherCaste')} disabled={!editingFamily} variant={editingFamily ? "outlined" : "filled"} defaultValue={profileData?.fatherCaste || ''} />
-                  </Grid>
-                </Grid>
-
-                <Typography variant="subtitle1" gutterBottom sx={{ mt: 3, fontWeight: 'bold' }}>Mother's Details</Typography>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={4}>
-                    <TextField fullWidth label="Mother's Name" {...register('motherName')} disabled={!editingFamily} variant={editingFamily ? "outlined" : "filled"} defaultValue={profileData?.motherName || ''} />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField fullWidth label="Mother's Occupation" {...register('motherOccupation')} disabled={!editingFamily} variant={editingFamily ? "outlined" : "filled"} defaultValue={profileData?.motherOccupation || ''} />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField fullWidth label="Mother's Caste" {...register('motherCaste')} disabled={!editingFamily} variant={editingFamily ? "outlined" : "filled"} defaultValue={profileData?.motherCaste || ''} />
-                  </Grid>
-                </Grid>
-              </form>
-            </Paper>
-          )}
-
-          {/* Subscription Tab */}
-          {activeTab === 3 && (
-            <Paper elevation={3} style={{ padding: '2rem' }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6">Subscription Plans</Typography>
-                <Chip 
-                  label={`Current: ${profileData?.subscriptionTier || 'FREE'}`} 
-                  color="success" 
-                  size="small" 
-                  icon={<CheckCircle />}
-                  variant="outlined"
-                />
-              </Box>
-
-              {profileData?.subscriptionEnd && profileData?.subscriptionTier !== 'FREE' && (
-                <Alert severity="success" sx={{ mb: 3 }}>
-                  Your <strong>{profileData.subscriptionTier}</strong> plan is active until {new Date(profileData.subscriptionEnd).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}.
-                </Alert>
-              )}
-
-              <Alert severity="info" sx={{ mb: 3 }}>
-                Success fee is applicable only when marriage is fixed through our platform. This follows the guidelines set by the Government of India for matrimonial services.
-              </Alert>
-
-              <Grid container spacing={2}>
-                {SUBSCRIPTION_TIERS.map((plan, index) => {
-                  const isCurrentPlan = (profileData?.subscriptionTier || 'FREE') === plan.id;
-                  const planNumber = index + 1;
-                  return (
-                    <Grid item xs={12} sm={6} md={3} key={plan.id}>
-                      <Card 
-                        elevation={isCurrentPlan ? 4 : 1}
-                        sx={{ 
-                          border: isCurrentPlan ? '2px solid #4CAF50' : '1px solid #e0e0e0',
-                          position: 'relative',
-                          overflow: 'visible',
-                          transition: 'all 0.2s ease',
-                          height: '100%',
-                          '&:hover': {
-                            boxShadow: 3
-                          }
-                        }}
-                      >
-                        {isCurrentPlan && (
-                          <Box
-                            sx={{
-                              position: 'absolute',
-                              top: -8,
-                              right: 8,
-                              bgcolor: '#4CAF50',
-                              color: 'white',
-                              px: 1,
-                              py: 0.25,
-                              borderRadius: 1,
-                              fontSize: '0.65rem',
-                              fontWeight: 'bold',
-                              boxShadow: 1,
-                              zIndex: 1
-                            }}
-                          >
-                            CURRENT
-                          </Box>
-                        )}
-                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                          <Box display="flex" alignItems="center" gap={0.5}>
-                            <Box
-                              sx={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: '50%',
-                                bgcolor: isCurrentPlan ? '#4CAF50' : '#8B5CF6',
-                                color: 'white',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontWeight: 'bold',
-                                fontSize: '0.75rem'
-                              }}
-                            >
-                              {planNumber}
-                            </Box>
-                            <Typography 
-                              variant="subtitle1" 
-                              fontWeight="bold"
-                              color={isCurrentPlan ? 'success.main' : 'inherit'}
-                              sx={{ fontSize: '0.95rem' }}
-                            >
-                              {plan.name}
-                            </Typography>
-                            {isCurrentPlan && <CheckCircle sx={{ fontSize: 16 }} color="success" />}
-                          </Box>
-                          <Typography variant="h6" fontWeight="bold" sx={{ mt: 0.5, ml: 3.5 }}>
-                            ₹{plan.price}
-                            <Typography component="span" variant="caption" color="textSecondary">/yr</Typography>
-                          </Typography>
-                          <Typography variant="caption" color="textSecondary" sx={{ ml: 3.5, display: 'block' }}>
-                            Success Fee: ₹{plan.successFee.toLocaleString()}
-                          </Typography>
-                          <Divider sx={{ my: 1 }} />
-                          <Box sx={{ minHeight: 60 }}>
-                            {plan.features.slice(0, 3).map((feature, idx) => (
-                              <Typography key={idx} variant="caption" display="flex" alignItems="center" gap={0.5} sx={{ mb: 0.25, fontSize: '0.7rem' }}>
-                                <CheckCircle sx={{ fontSize: 12 }} color="success" /> {feature}
-                              </Typography>
-                            ))}
-                            {plan.features.length > 3 && (
-                              <Typography variant="caption" color="primary" sx={{ fontSize: '0.7rem' }}>
-                                +{plan.features.length - 3} more
-                              </Typography>
-                            )}
-                          </Box>
-                          <Button
-                            fullWidth
-                            size="small"
-                            variant={isCurrentPlan ? "contained" : "outlined"}
-                            color={isCurrentPlan ? "success" : "primary"}
-                            sx={{ 
-                              mt: 1,
-                              py: 0.5,
-                              fontSize: '0.75rem',
-                              bgcolor: isCurrentPlan ? '#4CAF50' : undefined,
-                              '&:hover': {
-                                bgcolor: isCurrentPlan ? '#388E3C' : undefined
-                              }
-                            }}
-                            onClick={() => handleUpdateSubscription(plan.id)}
-                            disabled={uploading || isCurrentPlan}
-                            startIcon={uploading ? <CircularProgress size={14} color="inherit" /> : (isCurrentPlan ? <CheckCircle sx={{ fontSize: 14 }} /> : null)}
-                          >
-                            {uploading ? 'Updating...' : (isCurrentPlan ? 'Current' : 'Select')}
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  );
-                })}
-              </Grid>
-            </Paper>
-          )}
-
-          {/* Documents Tab */}
-          {activeTab === 4 && (
-            <Paper elevation={3} style={{ padding: '2rem' }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6">Mandatory Documents</Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<Add />}
-                  onClick={() => setDocumentDialog(true)}
-                  sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
-                >
-                  Upload Document
-                </Button>
-              </Box>
-
-              <Alert severity="info" sx={{ mb: 3 }}>
-                Please upload the following documents for verification. All documents are kept confidential and never shared.
-              </Alert>
-
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Document Type</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Uploaded</TableCell>
-                      <TableCell align="right">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {DOCUMENT_TYPES.map((docType) => {
-                      const uploadedDoc = profileData?.documents?.find(d => d.documentType === docType.id);
-                      return (
-                        <TableRow key={docType.id}>
-                          <TableCell>
-                            {docType.label}
-                            {docType.required && <Typography variant="caption" color="error" display="block">Required</Typography>}
-                          </TableCell>
-                          <TableCell>
-                            {uploadedDoc ? (
-                              <Box display="flex" alignItems="center" gap={1}>
-                                {uploadedDoc.status === 'APPROVED' ? (
-                                  <CheckCircle color="success" fontSize="small" />
-                                ) : uploadedDoc.status === 'REJECTED' ? (
-                                  <Typography color="error" variant="body2">Rejected</Typography>
-                                ) : (
-                                  <Typography color="warning.main" variant="body2">Pending</Typography>
-                                )}
-                              </Box>
-                            ) : (
-                              <Typography variant="body2" color="textSecondary">Not uploaded</Typography>
-                            )}
-                          </TableCell>
-                          <TableCell>{uploadedDoc ? new Date(uploadedDoc.uploadedAt).toLocaleDateString() : '-'}</TableCell>
-                          <TableCell align="right">
-                            {uploadedDoc ? (
-                              <Button size="small" color="error" onClick={() => handleDeleteDocument(uploadedDoc.id)}>
-                                Delete
-                              </Button>
-                            ) : (
-                              <Button size="small" color="primary" onClick={() => { setSelectedDocType(docType.id); setDocumentDialog(true); }}>
-                                Upload
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
-          )}
-        </Grid>
-
-        {/* Photo Gallery */}
-        <Grid item xs={12}>
-          <Paper elevation={3} style={{ padding: '2rem' }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-              <Typography variant="h6">Photo Gallery ({profileData?.photos?.length || 0}/{MAX_GALLERY_IMAGES})</Typography>
-              <input accept="image/*" id="gallery-upload" type="file" multiple hidden ref={galleryInputRef} onChange={handleGalleryUpload} />
-              <label htmlFor="gallery-upload">
-                <Button variant="contained" component="span" startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : <CloudUpload />} sx={{ bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }} disabled={profileData?.photos?.length >= MAX_GALLERY_IMAGES}>
-                  {uploading ? 'Uploading...' : 'Add Photos'}
-                </Button>
-              </label>
-            </Box>
-
-            {profileData?.photos?.length > 0 ? (
-              <Grid container spacing={2}>
-                {profileData.photos.map((photo, index) => (
-                  <Grid item xs={12} sm={6} md={4} lg={3} key={index}>
-                    <Card>
-                      <CardMedia component="img" height="200" image={getImageUrl(photo)} alt={`Gallery photo ${index + 1}`} style={{ objectFit: 'cover' }} />
-                      <CardActions>
-                        <IconButton color="secondary" onClick={() => handleDeletePhoto(photo)} disabled={uploading}>
-                          {uploading ? <CircularProgress size={24} /> : <Delete />}
-                        </IconButton>
-                      </CardActions>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
-            ) : (
-              <Box textAlign="center" py={4}>
-                <CloudUpload style={{ fontSize: 60, color: '#E0E0E0' }} />
-                <Typography variant="h6" color="textSecondary">No photos in gallery</Typography>
-                <Typography variant="body2" color="textSecondary">Upload photos to showcase your personality</Typography>
-              </Box>
-            )}
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {/* Delete Photo Dialog */}
+      {/* Delete Photo Confirmation Dialog */}
       <Dialog open={deleteDialog} onClose={() => setDeleteDialog(false)}>
         <DialogTitle>Delete Photo</DialogTitle>
         <DialogContent>
@@ -1347,7 +860,7 @@ const Profile = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialog(false)}>Cancel</Button>
-          <Button onClick={confirmDeletePhoto} variant="contained" sx={{ bgcolor: '#EC4899', '&:hover': { bgcolor: '#DB2777' } }}>Delete</Button>
+          <Button onClick={confirmDeletePhoto} color="error">Delete</Button>
         </DialogActions>
       </Dialog>
 
@@ -1357,25 +870,32 @@ const Profile = () => {
         <DialogContent>
           <FormControl fullWidth sx={{ mt: 2 }}>
             <InputLabel>Document Type</InputLabel>
-            <Select value={selectedDocType} onChange={(e) => setSelectedDocType(e.target.value)} label="Document Type">
-              {DOCUMENT_TYPES.map(doc => (
-                <MenuItem key={doc.id} value={doc.id}>
-                  {doc.label}
-                  {doc.required && <Typography component="span" color="error" ml={1}>(Required)</Typography>}
-                </MenuItem>
+            <Select
+              value={selectedDocType}
+              onChange={(e) => setSelectedDocType(e.target.value)}
+              label="Document Type"
+            >
+              {DOCUMENT_TYPES.map((doc) => (
+                <MenuItem key={doc.id} value={doc.id}>{doc.label}</MenuItem>
               ))}
             </Select>
           </FormControl>
-          
-          <input accept="image/*,.pdf" id="document-upload" type="file" hidden ref={documentInputRef} onChange={handleDocumentUpload} />
-          <label htmlFor="document-upload">
-            <Button fullWidth variant="outlined" component="div" sx={{ mt: 3, py: 2, borderStyle: 'dashed' }}>
-              {documentUploading ? <CircularProgress size={24} /> : 'Click to Upload Document'}
+          <Box sx={{ mt: 2 }}>
+            <Button
+              variant="outlined"
+              component="label"
+              disabled={!selectedDocType || documentUploading}
+            >
+              {documentUploading ? <CircularProgress size={24} /> : 'Select File'}
+              <input
+                type="file"
+                ref={documentInputRef}
+                onChange={handleDocumentUpload}
+                accept=".pdf,.jpg,.jpeg,.png"
+                hidden
+              />
             </Button>
-          </label>
-          <Typography variant="caption" color="textSecondary" display="block" textAlign="center" mt={1}>
-            Supported formats: Images (JPG, PNG) and PDF
-          </Typography>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDocumentDialog(false)}>Cancel</Button>
@@ -1387,16 +907,11 @@ const Profile = () => {
         <DialogTitle>Adjust Profile Photo</DialogTitle>
         <DialogContent>
           <Box sx={{ position: 'relative', height: 400, bgcolor: '#1a1a1a', borderRadius: 1, overflow: 'hidden' }}>
-            <Cropper image={imageToCrop} crop={crop} zoom={zoom} aspect={1} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete} cropShape="round" showGrid={false} />
+            <Cropper image={imageToCrop} crop={crop} aspect={1} onCropChange={setCrop} onCropComplete={onCropComplete} cropShape="round" showGrid={false} />
           </Box>
           
           <Box sx={{ px: 2, mt: 2 }}>
-            <Box display="flex" alignItems="center" gap={1}>
-              <ZoomOut sx={{ color: '#666' }} />
-              <Slider value={zoom} min={1} max={3} step={0.1} onChange={(e, newValue) => setZoom(newValue)} sx={{ color: '#8B5CF6' }} />
-              <ZoomIn sx={{ color: '#666' }} />
-            </Box>
-            <Typography variant="caption" color="textSecondary" display="block" textAlign="center">Scroll or drag slider to zoom</Typography>
+            <Typography variant="caption" color="textSecondary" display="block" textAlign="center">Drag to reposition, then crop</Typography>
           </Box>
         </DialogContent>
         <DialogActions>

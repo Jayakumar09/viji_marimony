@@ -26,6 +26,10 @@ const {
   updateSubscription,
   verifyUserPhoto
 } = require('../controllers/adminUserProfileController');
+const {
+  approveDocument,
+  rejectDocument
+} = require('../controllers/profileController');
 
 // Admin authentication routes (simplified for demo)
 router.post('/login', async (req, res) => {
@@ -131,6 +135,10 @@ router.put('/subscriptions/:id', updateSubscription);
 router.get('/profile-verifications/pending', getPendingProfileVerifications);
 router.put('/profile-verifications/:userId/approve', approveProfileVerification);
 router.put('/profile-verifications/:userId/reject', rejectProfileVerification);
+
+// Document approval routes
+router.put('/documents/:id/approve', approveDocument);
+router.put('/documents/:id/reject', rejectDocument);
 
 // Share profile via email
 router.post('/share-profile-email', async (req, res) => {
