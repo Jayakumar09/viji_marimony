@@ -42,6 +42,8 @@ const getProfile = async (req, res) => {
         photos: true,
         bio: true,
         familyValues: true,
+        familyType: true,
+        familyStatus: true,
         aboutFamily: true,
         isVerified: true,
         isPremium: true,
@@ -196,6 +198,8 @@ const updateProfile = async (req, res) => {
       complexion,
       bio,
       familyValues,
+      familyType,
+      familyStatus,
       aboutFamily,
       subCaste
     } = req.body;
@@ -218,6 +222,8 @@ const updateProfile = async (req, res) => {
     if (complexion !== undefined) updateData.complexion = complexion;
     if (bio !== undefined) updateData.bio = bio;
     if (familyValues !== undefined) updateData.familyValues = familyValues;
+    if (familyType !== undefined) updateData.familyType = familyType;
+    if (familyStatus !== undefined) updateData.familyStatus = familyStatus;
     if (aboutFamily !== undefined) updateData.aboutFamily = aboutFamily;
     if (subCaste !== undefined) updateData.subCaste = subCaste;
 
@@ -245,6 +251,8 @@ const updateProfile = async (req, res) => {
         complexion: true,
         bio: true,
         familyValues: true,
+        familyType: true,
+        familyStatus: true,
         aboutFamily: true,
         subCaste: true,
         updatedAt: true
@@ -316,7 +324,11 @@ const updateFamilyBackground = async (req, res) => {
       fatherCaste,
       motherName,
       motherOccupation,
-      motherCaste
+      motherCaste,
+      familyValues,
+      familyType,
+      familyStatus,
+      aboutFamily
     } = req.body;
 
     const updateData = {};
@@ -326,6 +338,10 @@ const updateFamilyBackground = async (req, res) => {
     if (motherName !== undefined) updateData.motherName = motherName;
     if (motherOccupation !== undefined) updateData.motherOccupation = motherOccupation;
     if (motherCaste !== undefined) updateData.motherCaste = motherCaste;
+    if (familyValues !== undefined) updateData.familyValues = familyValues;
+    if (familyType !== undefined) updateData.familyType = familyType;
+    if (familyStatus !== undefined) updateData.familyStatus = familyStatus;
+    if (aboutFamily !== undefined) updateData.aboutFamily = aboutFamily;
 
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
@@ -337,7 +353,11 @@ const updateFamilyBackground = async (req, res) => {
         fatherCaste: true,
         motherName: true,
         motherOccupation: true,
-        motherCaste: true
+        motherCaste: true,
+        familyValues: true,
+        familyType: true,
+        familyStatus: true,
+        aboutFamily: true
       }
     });
 

@@ -519,6 +519,20 @@ export const FamilySection = ({
               </Select>
             </FormControl>
           </Grid>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth>
+              <InputLabel>Family Status</InputLabel>
+              <Select
+                {...register('familyStatus')}
+                label="Family Status"
+              >
+                <MenuItem value="Upper Middle Class">Upper Middle Class</MenuItem>
+                <MenuItem value="Middle Class">Middle Class</MenuItem>
+                <MenuItem value="Lower Middle Class">Lower Middle Class</MenuItem>
+                <MenuItem value="Affluent">Affluent</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
           <Grid item xs={12}>
             <TextField
               fullWidth
@@ -550,6 +564,10 @@ export const FamilySection = ({
           <Grid item xs={6} sm={3}>
             <Typography variant="subtitle2" color="textSecondary">Family Type</Typography>
             <Typography>{profileData?.familyType || 'Not specified'}</Typography>
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Typography variant="subtitle2" color="textSecondary">Family Status</Typography>
+            <Typography>{profileData?.familyStatus || 'Not specified'}</Typography>
           </Grid>
           <Grid item xs={12}>
             <Typography variant="subtitle2" color="textSecondary">About Family</Typography>

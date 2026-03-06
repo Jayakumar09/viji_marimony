@@ -189,15 +189,18 @@ router.get('/:userId/pages', async (req, res) => {
     }
     
     // Get gallery count - only from Cloudinary URLs in user.photos
+    // Note: First Cloudinary photo is used as profile photo, so we count gallery as total - 1
     let galleryCount = 0;
     if (user.photos) {
       try {
         const parsedPhotos = JSON.parse(user.photos);
         if (Array.isArray(parsedPhotos) && parsedPhotos.length > 0) {
-          // Only count valid Cloudinary URLs
-          galleryCount = parsedPhotos.filter(p =>
+          // Count valid Cloudinary URLs
+          const cloudinaryPhotos = parsedPhotos.filter(p =>
             p && typeof p === 'string' && p.includes('cloudinary')
-          ).length;
+          );
+          // Subtract 1 for profile photo, remaining are gallery photos
+          galleryCount = Math.max(0, cloudinaryPhotos.length - 1);
         }
       } catch {}
     }
@@ -207,7 +210,7 @@ router.get('/:userId/pages', async (req, res) => {
     // Get documents count
     let docsCount = 0;
     try { 
-      const docs = db.prepare('SELECT * FROM user_documents WHERE user_id = ?').all(userId);
+      const docs = db.prepare('SELECT * FROM documents WHERE user_id = ?').all(userId);
       docsCount = docs.length;
     } catch {}
     
@@ -293,17 +296,18 @@ router.get('/:userId', async (req, res) => {
     
     console.log('Gallery images for PDF:', userId, 'count:', gallery.length, 'images:', gallery);
     
-    // Get documents
+    // Get documents - use the new documents table
     let docs = [];
-    try { docs = db.prepare('SELECT * FROM user_documents WHERE user_id = ?').all(userId); } catch {}
+    try { docs = db.prepare('SELECT * FROM documents WHERE user_id = ?').all(userId); } catch {}
+    console.log('Documents for PDF:', userId, 'count:', docs.length);
     
-    // Prepare filename - use customId if available, otherwise fallback to old format
+    // Prepare filename - use customId as the main ID
     const customId = user.custom_id || '';
     const fullName = `${user.first_name}${user.last_name?.replace(/\s+/g, '') || ''}`;
-    const profileIdShort = user.id.slice(-8).toUpperCase();
+    const displayId = customId || user.id.slice(-8).toUpperCase();
     const fileName = sanitize 
-      ? `${customId || fullName}${profileIdShort}_Shared__Profile.pdf`
-      : `${customId || fullName}${profileIdShort}_Watermarked__Profile.pdf`;
+      ? `${fullName}${displayId}_Shared__Profile.pdf`
+      : `${fullName}${displayId}_Watermarked__Profile.pdf`;
     
     // Set response headers
     res.setHeader('Content-Type', 'application/pdf');
@@ -327,7 +331,7 @@ router.get('/:userId', async (req, res) => {
     }
     
     doc.fontSize(20).fillColor('#333').text(`${user.first_name} ${user.last_name}`.toUpperCase(), 130, y);
-    doc.fontSize(10).fillColor('#666').text(`ID: ${user.id?.slice(-8)}`, 130, y + 22);
+    doc.fontSize(10).fillColor('#666').text(`ID: ${displayId}`, 130, y + 22);
     doc.fillColor('#059669').text('✓ Verified', 130, y + 35);
     doc.fillColor('#d97706').text('★ Premium', 130, y + 48);
     
@@ -375,6 +379,8 @@ router.get('/:userId', async (req, res) => {
     y = addField(doc, 'Mother Name:', user.mother_name || 'Not provided', 40, y);
     y = addField(doc, 'Mother Occupation:', user.mother_occupation || 'Not provided', 40, y);
     y = addField(doc, 'Family Values:', user.family_values || 'Not provided', 40, y);
+    y = addField(doc, 'Family Type:', user.family_type || 'Not provided', 40, y);
+    y = addField(doc, 'Family Status:', user.family_status || 'Not provided', 40, y);
     y = addField(doc, 'About Family:', user.about_family || 'Not provided', 40, y);
     
     y = addSectionHeader(doc, 'Horoscope Details', y);
@@ -421,9 +427,20 @@ router.get('/:userId', async (req, res) => {
       
       y = 60;
       doc.fontSize(12).fillColor('#333').text(`Type: ${docs[i].document_type || 'N/A'}`, 40, y);
-      doc.fontSize(12).fillColor('#333').text(`Number: ${docs[i].document_number || 'N/A'}`, 40, y + 18);
-      if (docs[i].is_verified) {
-        doc.fontSize(12).fillColor('#059669').text('✓ Verified', 40, y + 36);
+      doc.fontSize(12).fillColor('#333').text(`File Name: ${docs[i].file_name || 'N/A'}`, 40, y + 18);
+      doc.fontSize(12).fillColor('#333').text(`Status: ${docs[i].status || 'N/A'}`, 40, y + 36);
+      
+      // Show document image if available
+      if (docs[i].document_url) {
+        const docBuf = await fetchImage(docs[i].document_url);
+        if (docBuf) {
+          try {
+            y = 120;
+            doc.image(docBuf, 40, y, { width: doc.page.width - 80, height: doc.page.height - 160 });
+          } catch (e) {
+            doc.fontSize(12).fillColor('#666').text('Unable to display document', 40, 150);
+          }
+        }
       }
     }
     

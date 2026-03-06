@@ -40,6 +40,8 @@ model User {
   photos            String?  // JSON string for SQLite
   bio               String?
   familyValues      String?  @map("family_values")
+  familyType        String?  @map("family_type")
+  familyStatus      String?  @map("family_status")
   aboutFamily       String?  @map("about_family")
   isVerified        Boolean  @default(false) @map("is_verified")
   isPremium         Boolean  @default(false) @map("is_premium")

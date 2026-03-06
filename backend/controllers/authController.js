@@ -135,6 +135,8 @@ const login = async (req, res) => {
         photos: true,
         bio: true,
         familyValues: true,
+        familyType: true,
+        familyStatus: true,
         aboutFamily: true,
         isVerified: true,
         isPremium: true,
@@ -276,6 +278,8 @@ const getMe = async (req, res) => {
         photos: true,
         bio: true,
         familyValues: true,
+        familyType: true,
+        familyStatus: true,
         aboutFamily: true,
         isVerified: true,
         isPremium: true,
@@ -367,7 +371,7 @@ const updateProfile = async (req, res) => {
   try {
     const allowedFields = [
       'phone', 'education', 'profession', 'income', 'height', 
-      'weight', 'complexion', 'bio', 'familyValues', 'aboutFamily', 'subCaste'
+      'weight', 'complexion', 'bio', 'familyValues', 'familyType', 'familyStatus', 'aboutFamily', 'subCaste'
     ];
 
     const updateData = {};
@@ -395,6 +399,8 @@ const updateProfile = async (req, res) => {
         complexion: true,
         bio: true,
         familyValues: true,
+        familyType: true,
+        familyStatus: true,
         aboutFamily: true,
         subCaste: true,
         updatedAt: true

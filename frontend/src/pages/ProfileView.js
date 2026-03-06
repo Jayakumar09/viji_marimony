@@ -401,6 +401,12 @@ const ProfileView = () => {
                 <Typography variant="body1" paragraph>
                   <strong>Family Values:</strong> {profile.familyValues || 'Not specified'}
                 </Typography>
+                <Typography variant="body1" paragraph>
+                  <strong>Family Type:</strong> {profile.familyType || 'Not specified'}
+                </Typography>
+                <Typography variant="body1" paragraph>
+                  <strong>Family Status:</strong> {profile.familyStatus || 'Not specified'}
+                </Typography>
                 <Typography variant="body1">
                   <strong>About Family:</strong> {profile.aboutFamily || 'No family information available'}
                 </Typography>

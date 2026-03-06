@@ -193,7 +193,7 @@ const Profile = () => {
       // Ensure subscriptionTier defaults to FREE if null/undefined
       normalized.subscriptionTier = apiUser.subscriptionTier || 'FREE';
 
-      ['income', 'complexion', 'familyValues', 'education', 'profession', 'country', 'city', 'state', 'bio', 'aboutFamily', 'raasi', 'natchathiram', 'dhosam', 'birthDate', 'birthTime', 'birthPlace'].forEach(key => {
+      ['income', 'complexion', 'familyValues', 'familyType', 'familyStatus', 'education', 'profession', 'country', 'city', 'state', 'bio', 'aboutFamily', 'raasi', 'natchathiram', 'dhosam', 'birthDate', 'birthTime', 'birthPlace'].forEach(key => {
         if (normalized[key] === null || typeof normalized[key] === 'undefined') normalized[key] = '';
       });
 
@@ -222,9 +222,12 @@ const Profile = () => {
       const response = await profileService.updateProfile(data);
       updateUser(response.user);
       
-      const normalized = { ...response.user };
+      const normalized = { 
+        ...profileData, // Preserve existing photo fields and other data
+        ...response.user, // Override with updated data
+      };
       normalized.dateOfBirth = formatDateToInput(response.user.dateOfBirth);
-      ['income', 'complexion', 'familyValues', 'education', 'profession', 'country', 'city', 'state', 'bio', 'aboutFamily', 'maritalStatus', 'gender'].forEach(key => {
+      ['income', 'complexion', 'familyValues', 'familyType', 'familyStatus', 'education', 'profession', 'country', 'city', 'state', 'bio', 'aboutFamily', 'maritalStatus', 'gender'].forEach(key => {
         if (normalized[key] === null || typeof normalized[key] === 'undefined') normalized[key] = '';
       });
       setProfileData(normalized);

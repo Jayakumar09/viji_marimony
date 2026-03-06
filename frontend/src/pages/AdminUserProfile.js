@@ -612,6 +612,14 @@ const AdminUserProfile = () => {
                         <TableCell sx={{ color: 'white' }}>{familyDetails.familyValues}</TableCell>
                       </TableRow>
                       <TableRow>
+                        <TableCell sx={{ color: '#94a3b8' }}>Family Type</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{familyDetails.familyType}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell sx={{ color: '#94a3b8' }}>Family Status</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{familyDetails.familyStatus}</TableCell>
+                      </TableRow>
+                      <TableRow>
                         <TableCell sx={{ color: '#94a3b8' }}>About Family</TableCell>
                         <TableCell sx={{ color: 'white' }}>{familyDetails.aboutFamily}</TableCell>
                       </TableRow>
@@ -785,6 +793,7 @@ const AdminUserProfile = () => {
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Type</TableCell>
+                      <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>File Name</TableCell>
                       <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Status</TableCell>
                       <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Uploaded</TableCell>
                       <TableCell sx={{ color: '#cbd5e1', fontWeight: 600 }}>Actions</TableCell>
@@ -794,6 +803,7 @@ const AdminUserProfile = () => {
                     {documents.map((doc) => (
                       <TableRow key={doc.id}>
                         <TableCell sx={{ color: 'white' }}>{doc.documentType}</TableCell>
+                        <TableCell sx={{ color: 'white' }}>{doc.fileName || 'N/A'}</TableCell>
                         <TableCell>
                           <Chip 
                             label={doc.status} 

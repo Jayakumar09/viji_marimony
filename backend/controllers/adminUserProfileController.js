@@ -276,6 +276,8 @@ const getAdminUserProfile = async (req, res) => {
         motherOccupation: user.motherOccupation || 'Not provided',
         motherCaste: user.motherCaste || 'Not provided',
         familyValues: user.familyValues || 'Not provided',
+        familyType: user.familyType || 'Not provided',
+        familyStatus: user.familyStatus || 'Not provided',
         aboutFamily: user.aboutFamily || 'Not provided'
       },
       horoscopeDetails: {
@@ -292,6 +294,7 @@ const getAdminUserProfile = async (req, res) => {
         id: doc.id,
         documentType: doc.documentType,
         documentUrl: doc.documentUrl,
+        fileName: doc.fileName,
         status: doc.status,
         uploadedAt: doc.uploadedAt
       })),
