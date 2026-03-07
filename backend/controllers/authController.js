@@ -107,6 +107,8 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    console.log('Login attempt for email:', email.toLowerCase());
+
     // Find user
     const user = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
@@ -149,16 +151,23 @@ const login = async (req, res) => {
     });
 
     if (!user) {
+      console.log('User not found');
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    console.log('User found:', user.email, 'Password hash:', user.password.substring(0, 20) + '...');
+
     if (!user.isActive) {
+      console.log('User account is deactivated');
       return res.status(401).json({ error: 'Account is deactivated' });
     }
 
     // Check password
     const isPasswordValid = await comparePassword(password, user.password);
+    console.log('Password valid:', isPasswordValid);
+    
     if (!isPasswordValid) {
+      console.log('Invalid password');
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 

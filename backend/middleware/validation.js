@@ -28,7 +28,7 @@ const validateRegistration = [
   
   body('phone')
     .matches(/^\+?[1-9]\d{9,14}$/)
-    .withMessage('Please provide a valid phone number'),
+    .withMessage('Please provide a valid phone number (10-15 digits)'),
   
   body('gender')
     .isIn(['MALE', 'FEMALE', 'OTHER'])
@@ -48,9 +48,8 @@ const validateRegistration = [
     }),
   
   body('city')
-    .trim()
-    .notEmpty()
-    .withMessage('City is required'),
+    .optional()
+    .trim(),
   
   body('state')
     .trim()

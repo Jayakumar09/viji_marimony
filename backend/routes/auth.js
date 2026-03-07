@@ -19,6 +19,31 @@ const {
 router.post('/register', validateRegistration, handleValidationErrors, register);
 router.post('/login', validateLogin, handleValidationErrors, login);
 
+// Forgot password - returns success regardless (security)
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Check if user exists (but don't reveal this for security)
+    const user = await require('../utils/database').prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
+    
+    // Always return success for security
+    // In production, you would send an actual email with reset link
+    res.json({ 
+      message: 'If an account exists with this email, a password reset link has been sent.' 
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Admin login route - separate endpoint for admin authentication
 router.post('/admin/login', async (req, res) => {
   try {

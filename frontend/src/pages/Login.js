@@ -9,8 +9,14 @@ import {
   Button,
   Box,
   Alert,
-  CircularProgress
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
 import PasswordField from '../components/PasswordField';
@@ -22,6 +28,10 @@ const Login = () => {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSuccess, setForgotSuccess] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm();
 
@@ -47,7 +57,12 @@ const Login = () => {
           toast.success('Admin login successful!');
           navigate('/admin');
         } else {
-          setError(result.error || 'Admin login failed');
+          // Check specific error for admin
+          if (result.error.includes('deactivated')) {
+            setError('Admin account is deactivated. Please contact support.');
+          } else {
+            setError('Invalid admin email or password');
+          }
         }
       } else {
         // Regular user login
@@ -57,13 +72,47 @@ const Login = () => {
           toast.success('Login successful!');
           navigate('/dashboard');
         } else {
-          setError(result.error);
+          // Show more specific error based on result
+          if (result.error && result.error.includes('deactivated')) {
+            setError('Your account has been deactivated. Please contact support.');
+          } else if (result.error && result.error.includes('not verified')) {
+            setError('Please verify your email first.');
+          } else {
+            setError('Invalid email or password');
+          }
         }
       }
     } catch (error) {
       setError('Login failed. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!forgotEmail) {
+      toast.error('Please enter your email address');
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail })
+      });
+
+      const result = await response.json();
+      
+      // Always show success message for security (don't reveal if email exists)
+      setForgotSuccess(true);
+      toast.success('If an account exists with this email, a password reset link has been sent.');
+    } catch (error) {
+      setForgotSuccess(true);
+      toast.success('If an account exists with this email, a password reset link has been sent.');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -80,7 +129,7 @@ const Login = () => {
         </Box>
 
         {error && (
-          <Alert severity="error" style={{ marginBottom: '2rem' }}>
+          <Alert severity="error" style={{ marginBottom: '2rem' }} onClose={() => setError('')}>
             {error}
           </Alert>
         )}
@@ -125,7 +174,8 @@ const Login = () => {
               style={{ 
                 padding: '1rem',
                 fontSize: '1.1rem',
-                fontWeight: 'bold'
+                fontWeight: 'bold',
+                marginTop: '1rem'
               }}
             >
               {loading ? (
@@ -134,6 +184,16 @@ const Login = () => {
                 'Login'
               )}
             </Button>
+
+            <Box mt={2} textAlign="center">
+              <Button 
+                variant="text" 
+                onClick={() => setForgotOpen(true)}
+                sx={{ color: '#8B5CF6', textTransform: 'none', fontWeight: 'bold' }}
+              >
+                Forgot Password?
+              </Button>
+            </Box>
 
             <Box textAlign="center">
               <Typography variant="body2" color="textSecondary">
@@ -170,6 +230,59 @@ const Login = () => {
           </Box>
         </Box>
       </Paper>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={forgotOpen} onClose={() => { setForgotOpen(false); setForgotSuccess(false); }}>
+        <DialogTitle>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            Forgot Password
+            <IconButton onClick={() => { setForgotOpen(false); setForgotSuccess(false); }}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {forgotSuccess ? (
+            <Box textAlign="center" py={2}>
+              <Typography variant="h6" color="success.main" gutterBottom>
+                ✓ Reset Link Sent
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                If an account exists with email "{forgotEmail}", a password reset link has been sent to their registered email address.
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              <Typography variant="body2" color="textSecondary" paragraph>
+                Enter your email address and we'll send you a link to reset your password.
+              </Typography>
+              <TextField
+                fullWidth
+                label="Email Address"
+                type="email"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                variant="outlined"
+                sx={{ mt: 1 }}
+              />
+            </>
+          )}
+        </DialogContent>
+        {!forgotSuccess && (
+          <DialogActions>
+            <Button onClick={() => { setForgotOpen(false); setForgotSuccess(false); }}>
+              Cancel
+            </Button>
+            <Button 
+              variant="contained" 
+              onClick={handleForgotPassword}
+              disabled={forgotLoading}
+            >
+              {forgotLoading ? <CircularProgress size={20} /> : 'Send Reset Link'}
+            </Button>
+          </DialogActions>
+        )}
+      </Dialog>
     </Container>
   );
 };

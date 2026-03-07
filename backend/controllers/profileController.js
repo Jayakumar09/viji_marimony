@@ -189,6 +189,7 @@ const updateProfile = async (req, res) => {
       city,
       state,
       country,
+      community,
       education,
       profession,
       income,
@@ -210,9 +211,23 @@ const updateProfile = async (req, res) => {
     if (gender !== undefined) updateData.gender = gender;
     if (dateOfBirth !== undefined) updateData.dateOfBirth = new Date(dateOfBirth);
     if (age !== undefined) updateData.age = parseInt(age);
+    // Auto-calculate age if dateOfBirth is provided
+    if (dateOfBirth !== undefined) {
+      const birthDate = new Date(dateOfBirth);
+      const today = new Date();
+      let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        calculatedAge--;
+      }
+      updateData.age = calculatedAge;
+    } else if (age !== undefined) {
+      updateData.age = parseInt(age);
+    }
     if (city !== undefined) updateData.city = city;
     if (state !== undefined) updateData.state = state;
     if (country !== undefined) updateData.country = country;
+    if (community !== undefined) updateData.community = community;
     if (education !== undefined) updateData.education = education;
     if (profession !== undefined) updateData.profession = profession;
     if (income !== undefined) updateData.income = income;
@@ -239,6 +254,8 @@ const updateProfile = async (req, res) => {
         lastName: true,
         gender: true,
         dateOfBirth: true,
+        community: true,
+        subCaste: true,
         city: true,
         state: true,
         country: true,
@@ -254,7 +271,6 @@ const updateProfile = async (req, res) => {
         familyType: true,
         familyStatus: true,
         aboutFamily: true,
-        subCaste: true,
         updatedAt: true
       }
     });

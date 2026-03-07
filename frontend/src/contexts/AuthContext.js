@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       return { 
         success: false, 
-        error: error.response?.data?.message || 'Login failed' 
+        error: error.response?.data?.error || 'Login failed' 
       };
     }
   };
@@ -63,9 +63,19 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true };
     } catch (error) {
+      // Check for validation errors first
+      const validationErrors = error.response?.data?.details;
+      if (validationErrors && Array.isArray(validationErrors)) {
+        const firstError = validationErrors[0];
+        return { 
+          success: false, 
+          error: `${firstError.field}: ${firstError.message}` 
+        };
+      }
+      // Otherwise return the main error
       return { 
         success: false, 
-        error: error.response?.data?.message || 'Registration failed' 
+        error: error.response?.data?.error || error.response?.data?.message || 'Registration failed' 
       };
     }
   };
