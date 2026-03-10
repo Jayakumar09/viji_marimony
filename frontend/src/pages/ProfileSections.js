@@ -44,6 +44,7 @@ import {
   Description,
   CheckCircle
 } from '@mui/icons-material';
+import { Controller } from 'react-hook-form';
 import { getNatchathiramForRasi } from '../data/horoscopeData';
 import { getImageUrl } from '../utils/imageUrl';
 
@@ -230,9 +231,32 @@ export const ProfilePhotoSection = ({
 };
 
 // Basic info form section
-export const BasicInfoSection = ({ register, errors, editing, control }) => {
+export const BasicInfoSection = ({ register, errors, editing, control, profileData }) => {
   return (
     <Grid container spacing={2}>
+      {/* Email and Phone - Read Only */}
+      <Grid item xs={12} sm={6}>
+        <TextField
+          fullWidth
+          label="Email"
+          value={profileData?.email || ''}
+          disabled
+          InputProps={{
+            readOnly: true,
+          }}
+        />
+      </Grid>
+      <Grid item xs={12} sm={6}>
+        <TextField
+          fullWidth
+          label="Phone Number"
+          value={profileData?.phone || profileData?.mobile || ''}
+          disabled
+          InputProps={{
+            readOnly: true,
+          }}
+        />
+      </Grid>
       <Grid item xs={12} sm={6}>
         <TextField
           fullWidth
@@ -264,32 +288,46 @@ export const BasicInfoSection = ({ register, errors, editing, control }) => {
         />
       </Grid>
       <Grid item xs={12} sm={6}>
-        <FormControl fullWidth>
-          <InputLabel>Gender</InputLabel>
-          <Select
-            {...register('gender')}
-            label="Gender"
-            disabled={!editing}
-          >
-            <MenuItem value="Male">Male</MenuItem>
-            <MenuItem value="Female">Female</MenuItem>
-          </Select>
-        </FormControl>
+        <Controller
+          name="gender"
+          control={control}
+          render={({ field }) => (
+            <FormControl fullWidth>
+              <InputLabel>Gender</InputLabel>
+              <Select
+                {...field}
+                label="Gender"
+                disabled={!editing}
+                value={field.value || ''}
+              >
+                <MenuItem value="Male">Male</MenuItem>
+                <MenuItem value="Female">Female</MenuItem>
+              </Select>
+            </FormControl>
+          )}
+        />
       </Grid>
       <Grid item xs={12} sm={6}>
-        <FormControl fullWidth>
-          <InputLabel>Marital Status</InputLabel>
-          <Select
-            {...register('maritalStatus')}
-            label="Marital Status"
-            disabled={!editing}
-          >
-            <MenuItem value="Never Married">Never Married</MenuItem>
-            <MenuItem value="Divorced">Divorced</MenuItem>
-            <MenuItem value="Widowed">Widowed</MenuItem>
-            <MenuItem value="Separated">Separated</MenuItem>
-          </Select>
-        </FormControl>
+        <Controller
+          name="maritalStatus"
+          control={control}
+          render={({ field }) => (
+            <FormControl fullWidth>
+              <InputLabel>Marital Status</InputLabel>
+              <Select
+                {...field}
+                label="Marital Status"
+                disabled={!editing}
+                value={field.value || ''}
+              >
+                <MenuItem value="Never Married">Never Married</MenuItem>
+                <MenuItem value="Divorced">Divorced</MenuItem>
+                <MenuItem value="Widowed">Widowed</MenuItem>
+                <MenuItem value="Separated">Separated</MenuItem>
+              </Select>
+            </FormControl>
+          )}
+        />
       </Grid>
       <Grid item xs={12} sm={6}>
         <TextField
@@ -301,34 +339,48 @@ export const BasicInfoSection = ({ register, errors, editing, control }) => {
         />
       </Grid>
       <Grid item xs={12} sm={6}>
-        <FormControl fullWidth>
-          <InputLabel>Complexion</InputLabel>
-          <Select
-            {...register('complexion')}
-            label="Complexion"
-            disabled={!editing}
-          >
-            <MenuItem value="Very Fair">Very Fair</MenuItem>
-            <MenuItem value="Fair">Fair</MenuItem>
-            <MenuItem value="Medium">Medium</MenuItem>
-            <MenuItem value="Olive">Olive</MenuItem>
-            <MenuItem value="Brown">Brown</MenuItem>
-            <MenuItem value="Dark">Dark</MenuItem>
-          </Select>
-        </FormControl>
+        <Controller
+          name="complexion"
+          control={control}
+          render={({ field }) => (
+            <FormControl fullWidth>
+              <InputLabel>Complexion</InputLabel>
+              <Select
+                {...field}
+                label="Complexion"
+                disabled={!editing}
+                value={field.value || ''}
+              >
+                <MenuItem value="Very Fair">Very Fair</MenuItem>
+                <MenuItem value="Fair">Fair</MenuItem>
+                <MenuItem value="Medium">Medium</MenuItem>
+                <MenuItem value="Olive">Olive</MenuItem>
+                <MenuItem value="Brown">Brown</MenuItem>
+                <MenuItem value="Dark">Dark</MenuItem>
+              </Select>
+            </FormControl>
+          )}
+        />
       </Grid>
       <Grid item xs={12} sm={6}>
-        <FormControl fullWidth>
-          <InputLabel>Physical Status</InputLabel>
-          <Select
-            {...register('physicalStatus')}
-            label="Physical Status"
-            disabled={!editing}
-          >
-            <MenuItem value="Normal">Normal</MenuItem>
-            <MenuItem value="Physically Challenged">Physically Challenged</MenuItem>
-          </Select>
-        </FormControl>
+        <Controller
+          name="physicalStatus"
+          control={control}
+          render={({ field }) => (
+            <FormControl fullWidth>
+              <InputLabel>Physical Status</InputLabel>
+              <Select
+                {...field}
+                label="Physical Status"
+                disabled={!editing}
+                value={field.value || ''}
+              >
+                <MenuItem value="Normal">Normal</MenuItem>
+                <MenuItem value="Physically Challenged">Physically Challenged</MenuItem>
+              </Select>
+            </FormControl>
+          )}
+        />
       </Grid>
     </Grid>
   );
@@ -369,42 +421,63 @@ export const HoroscopeSection = ({
       {editingHoroscope ? (
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
-            <FormControl fullWidth>
-              <InputLabel>Raasi</InputLabel>
-              <Select
-                {...register('raasi')}
-                label="Raasi"
-              >
-                {['Mesham', 'Rishabham', 'Mithunam', 'Kadagam', 'Simmam', 'Kanni', 'Thulam', 'Vrichikam', 'Dhanusu', 'Makaram', 'Kumbam', 'Meenam'].map(rasi => (
-                  <MenuItem key={rasi} value={rasi}>{rasi}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Controller
+              name="raasi"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel>Raasi</InputLabel>
+                  <Select
+                    {...field}
+                    label="Raasi"
+                    value={field.value || ''}
+                  >
+                    {['Mesham', 'Rishabham', 'Mithunam', 'Kadagam', 'Simmam', 'Kanni', 'Thulam', 'Vrichikam', 'Dhanusu', 'Makaram', 'Kumbam', 'Meenam'].map(rasi => (
+                      <MenuItem key={rasi} value={rasi}>{rasi}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            />
           </Grid>
           <Grid item xs={12} sm={6}>
-            <FormControl fullWidth>
-              <InputLabel>Natchathiram</InputLabel>
-              <Select
-                {...register('natchathiram')}
-                label="Natchathiram"
-              >
-                {availableNatchathiram.map(n => (
-                  <MenuItem key={n.value} value={n.value}>{n.label}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Controller
+              name="natchathiram"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel>Natchathiram</InputLabel>
+                  <Select
+                    {...field}
+                    label="Natchathiram"
+                    value={field.value || ''}
+                  >
+                    {availableNatchathiram.map(n => (
+                      <MenuItem key={n.value} value={n.value}>{n.label}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            />
           </Grid>
           <Grid item xs={12} sm={6}>
-            <FormControl fullWidth>
-              <InputLabel>Dhosam</InputLabel>
-              <Select
-                {...register('dhosam')}
-                label="Dhosam"
-              >
-                <MenuItem value="No">No</MenuItem>
-                <MenuItem value="Yes">Yes</MenuItem>
-              </Select>
-            </FormControl>
+            <Controller
+              name="dhosam"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel>Dhosam</InputLabel>
+                  <Select
+                    {...field}
+                    label="Dhosam"
+                    value={field.value || ''}
+                  >
+                    <MenuItem value="No">No</MenuItem>
+                    <MenuItem value="Yes">Yes</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+            />
           </Grid>
           <Grid item xs={12} sm={6}>
             <TextField
@@ -470,6 +543,7 @@ export const FamilySection = ({
   setEditingFamily,
   register,
   errors,
+  control,
   onSave
 }) => {
   return (
@@ -493,45 +567,181 @@ export const FamilySection = ({
       {editingFamily ? (
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
-            <FormControl fullWidth>
-              <InputLabel>Family Values</InputLabel>
-              <Select
-                {...register('familyValues')}
-                label="Family Values"
-              >
-                <MenuItem value="Orthodox">Orthodox</MenuItem>
-                <MenuItem value="Traditional">Traditional</MenuItem>
-                <MenuItem value="Moderate">Moderate</MenuItem>
-                <MenuItem value="Liberal">Liberal</MenuItem>
-              </Select>
-            </FormControl>
+            <Controller
+              name="familyValues"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel>Family Values</InputLabel>
+                  <Select
+                    {...field}
+                    label="Family Values"
+                    value={field.value || ''}
+                  >
+                    <MenuItem value="Orthodox">Orthodox</MenuItem>
+                    <MenuItem value="Traditional">Traditional</MenuItem>
+                    <MenuItem value="Moderate">Moderate</MenuItem>
+                    <MenuItem value="Liberal">Liberal</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+            />
           </Grid>
           <Grid item xs={12} sm={6}>
-            <FormControl fullWidth>
-              <InputLabel>Family Type</InputLabel>
-              <Select
-                {...register('familyType')}
-                label="Family Type"
-              >
-                <MenuItem value="Joint">Joint Family</MenuItem>
-                <MenuItem value="Nuclear">Nuclear Family</MenuItem>
-                <MenuItem value="Others">Others</MenuItem>
-              </Select>
-            </FormControl>
+            <Controller
+              name="familyType"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel>Family Type</InputLabel>
+                  <Select
+                    {...field}
+                    label="Family Type"
+                    value={field.value || ''}
+                  >
+                    <MenuItem value="Joint">Joint Family</MenuItem>
+                    <MenuItem value="Nuclear">Nuclear Family</MenuItem>
+                    <MenuItem value="Others">Others</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+            />
           </Grid>
           <Grid item xs={12} sm={6}>
-            <FormControl fullWidth>
-              <InputLabel>Family Status</InputLabel>
-              <Select
-                {...register('familyStatus')}
-                label="Family Status"
-              >
-                <MenuItem value="Upper Middle Class">Upper Middle Class</MenuItem>
-                <MenuItem value="Middle Class">Middle Class</MenuItem>
-                <MenuItem value="Lower Middle Class">Lower Middle Class</MenuItem>
-                <MenuItem value="Affluent">Affluent</MenuItem>
-              </Select>
-            </FormControl>
+            <Controller
+              name="familyStatus"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel>Family Status</InputLabel>
+                  <Select
+                    {...field}
+                    label="Family Status"
+                    value={field.value || ''}
+                  >
+                    <MenuItem value="Upper Middle Class">Upper Middle Class</MenuItem>
+                    <MenuItem value="Middle Class">Middle Class</MenuItem>
+                    <MenuItem value="Lower Middle Class">Lower Middle Class</MenuItem>
+                    <MenuItem value="Affluent">Affluent</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+            />
+          </Grid>
+          {/* Father's Details */}
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Father's Name"
+              {...register('fatherName')}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Controller
+              name="fatherOccupation"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel>Father's Occupation</InputLabel>
+                  <Select
+                    {...field}
+                    label="Father's Occupation"
+                    value={field.value || ''}
+                  >
+                    <MenuItem value="Government Employee">Government Employee</MenuItem>
+                    <MenuItem value="Private Employee">Private Employee</MenuItem>
+                    <MenuItem value="Business">Business</MenuItem>
+                    <MenuItem value="Self Employed">Self Employed</MenuItem>
+                    <MenuItem value="Farmer">Farmer</MenuItem>
+                    <MenuItem value="Retired">Retired</MenuItem>
+                    <MenuItem value="Not Employed">Not Employed</MenuItem>
+                    <MenuItem value="Passed Away">Passed Away</MenuItem>
+                    <MenuItem value="Other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Controller
+              name="fatherCaste"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel>Father's Caste</InputLabel>
+                  <Select
+                    {...field}
+                    label="Father's Caste"
+                    value={field.value || ''}
+                  >
+                    <MenuItem value="Boya">Boya</MenuItem>
+                    <MenuItem value="Kal Oddars">Kal Oddars</MenuItem>
+                    <MenuItem value="Sooramari Oddars">Sooramari Oddars</MenuItem>
+                    <MenuItem value="Nellorepet Oddars">Nellorepet Oddars</MenuItem>
+                    <MenuItem value="Mannu Oddars">Mannu Oddars</MenuItem>
+                    <MenuItem value="Other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+            />
+          </Grid>
+          {/* Mother's Details */}
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Mother's Name"
+              {...register('motherName')}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Controller
+              name="motherOccupation"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel>Mother's Occupation</InputLabel>
+                  <Select
+                    {...field}
+                    label="Mother's Occupation"
+                    value={field.value || ''}
+                  >
+                    <MenuItem value="Government Employee">Government Employee</MenuItem>
+                    <MenuItem value="Private Employee">Private Employee</MenuItem>
+                    <MenuItem value="Business">Business</MenuItem>
+                    <MenuItem value="Self Employed">Self Employed</MenuItem>
+                    <MenuItem value="Farmer">Farmer</MenuItem>
+                    <MenuItem value="Housewife">Housewife</MenuItem>
+                    <MenuItem value="Retired">Retired</MenuItem>
+                    <MenuItem value="Not Employed">Not Employed</MenuItem>
+                    <MenuItem value="Passed Away">Passed Away</MenuItem>
+                    <MenuItem value="Other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Controller
+              name="motherCaste"
+              control={control}
+              render={({ field }) => (
+                <FormControl fullWidth>
+                  <InputLabel>Mother's Caste</InputLabel>
+                  <Select
+                    {...field}
+                    label="Mother's Caste"
+                    value={field.value || ''}
+                  >
+                    <MenuItem value="Boya">Boya</MenuItem>
+                    <MenuItem value="Kal Oddars">Kal Oddars</MenuItem>
+                    <MenuItem value="Sooramari Oddars">Sooramari Oddars</MenuItem>
+                    <MenuItem value="Nellorepet Oddars">Nellorepet Oddars</MenuItem>
+                    <MenuItem value="Mannu Oddars">Mannu Oddars</MenuItem>
+                    <MenuItem value="Other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+            />
           </Grid>
           <Grid item xs={12}>
             <TextField
@@ -568,6 +778,32 @@ export const FamilySection = ({
           <Grid item xs={6} sm={3}>
             <Typography variant="subtitle2" color="textSecondary">Family Status</Typography>
             <Typography>{profileData?.familyStatus || 'Not specified'}</Typography>
+          </Grid>
+          {/* Father's Details Display */}
+          <Grid item xs={6} sm={3}>
+            <Typography variant="subtitle2" color="textSecondary">Father's Name</Typography>
+            <Typography>{profileData?.fatherName || 'Not specified'}</Typography>
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Typography variant="subtitle2" color="textSecondary">Father's Occupation</Typography>
+            <Typography>{profileData?.fatherOccupation || 'Not specified'}</Typography>
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Typography variant="subtitle2" color="textSecondary">Father's Caste</Typography>
+            <Typography>{profileData?.fatherCaste || 'Not specified'}</Typography>
+          </Grid>
+          {/* Mother's Details Display */}
+          <Grid item xs={6} sm={3}>
+            <Typography variant="subtitle2" color="textSecondary">Mother's Name</Typography>
+            <Typography>{profileData?.motherName || 'Not specified'}</Typography>
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Typography variant="subtitle2" color="textSecondary">Mother's Occupation</Typography>
+            <Typography>{profileData?.motherOccupation || 'Not specified'}</Typography>
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Typography variant="subtitle2" color="textSecondary">Mother's Caste</Typography>
+            <Typography>{profileData?.motherCaste || 'Not specified'}</Typography>
           </Grid>
           <Grid item xs={12}>
             <Typography variant="subtitle2" color="textSecondary">About Family</Typography>

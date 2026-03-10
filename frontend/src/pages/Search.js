@@ -44,11 +44,21 @@ import { useQuery } from '@tanstack/react-query';
 import searchService from '../services/searchService';
 import toast from 'react-hot-toast';
 import { getImageUrl } from '../utils/imageUrl';
+import { useAuth } from '../hooks/useAuth';
 
 const SearchProfiles = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  
+  // Determine default gender based on logged-in user's gender
+  const getDefaultGender = () => {
+    if (user?.gender === 'Male') return 'Female';
+    if (user?.gender === 'Female') return 'Male';
+    return ''; // Default to all if gender not found
+  };
+
   const [filters, setFilters] = useState({
-    gender: '',
+    gender: getDefaultGender(),
     minAge: '',
     maxAge: '',
     community: '',
@@ -61,6 +71,17 @@ const SearchProfiles = () => {
     page: 1
   });
   const [showFilters, setShowFilters] = useState(true);
+
+  // Update gender filter when user data becomes available
+  useEffect(() => {
+    if (user?.gender) {
+      const oppositeGender = user.gender === 'Male' ? 'Female' : user.gender === 'Female' ? 'Male' : '';
+      setFilters(prev => ({
+        ...prev,
+        gender: oppositeGender
+      }));
+    }
+  }, [user]);
 
   // Fetch search filters
   const { data: filterOptions } = useQuery(

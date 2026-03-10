@@ -37,7 +37,7 @@ if (isCloudinaryConfigured()) {
     cloudinary: cloudinary,
     params: {
       folder: 'boyar-matrimony',
-      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf'],
+      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'],
       transformation: [
         { width: 1500, height: 1500, crop: 'limit' },
         { quality: 'auto:good' },

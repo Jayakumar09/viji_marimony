@@ -88,6 +88,33 @@ const DOCUMENT_TYPES = [
   { id: 'OTHER', label: 'Other Documents', required: false }
 ];
 
+const PROFESSION_OPTIONS = [
+  'Emgineer', // Keep misspelled option for legacy data
+  'Accountant', 'Actor', 'Actuary', 'Admin Professional', 'Advocate', 'Agricultural Professional', 
+  'Airline', 'Architect', 'Artisan', 'Artist', 'Auditor', 'Author', 'Banker', 'Beautician', 
+  'Blogger', 'Business', 'Business Owner', 'Cabin Crew', 'Chef', 'Chartered Accountant', 
+  'Civil Engineer', 'Coach', 'Consultant', 'Contractor', 'Corporate Professional', 'Cost Accountant', 
+  'Creative Director', 'Customer Support', 'Cyclist', 'Dancer', 'Data Analyst', 'Data Scientist', 
+  'Defense Employee', 'Dentist', 'Designer', 'Doctor', 'Economist', 'Engineer', 'Entrepreneur', 
+  'Event Manager', 'Executive', 'Farmer', 'Fashion Designer', 'Film Director', 'Finance Professional', 
+  'Financial Analyst', 'Fitness Trainer', 'Flight Attendant', 'Food Scientist', 'Freelancer', 
+  'Government Employee', 'Graphic Designer', 'Hardware Engineer', 'Health Care Professional', 
+  'Home Maker', 'Hotel Manager', 'HR Professional', 'Import/Export', 'Indian Police Service', 
+  'Information Technology', 'Interior Designer', 'Investment Banker', 'IT Professional', 'Journalist', 
+  'Lawyer', 'Lecturer', 'Legal Professional', 'Librarian', 'Logistics', 'Marketing Professional', 
+  'Mechanical Engineer', 'Media Professional', 'Medical Professional', 'Merchant Navy', 'Model', 
+  'Nurse', 'Nutritionist', 'Operations Manager', 'Optometrist', 'Pharmacist', 'Photographer', 
+  'Physician', 'Physiotherapist', 'Pilot', 'Plant Manager', 'Plumber', 'Political', 'Politician', 
+  'President', 'Private Sector', 'Professor', 'Programmer', 'Project Manager', 'Proprietor', 
+  'Psychologist', 'Public Relations', 'Quality Assurance', 'Radiologist', 'Real Estate', 
+  'Researcher', 'Retail Professional', 'Sales Professional', 'Scientist', 'Social Worker', 
+  'Software Developer', 'Software Engineer', 'Sports Person', 'Student', 'Surgeon', 'Surveyor', 
+  'System Administrator', 'System Analyst', 'Teacher', 'Technical Staff', 'Telecommunication', 
+  'Therapist', 'Top Executive', 'Training', 'Transportation', 'Travel Agent', 'Travel Professional', 
+  'Treasurer', 'Tuition', 'Veterinary Doctor', 'Video Editor', 'Visual Merchandiser', 'Volunteer', 
+  'Web Designer', 'Writer', 'Other'
+];
+
 const Profile = () => {
   const { user, updateUser } = useAuth();
   const navigate = useNavigate();
@@ -193,9 +220,14 @@ const Profile = () => {
       // Ensure subscriptionTier defaults to FREE if null/undefined
       normalized.subscriptionTier = apiUser.subscriptionTier || 'FREE';
 
-      ['income', 'complexion', 'familyValues', 'familyType', 'familyStatus', 'education', 'profession', 'country', 'city', 'state', 'bio', 'aboutFamily', 'raasi', 'natchathiram', 'dhosam', 'birthDate', 'birthTime', 'birthPlace'].forEach(key => {
+      ['income', 'complexion', 'familyValues', 'familyType', 'familyStatus', 'education', 'profession', 'country', 'city', 'state', 'bio', 'aboutFamily', 'raasi', 'natchathiram', 'dhosam', 'birthDate', 'birthTime', 'birthPlace', 'fatherName', 'fatherOccupation', 'fatherCaste', 'motherName', 'motherOccupation', 'motherCaste'].forEach(key => {
         if (normalized[key] === null || typeof normalized[key] === 'undefined') normalized[key] = '';
       });
+
+      // Ensure email and phone are available (they come from auth user, not profile)
+      normalized.email = apiUser.email || user?.email || '';
+      normalized.phone = apiUser.phone || apiUser.mobile || user?.phone || user?.mobile || '';
+      normalized.customId = apiUser.customId || user?.customId || apiUser.userId || user?.id || '';
 
       const stateForCities = normalized.state || apiUser.state || '';
       const citiesForState = stateForCities ? getCitiesForState(stateForCities) : [];
@@ -647,6 +679,13 @@ const Profile = () => {
           handleMouseUp={handleMouseUp}
         />
 
+        {/* Customer ID below profile photo */}
+        <Box sx={{ textAlign: 'center', mt: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Customer ID: <strong>{profileData?.customId || user?.customId || profileData?.userId || user?.id || 'N/A'}</strong>
+          </Typography>
+        </Box>
+
         {/* Tabs */}
         <Tabs 
           value={activeTab} 
@@ -671,41 +710,57 @@ const Profile = () => {
               errors={errors}
               editing={editing}
               control={control}
+              profileData={profileData}
             />
             
             {/* Additional Basic Info Fields */}
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>State</InputLabel>
-                  <Select
-                    {...register('state')}
-                    label="State"
-                    disabled={!editing}
-                    onChange={(e) => {
-                      setValue('state', e.target.value);
-                      setValue('city', '');
-                    }}
-                  >
-                    {STATES.map(state => (
-                      <MenuItem key={state} value={state}>{state}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <Controller
+                  name="state"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControl fullWidth>
+                      <InputLabel>State</InputLabel>
+                      <Select
+                        {...field}
+                        label="State"
+                        disabled={!editing}
+                        value={field.value || ''}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          setValue('state', e.target.value);
+                          setValue('city', '');
+                        }}
+                      >
+                        {STATES.map(state => (
+                          <MenuItem key={state} value={state}>{state}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  )}
+                />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>City</InputLabel>
-                  <Select
-                    {...register('city')}
-                    label="City"
-                    disabled={!editing}
-                  >
-                    {availableCities.map(city => (
-                      <MenuItem key={city} value={city}>{city}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <Controller
+                  name="city"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControl fullWidth>
+                      <InputLabel>City</InputLabel>
+                      <Select
+                        {...field}
+                        label="City"
+                        disabled={!editing}
+                        value={field.value || ''}
+                      >
+                        {availableCities.map(city => (
+                          <MenuItem key={city} value={city}>{city}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  )}
+                />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
@@ -717,47 +772,74 @@ const Profile = () => {
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Education</InputLabel>
-                  <Select
-                    {...register('education')}
-                    label="Education"
-                    disabled={!editing}
-                  >
-                    <MenuItem value="High School">High School</MenuItem>
-                    <MenuItem value="Intermediate">Intermediate</MenuItem>
-                    <MenuItem value="Diploma">Diploma</MenuItem>
-                    <MenuItem value="Bachelor's Degree">Bachelor's Degree</MenuItem>
-                    <MenuItem value="Master's Degree">Master's Degree</MenuItem>
-                    <MenuItem value="Doctorate">Doctorate</MenuItem>
-                    <MenuItem value="Other">Other</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Profession"
-                  {...register('profession')}
-                  disabled={!editing}
+                <Controller
+                  name="education"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControl fullWidth>
+                      <InputLabel>Education</InputLabel>
+                      <Select
+                        {...field}
+                        label="Education"
+                        disabled={!editing}
+                        value={field.value || ''}
+                      >
+                        <MenuItem value="High School">High School</MenuItem>
+                        <MenuItem value="Intermediate">Intermediate</MenuItem>
+                        <MenuItem value="Diploma">Diploma</MenuItem>
+                        <MenuItem value="Bachelor's Degree">Bachelor's Degree</MenuItem>
+                        <MenuItem value="Master's Degree">Master's Degree</MenuItem>
+                        <MenuItem value="Doctorate">Doctorate</MenuItem>
+                        <MenuItem value="Other">Other</MenuItem>
+                      </Select>
+                    </FormControl>
+                  )}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Annual Income</InputLabel>
-                  <Select
-                    {...register('income')}
-                    label="Annual Income"
-                    disabled={!editing}
-                  >
-                    <MenuItem value="Below 1 Lakh">Below 1 Lakh</MenuItem>
-                    <MenuItem value="1-3 Lakhs">1-3 Lakhs</MenuItem>
-                    <MenuItem value="3-5 Lakhs">3-5 Lakhs</MenuItem>
-                    <MenuItem value="5-10 Lakhs">5-10 Lakhs</MenuItem>
-                    <MenuItem value="10-20 Lakhs">10-20 Lakhs</MenuItem>
-                    <MenuItem value="Above 20 Lakhs">Above 20 Lakhs</MenuItem>
-                  </Select>
-                </FormControl>
+                <Controller
+                  name="profession"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControl fullWidth>
+                      <InputLabel>Profession</InputLabel>
+                      <Select
+                        {...field}
+                        label="Profession"
+                        disabled={!editing}
+                        value={field.value || ''}
+                      >
+                        {PROFESSION_OPTIONS.map(prof => (
+                          <MenuItem key={prof} value={prof}>{prof}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  )}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Controller
+                  name="income"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControl fullWidth>
+                      <InputLabel>Annual Income</InputLabel>
+                      <Select
+                        {...field}
+                        label="Annual Income"
+                        disabled={!editing}
+                        value={field.value || ''}
+                      >
+                        <MenuItem value="Below 1 Lakh">Below 1 Lakh</MenuItem>
+                        <MenuItem value="1-3 Lakhs">1-3 Lakhs</MenuItem>
+                        <MenuItem value="3-5 Lakhs">3-5 Lakhs</MenuItem>
+                        <MenuItem value="5-10 Lakhs">5-10 Lakhs</MenuItem>
+                        <MenuItem value="10-20 Lakhs">10-20 Lakhs</MenuItem>
+                        <MenuItem value="Above 20 Lakhs">Above 20 Lakhs</MenuItem>
+                      </Select>
+                    </FormControl>
+                  )}
+                />
               </Grid>
               <Grid item xs={12}>
                 <TextField
@@ -816,6 +898,7 @@ const Profile = () => {
               setEditingFamily={setEditingFamily}
               register={register}
               errors={errors}
+              control={control}
               onSave={handleSubmit(handleUpdateFamily)}
             />
           </Box>
