@@ -178,7 +178,8 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
     setLoading(true);
     try {
       // Use backend PDF generation for better quality
-      const pdfBlob = await profileService.downloadProfilePdf(userId);
+      const isSanitized = shareOption === 'other';
+      const pdfBlob = await profileService.downloadProfilePdf(userId, isSanitized);
       
       // DEBUG: Log what's being used for filename
       console.log('PDF download - customId:', profileData?.customId, 'firstName:', profileData?.firstName);
@@ -217,7 +218,8 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
       // Try backend PDF generation first
       let pdfBlob;
       try {
-        pdfBlob = await profileService.downloadProfilePdf(userId);
+        const isSanitized = shareOption === 'other';
+        pdfBlob = await profileService.downloadProfilePdf(userId, isSanitized);
       } catch (backendError) {
         // Fallback to frontend PDF
         const isSanitized = shareOption === 'other';
@@ -289,7 +291,8 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
       // Try backend PDF first
       let pdfBlob;
       try {
-        pdfBlob = await profileService.downloadProfilePdf(userId);
+        const isSanitized = shareOption === 'other';
+        pdfBlob = await profileService.downloadProfilePdf(userId, isSanitized);
       } catch (backendError) {
         // Fallback to frontend PDF
         const isSanitized = shareOption === 'other';
@@ -322,7 +325,8 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
       
       // Download PDF as fallback
       try {
-        const pdfBlob = await profileService.downloadProfilePdf(userId);
+        const isSanitized = shareOption === 'other';
+        const pdfBlob = await profileService.downloadProfilePdf(userId, isSanitized);
         const url = window.URL.createObjectURL(new Blob([pdfBlob]));
         const link = document.createElement('a');
         link.href = url;

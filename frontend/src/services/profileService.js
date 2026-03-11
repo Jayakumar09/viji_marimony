@@ -115,9 +115,10 @@ export const profileService = {
   },
 
   // Download profile PDF (uses shared profile API with watermark)
-  downloadProfilePdf: async (userId) => {
+  downloadProfilePdf: async (userId, sanitize = false) => {
     const response = await api.get(`/shared-profile/${userId}`, {
       responseType: 'blob',
+      params: { sanitize }
     });
     return response.data;
   },
