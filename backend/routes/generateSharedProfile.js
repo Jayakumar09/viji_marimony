@@ -327,8 +327,10 @@ router.get('/:userId', async (req, res) => {
     }
     
     y = 200;
-    y = addSectionHeader(doc, 'Contact Information', y);
     
+    // ===== SINGLE COLUMN LAYOUT =====
+    // Contact Information at Y: 200
+    y = addSectionHeader(doc, 'Contact Information', y);
     if (sanitize) {
       y = addField(doc, 'Email:', 'Hidden for privacy', 40, y);
       y = addField(doc, 'Phone:', 'Hidden for privacy', 40, y);
@@ -337,27 +339,27 @@ router.get('/:userId', async (req, res) => {
       y = addField(doc, 'Phone:', user.phone || 'Not provided', 40, y);
     }
     y = addField(doc, 'DOB / Age:', `${formatDate(user.date_of_birth)} (${user.age} years)`, 40, y);
+    y = addField(doc, 'City:', user.city || 'Not provided', 40, y);
+    y = addField(doc, 'State:', user.state || 'Not provided', 40, y);
+    y = addField(doc, 'Country:', user.country || 'Not provided', 40, y);
     
-    y = addSectionHeader(doc, 'Location', y);
-    y = addField(doc, 'City:', user.city, 40, y);
-    y = addField(doc, 'State:', user.state, 40, y);
-    y = addField(doc, 'Country:', user.country, 40, y);
-    
+    // Personal Details
     y = addSectionHeader(doc, 'Personal Details', y);
-    y = addField(doc, 'Gender:', user.gender, 40, y);
-    y = addField(doc, 'Marital Status:', user.marital_status, 40, y);
-    y = addField(doc, 'Community:', user.community, 40, y);
+    y = addField(doc, 'Gender:', user.gender || 'Not provided', 40, y);
+    y = addField(doc, 'Marital Status:', user.marital_status || 'Not provided', 40, y);
+    y = addField(doc, 'Community:', user.community || 'Not provided', 40, y);
     y = addField(doc, 'Sub Caste:', user.sub_caste || 'Not provided', 40, y);
     y = addField(doc, 'Height:', user.height || 'Not provided', 40, y);
     y = addField(doc, 'Weight:', user.weight || 'Not provided', 40, y);
     y = addField(doc, 'Complexion:', user.complexion || 'Not provided', 40, y);
     
-    // Continue with remaining sections (Professional, Family, Horoscope, About)
+    // Professional Details
     y = addSectionHeader(doc, 'Professional Details', y);
     y = addField(doc, 'Education:', user.education || 'Not provided', 40, y);
     y = addField(doc, 'Profession:', user.profession || 'Not provided', 40, y);
     y = addField(doc, 'Income:', user.income || 'Not provided', 40, y);
     
+    // Family Details
     y = addSectionHeader(doc, 'Family Details', y);
     y = addField(doc, 'Father Name:', user.father_name || 'Not provided', 40, y);
     y = addField(doc, 'Father Occupation:', user.father_occupation || 'Not provided', 40, y);
@@ -368,6 +370,7 @@ router.get('/:userId', async (req, res) => {
     y = addField(doc, 'Family Status:', user.family_status || 'Not provided', 40, y);
     y = addField(doc, 'About Family:', user.about_family || 'Not provided', 40, y);
     
+    // Horoscope Details
     y = addSectionHeader(doc, 'Horoscope Details', y);
     y = addField(doc, 'Raasi:', user.raasi || 'Not provided', 40, y);
     y = addField(doc, 'Natchathiram:', user.natchathiram || 'Not provided', 40, y);
@@ -375,6 +378,7 @@ router.get('/:userId', async (req, res) => {
     y = addField(doc, 'Birth Time:', user.birth_time || 'Not provided', 40, y);
     y = addField(doc, 'Birth Place:', user.birth_place || 'Not provided', 40, y);
     
+    // About
     y = addSectionHeader(doc, 'About', y);
     doc.fontSize(10).fillColor('#444').text(user.bio || 'Not provided', 40, y, { width: 480 });
     
