@@ -210,7 +210,7 @@ router.get('/:userId/pages', async (req, res) => {
     // Page 2: Professional & Family
     // Gallery: 1 page per photo
     // Documents: 1 page per document
-    const profilePages = 2; // Always 2 pages for profile info
+    const profilePages = 1; // Single page for all profile info
     const galleryPages = galleryCount;
     const documentPages = docsCount;
     const totalPages = profilePages + galleryPages + documentPages;
@@ -352,15 +352,7 @@ router.get('/:userId', async (req, res) => {
     y = addField(doc, 'Weight:', user.weight || 'Not provided', 40, y);
     y = addField(doc, 'Complexion:', user.complexion || 'Not provided', 40, y);
     
-    // Apply watermark AFTER all content (on top) - same opacity as other pages
-    addWatermark(doc, WATERMARK_TEXT, 0.20);
-    
-    // ========== PAGE 2 ==========
-    doc.addPage();
-    pageNum++;
-    
-    y = addHeader(doc);
-    
+    // Continue with remaining sections (Professional, Family, Horoscope, About)
     y = addSectionHeader(doc, 'Professional Details', y);
     y = addField(doc, 'Education:', user.education || 'Not provided', 40, y);
     y = addField(doc, 'Profession:', user.profession || 'Not provided', 40, y);
@@ -386,7 +378,7 @@ router.get('/:userId', async (req, res) => {
     y = addSectionHeader(doc, 'About', y);
     doc.fontSize(10).fillColor('#444').text(user.bio || 'Not provided', 40, y, { width: 480 });
     
-    // Apply watermark AFTER all content (on top) - same opacity as other pages
+    // Apply watermark AFTER all content (on top)
     addWatermark(doc, WATERMARK_TEXT, 0.20);
     
     // ========== GALLERY - ONE PHOTO PER PAGE ==========
