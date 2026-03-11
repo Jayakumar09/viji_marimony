@@ -208,9 +208,11 @@ router.get('/download-profile/:id', authMiddleware, async (req, res) => {
       badgeX += 60;
     }
     if (profile.isPremium) {
+      const tier = profile.subscriptionTier || 'PREMIUM';
+      const tierLabel = tier === 'PREMIUM' ? 'Premium Member' : tier === 'PRO' ? 'Pro Member' : tier === 'BASIC' ? 'Basic Member' : `${tier} Member`;
       doc.fontSize(9)
          .fillColor('#d97706')
-         .text('Premium Member', badgeX, yPos);
+         .text(tierLabel, badgeX, yPos);
     }
 
     yPos = 180;
@@ -629,6 +631,22 @@ router.get('/share/:id', async (req, res) => {
     const fetchImage = async (imagePath) => {
       try {
         if (!imagePath || imagePath === 'null') return null;
+        
+        // If it's a Cloudinary URL, try to fetch it
+        if (imagePath.includes('cloudinary') || imagePath.startsWith('http')) {
+          try {
+            const response = await axios.get(imagePath, { 
+              responseType: 'arraybuffer',
+              timeout: 10000
+            });
+            return Buffer.from(response.data);
+          } catch (e) {
+            console.log('Failed to fetch Cloudinary image:', imagePath, e.message);
+            return null;
+          }
+        }
+        
+        // Otherwise, try local file
         let filename = imagePath.split('/').pop().split('\\').pop();
         const paths = [
           path.join(__dirname, '..', 'uploads', filename),
@@ -661,7 +679,13 @@ router.get('/share/:id', async (req, res) => {
     doc.fontSize(20).fillColor('#333').text(`${profile.firstName || ''} ${profile.lastName || ''}`.toUpperCase(), 130, y);
     doc.fontSize(10).fillColor('#666').text(`ID: ${profile.id?.slice(-8)}`, 130, y + 22);
     doc.fillColor('#059669').text('✓ Verified', 130, y + 35);
-    doc.fillColor('#d97706').text('★ Premium', 130, y + 48);
+    
+    // Show actual subscription tier
+    const tier = profile.subscriptionTier || 'FREE';
+    if (tier !== 'FREE') {
+      const tierLabel = tier === 'PREMIUM' ? '★ Premium' : tier === 'PRO' ? '★ Pro' : tier === 'BASIC' ? '★ Basic' : `★ ${tier}`;
+      doc.fillColor('#d97706').text(tierLabel, 130, y + 48);
+    }
 
     y = 200;
     y = addSectionHeader(doc, 'Contact Information', y);

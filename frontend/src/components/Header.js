@@ -11,10 +11,11 @@ const Header = () => {
   const [anchorEl, setAnchorEl] = React.useState(null);
 
   // Get subscription tier from user
-  const subscriptionTier = user?.subscriptionTier || 'FREE';
+  const subscriptionTier = user?.subscriptionTier || user?.subscription?.plan || 'FREE';
   
-  // Check if user is premium (not FREE tier)
-  const isPremium = subscriptionTier && subscriptionTier !== 'FREE';
+  // Check if user is premium (not FREE tier) - include STANDARD, PREMIUM, ELITE, PRO
+  const isPremium = subscriptionTier && 
+    ['STANDARD', 'PREMIUM', 'ELITE', 'PRO', 'Basic', 'Pro', 'Premium'].includes(subscriptionTier);
 
   // Get badge color based on subscription tier
   const getPlanBadgeColor = (tier) => {

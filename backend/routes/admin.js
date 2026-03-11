@@ -87,20 +87,22 @@ router.post('/users/:userId/photos/verify', verifyUserPhoto);
 
 router.put('/users/:id/verification', updateUserVerification);
 router.put('/users/:id/verify', verifyUser);
-router.get('/users/:id', getUserDetails);
 
-// Admin User Profile - Full detailed view
+// Admin User Profile - Full detailed view - MUST be before /users/:id
 router.get('/users/:id/profile', getAdminUserProfile);
 
-// User status management
+// Get basic user details - AFTER more specific routes
+router.get('/users/:id', getUserDetails);
+
+// User status management - MUST be before /users/:id
 router.put('/users/:id/block', blockUser);
 router.put('/users/:id/unblock', unblockUser);
 router.delete('/users/:id', deleteUser);
 
-// User verification
+// User verification - MUST be before /users/:id
 router.put('/users/:id/manual-verify', manualVerifyUser);
 
-// User activity logs
+// User activity logs - MUST be before /users/:id
 router.get('/users/:id/activity-logs', getUserActivityLogs);
 
 // Subscription management

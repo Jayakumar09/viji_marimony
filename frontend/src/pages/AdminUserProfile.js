@@ -381,8 +381,12 @@ const AdminUserProfile = () => {
           color={accountStatus.isActive ? 'success' : 'error'}
           sx={{ mr: 1 }}
         />
-        {accountStatus.isPremium && (
-          <Chip label="Premium" sx={{ bgcolor: '#fef3c7', color: '#d97706', fontWeight: 600 }} icon={<Star />} />
+        {accountStatus.subscriptionTier && accountStatus.subscriptionTier !== 'FREE' && (
+          <Chip 
+            label={accountStatus.subscriptionTier === 'PREMIUM' ? 'Premium' : accountStatus.subscriptionTier === 'PRO' ? 'Pro' : accountStatus.subscriptionTier === 'BASIC' ? 'Basic' : accountStatus.subscriptionTier} 
+            sx={{ bgcolor: accountStatus.subscriptionTier === 'PREMIUM' ? '#fef3c7' : accountStatus.subscriptionTier === 'PRO' ? '#ede9fe' : accountStatus.subscriptionTier === 'BASIC' ? '#dcfce7' : '#e5e7eb', color: '#000', fontWeight: 600 }} 
+            icon={<Star />} 
+          />
         )}
         <IconButton onClick={fetchUserProfile} sx={{ color: 'white' }}>
           <Refresh />

@@ -222,6 +222,8 @@ const getAllUsers = async (req, res) => {
         phoneVerified: true,
         isActive: true,
         isPremium: true,
+        subscriptionTier: true,
+        subscriptionStart: true,
         createdAt: true
       }
     });

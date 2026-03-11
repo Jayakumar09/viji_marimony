@@ -85,6 +85,7 @@ const paymentRoutes = require('./routes/payments');
 const chatRoutes = require('./routes/chat');
 const profilePdfRoutes = require('./routes/profilePdf');
 const generateSharedProfile = require('./routes/generateSharedProfile');
+const testNewPdfRoutes = require('./test-new-pdf');
 // const phonepeRoutes = require('./routes/phonepe'); // PhonePe integration not implemented - using manual payments
 
 // Use routes
@@ -102,6 +103,7 @@ app.use('/api/admin', adminVerificationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/profile-pdf', profilePdfRoutes);
+app.use('/api/test-new-pdf', testNewPdfRoutes);
 app.use('/api/shared-profile', generateSharedProfile);
 // app.use('/api/phonepe', phonepeRoutes); // PhonePe integration not implemented - using manual payments
 

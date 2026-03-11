@@ -1,6 +1,6 @@
 /**
- * Generate
- * Uses Shared Profile PDF Route the exact same logic as frontend/test-admin-profile-pdf-watermark.js
+ * Generate Shared Profile PDF Route
+ * Uses the exact same logic as frontend/test-admin-profile-pdf-watermark.js
  * 
  * Web Link Format:
  * - Full Profile: /api/shared-profile/:userId
@@ -114,18 +114,18 @@ function addField(doc, label, value, x, y, w = 130) {
   return y + 14;
 }
 
-function addWatermark(doc, text = WATERMARK_TEXT, opacity = 0.20) {
+function addWatermark(doc, text = WATERMARK_TEXT, opacity = 0.15) {
   const pageWidth = doc.page.width;
   const pageHeight = doc.page.height;
   
   doc.save();
   
   // Larger font size for better visibility
-  const fontSize = 25;
+  const fontSize = 24;
   const angle = -45;
   // Increased spacing to avoid double lines
-  const spacingX =300;
-  const spacingY = 300;
+  const spacingX = 200;
+  const spacingY = 200;
   
   // Purple color matching app theme
   doc.fillColor('#8B5CF6').opacity(opacity).font('Helvetica').fontSize(fontSize);
@@ -308,6 +308,7 @@ router.get('/:userId', async (req, res) => {
     
     // ========== PAGE 1 ==========
     y = addHeader(doc, 'User Profile Details');
+    addWatermark(doc, WATERMARK_TEXT, 0.15);
     
     // Profile Photo - use Cloudinary URL
     const pBuf = await fetchImage(profilePhotoUrl);
@@ -352,14 +353,12 @@ router.get('/:userId', async (req, res) => {
     y = addField(doc, 'Weight:', user.weight || 'Not provided', 40, y);
     y = addField(doc, 'Complexion:', user.complexion || 'Not provided', 40, y);
     
-    // Apply watermark AFTER all content (on top) - same opacity as other pages
-    addWatermark(doc, WATERMARK_TEXT, 0.20);
-    
     // ========== PAGE 2 ==========
     doc.addPage();
     pageNum++;
     
     y = addHeader(doc);
+    addWatermark(doc, WATERMARK_TEXT, 0.12);
     
     y = addSectionHeader(doc, 'Professional Details', y);
     y = addField(doc, 'Education:', user.education || 'Not provided', 40, y);
@@ -386,9 +385,6 @@ router.get('/:userId', async (req, res) => {
     y = addSectionHeader(doc, 'About', y);
     doc.fontSize(10).fillColor('#444').text(user.bio || 'Not provided', 40, y, { width: 480 });
     
-    // Apply watermark AFTER all content (on top) - same opacity as other pages
-    addWatermark(doc, WATERMARK_TEXT, 0.20);
-    
     // ========== GALLERY - ONE PHOTO PER PAGE ==========
     for (let i = 0; i < gallery.length; i++) {
       doc.addPage();
@@ -402,7 +398,7 @@ router.get('/:userId', async (req, res) => {
           const imgWidth = doc.page.width - 80;
           const imgHeight = doc.page.height - 110;
           doc.image(buf, 40, 70, { width: imgWidth, height: imgHeight });
-          addWatermark(doc, WATERMARK_TEXT, 0.2);
+          addWatermark(doc, WATERMARK_TEXT, 0.18);
         } catch (e) {
           doc.fontSize(12).fillColor('#666').text('Unable to display image', 40, 200);
         }
@@ -410,7 +406,7 @@ router.get('/:userId', async (req, res) => {
         doc.fontSize(12).fillColor('#666').text('Image not found', 40, 200);
       }
       
-      // Watermark already added above (line 405) when image loaded
+      addWatermark(doc, WATERMARK_TEXT, 0.12);
     }
     
     // ========== DOCUMENTS - ONE PER PAGE ==========
@@ -419,13 +415,14 @@ router.get('/:userId', async (req, res) => {
       pageNum++;
       
       doc.fontSize(14).fillColor('#8B5CF6').text(`Document ${i + 1} of ${docs.length}`, 40, 30, { align: 'center' });
+      addWatermark(doc, WATERMARK_TEXT, 0.12);
       
       y = 60;
       doc.fontSize(12).fillColor('#333').text(`Type: ${docs[i].document_type || 'N/A'}`, 40, y);
       doc.fontSize(12).fillColor('#333').text(`File Name: ${docs[i].file_name || 'N/A'}`, 40, y + 18);
       doc.fontSize(12).fillColor('#333').text(`Status: ${docs[i].status || 'N/A'}`, 40, y + 36);
       
-      // Show document image FIRST (like gallery pages)
+      // Show document image if available
       if (docs[i].document_url) {
         const docBuf = await fetchImage(docs[i].document_url);
         if (docBuf) {
@@ -437,9 +434,6 @@ router.get('/:userId', async (req, res) => {
           }
         }
       }
-      
-      // Apply watermark AFTER image - so it appears ON TOP (like gallery pages)
-      addWatermark(doc, WATERMARK_TEXT, 0.2);
     }
     
     doc.end();
