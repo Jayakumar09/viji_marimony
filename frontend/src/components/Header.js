@@ -3,7 +3,7 @@ import { AppBar, Toolbar, Typography, Button, Box, IconButton, Menu, MenuItem, B
 import { AccountCircle, Search, Message, FavoriteBorder, Verified, AdminPanelSettings, WorkspacePremium, Star, Upgrade } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { normalizeTier, getTierBadgeColor, getTierDisplayName, canUpgrade, isPaidTier } from '../utils/subscription';
+import { normalizeTier, getTierBadgeColor, getTierDisplayName, canUpgrade, isPaidTier, TIER_VALUES } from '../utils/subscription';
 
 const Header = () => {
   const navigate = useNavigate();
@@ -13,6 +13,11 @@ const Header = () => {
 
   // Normalize subscription tier from database
   const subscriptionTier = normalizeTier(user?.subscriptionTier || user?.subscription?.plan);
+  
+  // Check if user is premium (PREMIUM, PRO, ELITE - not BASIC)
+  const isPremium = subscriptionTier === TIER_VALUES.PREMIUM || 
+                    subscriptionTier === TIER_VALUES.PRO || 
+                    subscriptionTier === TIER_VALUES.ELITE;
 
   // Simple admin check - only vijayalakshmijayakumar45@gmail.com is the admin
   const isAdmin = user?.email === 'vijayalakshmijayakumar45@gmail.com';
