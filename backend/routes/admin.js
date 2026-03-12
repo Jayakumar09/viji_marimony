@@ -1,5 +1,8 @@
  const express = require('express');
 const router = express.Router();
+const nodemailer = require('nodemailer');
+const multer = require('multer');
+const upload = multer({ memory: true });
 const { 
   adminMiddleware,
   getPendingVerifications,
@@ -143,27 +146,86 @@ router.put('/documents/:id/approve', approveDocument);
 router.put('/documents/:id/reject', rejectDocument);
 
 // Share profile via email
-router.post('/share-profile-email', async (req, res) => {
+router.post('/share-profile-email', upload.single('pdf'), async (req, res) => {
   try {
-    const { pdf, email, profileName, shareType } = req.body;
+    const { email, profileName, shareType } = req.body;
+    const pdfFile = req.file;
     
-    // For now, we'll just return success since the frontend handles the email client fallback
-    // In production, you would integrate with an email service like SendGrid, Mailgun, etc.
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
     
-    console.log('Profile share request:', {
-      email,
-      profileName,
-      shareType,
-      pdfSize: pdf ? 'PDF attached' : 'No PDF'
+    // Get SMTP settings from environment
+    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = process.env.SMTP_PORT || 587;
+    const smtpUser = process.env.EMAIL_USER || process.env.BUSINESS_EMAIL_USER;
+    const smtpPass = process.env.EMAIL_PASS || process.env.BUSINESS_EMAIL_PASS;
+    const fromEmail = process.env.FROM_EMAIL || process.env.BUSINESS_EMAIL_USER;
+    
+    // If SMTP is not configured, return fallback message
+    if (!smtpUser || !smtpPass) {
+      console.log('SMTP not configured, returning fallback');
+      return res.json({ 
+        success: true, 
+        message: 'Email service not configured. Please use the mailto link to send email.',
+        fallback: true
+      });
+    }
+    
+    console.log('Using SMTP:', smtpHost, 'From:', fromEmail);
+    
+    // Create transporter
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass
+      }
     });
+    
+    const sanitizedText = shareType === 'other' ? '(Sanitized - Private info hidden)' : '(Full Profile)';
+    
+    // Prepare email
+    const mailOptions = {
+      from: `"Vijayalakshmi Boyar Matrimony" <${fromEmail}>`,
+      to: email,
+      subject: `${profileName}'s Profile - Vijayalakshmi Boyar Matrimony`,
+      text: `Please find attached the profile of ${profileName} ${sanitizedText}.\n\nRegards,\nVijayalakshmi Boyar Matrimony`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #8B5CF6;">Vijayalakshmi Boyar Matrimony</h2>
+          <p>Please find attached the profile of <strong>${profileName}</strong> ${sanitizedText}.</p>
+          <p>This profile was shared via our matrimony service.</p>
+          <hr style="border: 1px solid #eee; margin: 20px 0;">
+          <p style="color: #666; font-size: 12px;">Regards,<br>Vijayalakshmi Boyar Matrimony</p>
+        </div>
+      `
+    };
+    
+    // Attach PDF if provided
+    if (pdfFile) {
+      mailOptions.attachments = [
+        {
+          filename: pdfFile.originalname || `${profileName}_Profile.pdf`,
+          content: pdfFile.buffer
+        }
+      ];
+    }
+    
+    // Send email
+    await transporter.sendMail(mailOptions);
+    
+    console.log('Profile email sent successfully to:', email);
     
     res.json({ 
       success: true, 
-      message: 'Email endpoint ready. In production, this would send the PDF via email service.' 
+      message: `Profile sent to ${email}` 
     });
   } catch (error) {
     console.error('Share profile email error:', error);
-    res.status(500).json({ error: 'Failed to send email' });
+    res.status(500).json({ error: 'Failed to send email: ' + error.message });
   }
 });
 

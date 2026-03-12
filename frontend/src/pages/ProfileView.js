@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Container,
@@ -53,6 +53,8 @@ import { getImageUrl } from '../utils/imageUrl';
 const ProfileView = () => {
   const { profileId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sanitize = searchParams.get('sanitize') === 'true';
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState(0);
   const [showFullProfile, setShowFullProfile] = useState(false);

@@ -414,9 +414,11 @@ router.get('/:userId', async (req, res) => {
       doc.addPage();
       pageNum++;
       
-      doc.fontSize(14).fillColor('#8B5CF6').text(`Document ${i + 1} of ${docs.length}`, 40, 30, { align: 'center' });
+      // Draw header box
+      doc.fillColor('#8B5CF6').rect(30, 20, doc.page.width - 60, 35).fill();
+      doc.fillColor('#FFFFFF').fontSize(14).text(`Document ${i + 1} of ${docs.length}`, 40, 30, { align: 'center' });
       
-      y = 60;
+      y = 70;
       doc.fontSize(12).fillColor('#333').text(`Type: ${docs[i].document_type || 'N/A'}`, 40, y);
       doc.fontSize(12).fillColor('#333').text(`File Name: ${docs[i].file_name || 'N/A'}`, 40, y + 18);
       doc.fontSize(12).fillColor('#333').text(`Status: ${docs[i].status || 'N/A'}`, 40, y + 36);
