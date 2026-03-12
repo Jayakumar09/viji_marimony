@@ -1345,13 +1345,13 @@ const UserManagement = () => {
                           color={user.isVerified ? 'success' : 'default'}
                           sx={{ borderRadius: 1 }}
                         />
-                        {user.isPremium && (
+                        {user.subscriptionTier && user.subscriptionTier !== 'FREE' && (
                           <Chip
-                            label="Premium"
+                            label={user.subscriptionTier}
                             size="small"
                             sx={{
-                              bgcolor: '#fef3c7',
-                              color: '#d97706',
+                              bgcolor: user.subscriptionTier === 'PREMIUM' || user.subscriptionTier === 'PRO' ? '#fef3c7' : '#e0e7ff',
+                              color: user.subscriptionTier === 'PREMIUM' || user.subscriptionTier === 'PRO' ? '#d97706' : '#4338ca',
                               fontWeight: 600,
                               borderRadius: 1
                             }}
