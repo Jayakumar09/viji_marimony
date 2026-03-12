@@ -3,6 +3,7 @@ import { AppBar, Toolbar, Typography, Button, Box, IconButton, Menu, MenuItem, B
 import { AccountCircle, Search, Message, FavoriteBorder, Verified, AdminPanelSettings, WorkspacePremium, Star, Upgrade } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { normalizeTier, getTierBadgeColor, getTierDisplayName, canUpgrade, isPaidTier } from '../utils/subscription';
 
 const Header = () => {
   const navigate = useNavigate();
@@ -10,32 +11,8 @@ const Header = () => {
   const { user, logout } = useAuth();
   const [anchorEl, setAnchorEl] = React.useState(null);
 
-  // Get subscription tier from user
-  const subscriptionTier = user?.subscriptionTier || user?.subscription?.plan || 'FREE';
-  
-  // Check if user is premium (not FREE tier) - include STANDARD, PREMIUM, ELITE, PRO, BASIC
-  const isPremium = subscriptionTier && 
-    ['STANDARD', 'PREMIUM', 'ELITE', 'PRO', 'BASIC', 'Basic', 'Pro', 'Premium'].includes(subscriptionTier);
-
-  // Get badge color based on subscription tier
-  const getPlanBadgeColor = (tier) => {
-    switch (tier) {
-      case 'PREMIUM': return '#FFD700'; // Gold
-      case 'PRO': return '#8B5CF6'; // Purple
-      case 'BASIC': return '#4CAF50'; // Green
-      default: return '#9E9E9E'; // Grey for FREE
-    }
-  };
-
-  // Get plan display name
-  const getPlanDisplayName = (tier) => {
-    switch (tier) {
-      case 'PREMIUM': return 'Premium';
-      case 'PRO': return 'Pro';
-      case 'BASIC': return 'Basic';
-      default: return 'Free';
-    }
-  };
+  // Normalize subscription tier from database
+  const subscriptionTier = normalizeTier(user?.subscriptionTier || user?.subscription?.plan);
 
   // Simple admin check - only vijayalakshmijayakumar45@gmail.com is the admin
   const isAdmin = user?.email === 'vijayalakshmijayakumar45@gmail.com';
@@ -73,17 +50,17 @@ const Header = () => {
           <Box display="flex" alignItems="center" gap={2}>
             {/* Plan Badge - Shows for all users */}
             <Chip
-              icon={isPremium ? <Star style={{ color: getPlanBadgeColor(subscriptionTier) }} /> : <WorkspacePremium style={{ color: '#9E9E9E' }} />}
-              label={getPlanDisplayName(subscriptionTier)}
+              icon={isPaidTier(subscriptionTier) ? <Star style={{ color: getTierBadgeColor(subscriptionTier) }} /> : <WorkspacePremium style={{ color: '#9E9E9E' }} />}
+              label={getTierDisplayName(subscriptionTier)}
               size="small"
               style={{ 
-                backgroundColor: isPremium ? getPlanBadgeColor(subscriptionTier) : 'rgba(255,255,255,0.2)',
-                color: isPremium ? '#000' : '#fff',
+                backgroundColor: getTierBadgeColor(subscriptionTier),
+                color: subscriptionTier === 'FREE' ? '#fff' : '#000',
                 fontWeight: 'bold'
               }}
             />
-            {/* Show Upgrade button for Free users */}
-            {!isPremium && (
+            {/* Show Upgrade button for users who can upgrade (not ELITE) */}
+            {canUpgrade(subscriptionTier) && (
               <Button
                 variant="contained"
                 size="small"
@@ -140,7 +117,7 @@ const Header = () => {
               <Box px={2} py={1} display="flex" alignItems="center" gap={1}>
                 <WorkspacePremium fontSize="small" style={{ color: getPlanBadgeColor(subscriptionTier) }} />
                 <Typography variant="body2" style={{ fontWeight: 'bold' }}>
-                  Plan: {getPlanDisplayName(subscriptionTier)}
+                  Plan: {getTierDisplayName(subscriptionTier)}
                 </Typography>
               </Box>
               {!isPremium && (

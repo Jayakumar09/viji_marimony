@@ -18,6 +18,7 @@ import {
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { normalizeTier, getTierDisplayName, getTierBadgeColor } from '../utils/subscription';
 import AdminUserProfile from './AdminUserProfile';
 import ProfileShareModal from '../components/ProfileShareModal';
 import toast from 'react-hot-toast';
@@ -1347,11 +1348,11 @@ const UserManagement = () => {
                         />
                         {user.subscriptionTier && user.subscriptionTier !== 'FREE' && (
                           <Chip
-                            label={user.subscriptionTier}
+                            label={getTierDisplayName(user.subscriptionTier)}
                             size="small"
                             sx={{
-                              bgcolor: user.subscriptionTier === 'PREMIUM' || user.subscriptionTier === 'PRO' ? '#fef3c7' : '#e0e7ff',
-                              color: user.subscriptionTier === 'PREMIUM' || user.subscriptionTier === 'PRO' ? '#d97706' : '#4338ca',
+                              bgcolor: getTierBadgeColor(user.subscriptionTier),
+                              color: '#000',
                               fontWeight: 600,
                               borderRadius: 1
                             }}

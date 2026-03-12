@@ -4,6 +4,7 @@ import { Person, Search, Message, FavoriteBorder, SupportAgent, Refresh } from '
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getImageUrl } from '../utils/imageUrl';
+import { normalizeTier, getTierDisplayName, canUpgrade, isPaidTier } from '../utils/subscription';
 
 const Dashboard = () => {
   const { user, loading, updateUser } = useAuth();
@@ -287,9 +288,9 @@ const Dashboard = () => {
                 <Typography variant="body2">Premium Member:</Typography>
                 <Typography 
                   variant="body2" 
-                  style={{ color: user?.subscriptionTier && user.subscriptionTier !== 'FREE' ? '#4CAF50' : '#757575' }}
+                  style={{ color: isPaidTier(user?.subscriptionTier) ? '#4CAF50' : '#757575' }}
                 >
-                  {user?.subscriptionTier && user.subscriptionTier !== 'FREE' ? `👑 ${user.subscriptionTier}` : 'Free'}
+                  {isPaidTier(user?.subscriptionTier) ? `👑 ${getTierDisplayName(user.subscriptionTier)}` : 'Free'}
                 </Typography>
               </Box>
             </Box>
