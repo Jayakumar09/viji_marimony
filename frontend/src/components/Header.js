@@ -66,7 +66,7 @@ const Header = () => {
           style={{ flexGrow: 1, cursor: 'pointer' }}
           onClick={() => navigate('/')}
         >
-          🏛️ Vijayalakshmi Boyar Matrimony
+          💍 Vijayalakshmi Boyar Matrimony
         </Typography>
 
         {user ? (

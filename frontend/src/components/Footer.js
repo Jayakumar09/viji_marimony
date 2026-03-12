@@ -8,7 +8,7 @@ const Footer = () => {
         <Box display="flex" justifyContent="space-between" flexWrap="wrap" gap={4}>
           <Box flex="1" minWidth="250px">
             <Typography variant="h6" gutterBottom>
-              🏛️ Vijayalakshmi Boyar Matrimony
+              💍 Vijayalakshmi Boyar Matrimony
             </Typography>
             <Typography variant="body2">
               A trusted platform for the Boyar community to find their perfect life partners.

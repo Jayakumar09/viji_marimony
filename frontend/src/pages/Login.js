@@ -121,7 +121,7 @@ const Login = () => {
       <Paper elevation={3} style={{ padding: '3rem' }}>
         <Box textAlign="center" mb={3}>
           <Typography variant="h4" gutterBottom style={{ color: '#8B5CF6', fontWeight: 'bold' }}>
-            🏛️ Vijayalakshmi Boyar Matrimony
+            💍 Vijayalakshmi Boyar Matrimony
           </Typography>
           <Typography variant="h6" color="textSecondary">
             Welcome Back

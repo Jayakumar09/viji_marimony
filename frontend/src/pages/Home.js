@@ -44,7 +44,7 @@ const Home = () => {
       >
         <Container maxWidth="md">
           <Typography variant="h2" gutterBottom style={{ fontWeight: 'bold' }}>
-            🏛️ Vijayalakshmi Boyar Matrimony
+            💍 Vijayalakshmi Boyar Matrimony
           </Typography>
           <Typography variant="h5" paragraph>
             Find Your Perfect Life Partner Within the Boyar Community
