@@ -120,7 +120,7 @@ const Header = () => {
             >
               {/* Current Plan Display in Dropdown */}
               <Box px={2} py={1} display="flex" alignItems="center" gap={1}>
-                <WorkspacePremium fontSize="small" style={{ color: getPlanBadgeColor(subscriptionTier) }} />
+                <WorkspacePremium fontSize="small" style={{ color: getTierBadgeColor(subscriptionTier) }} />
                 <Typography variant="body2" style={{ fontWeight: 'bold' }}>
                   Plan: {getTierDisplayName(subscriptionTier)}
                 </Typography>
