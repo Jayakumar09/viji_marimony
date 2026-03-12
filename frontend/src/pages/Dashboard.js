@@ -1,13 +1,17 @@
 import React from 'react';
 import { Box, Typography, Container, Paper, Grid, Button, Avatar, CircularProgress } from '@mui/material';
-import { Person, Search, Message, FavoriteBorder, SupportAgent } from '@mui/icons-material';
+import { Person, Search, Message, FavoriteBorder, SupportAgent, Refresh } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getImageUrl } from '../utils/imageUrl';
 
 const Dashboard = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, updateUser } = useAuth();
   const navigate = useNavigate();
+
+  const handleRefresh = async () => {
+    await updateUser();
+  };
 
   if (loading) {
     return (
@@ -100,9 +104,20 @@ const Dashboard = () => {
 
   return (
     <Container maxWidth="lg" style={{ marginTop: '2rem' }}>
-      <Typography variant="h4" gutterBottom style={{ color: '#8B5CF6', fontWeight: 'bold' }}>
-        Welcome back, {user?.firstName}! 👋
-      </Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h4" style={{ color: '#8B5CF6', fontWeight: 'bold' }}>
+          Welcome back, {user?.firstName}! 👋
+        </Typography>
+        <Button 
+          variant="outlined" 
+          size="small" 
+          startIcon={<Refresh />}
+          onClick={handleRefresh}
+          sx={{ borderColor: '#8B5CF6', color: '#8B5CF6' }}
+        >
+          Refresh
+        </Button>
+      </Box>
 
       <Grid container spacing={4}>
         {/* Profile Summary */}
@@ -272,9 +287,9 @@ const Dashboard = () => {
                 <Typography variant="body2">Premium Member:</Typography>
                 <Typography 
                   variant="body2" 
-                  style={{ color: user?.isPremium ? '#4CAF50' : '#757575' }}
+                  style={{ color: user?.subscriptionTier && user.subscriptionTier !== 'FREE' ? '#4CAF50' : '#757575' }}
                 >
-                  {user?.isPremium ? '👑 Premium' : 'Free'}
+                  {user?.subscriptionTier && user.subscriptionTier !== 'FREE' ? `👑 ${user.subscriptionTier}` : 'Free'}
                 </Typography>
               </Box>
             </Box>
