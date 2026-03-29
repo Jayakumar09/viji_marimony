@@ -222,6 +222,8 @@ const getAllUsers = async (req, res) => {
     });
     
     // Map users to include actual subscription plan from Subscription table
+    // First, sync any mismatched subscriptions in the database
+    const syncPromises = [];
     const usersWithSubscription = users.map(user => {
       const activeSubscription = user.subscriptions && user.subscriptions.length > 0 
         ? user.subscriptions[0] 
@@ -232,12 +234,14 @@ const getAllUsers = async (req, res) => {
         ? activeSubscription.plan 
         : (user.subscriptionTier || 'FREE');
       
-      // Update user table if subscription table has different value (sync)
+      // Queue sync operation if subscription table has different value
       if (activeSubscription && user.subscriptionTier !== activeSubscription.plan) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { subscriptionTier: activeSubscription.plan }
-        });
+        syncPromises.push(
+          prisma.user.update({
+            where: { id: user.id },
+            data: { subscriptionTier: activeSubscription.plan }
+          }).catch(err => console.error('Failed to sync subscription:', err))
+        );
       }
       
       return {
@@ -259,6 +263,11 @@ const getAllUsers = async (req, res) => {
         isActive: user.isActive
       };
     });
+    
+    // Execute sync operations in background (non-blocking)
+    if (syncPromises.length > 0) {
+      Promise.all(syncPromises).catch(err => console.error('Subscription sync errors:', err));
+    }
     
     const total = await prisma.user.count({ where });
     
