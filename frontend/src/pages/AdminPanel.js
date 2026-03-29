@@ -1348,10 +1348,10 @@ const UserManagement = () => {
                         />
                         {user.subscriptionTier && user.subscriptionTier !== 'FREE' && (
                           <Chip
-                            label={getTierDisplayName(user.subscriptionTier)}
+                            label={getTierDisplayName(user.subscriptionPlan || user.subscriptionTier)}
                             size="small"
                             sx={{
-                              bgcolor: getTierBadgeColor(user.subscriptionTier),
+                              bgcolor: getTierBadgeColor(user.subscriptionPlan || user.subscriptionTier),
                               color: '#000',
                               fontWeight: 600,
                               borderRadius: 1

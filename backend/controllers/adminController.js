@@ -227,10 +227,18 @@ const getAllUsers = async (req, res) => {
         ? user.subscriptions[0] 
         : null;
       
-      // Use Subscription table plan if available, otherwise fall back to User table
+      // Use Subscription table plan as primary, fallback to User table
       const actualPlan = activeSubscription 
         ? activeSubscription.plan 
         : (user.subscriptionTier || 'FREE');
+      
+      // Update user table if subscription table has different value (sync)
+      if (activeSubscription && user.subscriptionTier !== activeSubscription.plan) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { subscriptionTier: activeSubscription.plan }
+        });
+      }
       
       return {
         id: user.id,
@@ -243,7 +251,7 @@ const getAllUsers = async (req, res) => {
         state: user.state,
         isVerified: user.isVerified,
         isPremium: user.isPremium,
-        subscriptionTier: user.subscriptionTier,
+        subscriptionTier: actualPlan,  // Use actual plan from Subscription table
         subscriptionPlan: actualPlan,
         subscriptionStart: activeSubscription?.startDate || user.subscriptionStart,
         subscriptionEnd: activeSubscription?.endDate || null,
