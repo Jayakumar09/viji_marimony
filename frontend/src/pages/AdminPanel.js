@@ -2194,21 +2194,23 @@ const SubscriptionManagement = () => {
 const ActivityLogs = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     fetchLogs();
-  }, []);
+  }, [filter]);
 
   const fetchLogs = async () => {
     try {
-      const response = await api.get('/admin/logs');
+      setLoading(true);
+      const response = await api.get(`/admin/logs?type=${filter}`);
       setLogs(response.data.logs || []);
     } catch (error) {
-      // Mock data
+      console.error('Failed to fetch logs:', error);
       setLogs([
-        { id: '1', action: 'User Registered', user: 'rama@example.com', timestamp: new Date(), details: 'New user registration' },
-        { id: '2', action: 'Photo Approved', user: 'admin', timestamp: new Date(Date.now() - 3600000), details: 'Profile photo verified' },
-        { id: '3', action: 'Subscription Created', user: 'sowmya@example.com', timestamp: new Date(Date.now() - 7200000), details: 'Premium plan activated' },
+        { id: '1', action: 'User Registered', user: 'rama@example.com', timestamp: new Date(), details: 'New user registration', type: 'user_registration' },
+        { id: '2', action: 'Photo Approved', user: 'admin', timestamp: new Date(Date.now() - 3600000), details: 'Profile photo verified', type: 'admin' },
+        { id: '3', action: 'Subscription Created', user: 'sowmya@example.com', timestamp: new Date(Date.now() - 7200000), details: 'Premium plan activated', type: 'subscription' },
       ]);
     } finally {
       setLoading(false);
@@ -2217,10 +2219,26 @@ const ActivityLogs = () => {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight="bold" gutterBottom>Activity Logs</Typography>
-      <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-        Track all platform activities
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h5" fontWeight="bold">Activity Logs</Typography>
+          <Typography variant="body2" color="textSecondary">
+            Track all platform activities
+          </Typography>
+        </Box>
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <Select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            displayEmpty
+          >
+            <MenuItem value="all">All Activities</MenuItem>
+            <MenuItem value="admin">Admin Actions</MenuItem>
+            <MenuItem value="user_registration">User Registrations</MenuItem>
+            <MenuItem value="subscription">Subscriptions</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
 
       {loading ? (
         <LinearProgress />
@@ -2236,7 +2254,21 @@ const ActivityLogs = () => {
                     </Avatar>
                   </ListItemIcon>
                   <ListItemText
-                    primary={log.action}
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {log.action}
+                        <Chip
+                          label={log.type === 'admin' ? 'Admin' : log.type === 'user_registration' ? 'Registration' : log.type === 'subscription' ? 'Subscription' : 'Activity'}
+                          size="small"
+                          sx={{
+                            bgcolor: log.type === 'admin' ? '#fef3c7' : log.type === 'user_registration' ? '#dbeafe' : log.type === 'subscription' ? '#dcfce7' : '#e5e7eb',
+                            color: '#000',
+                            fontSize: '10px',
+                            height: 20
+                          }}
+                        />
+                      </Box>
+                    }
                     secondary={
                       <>
                         <Typography variant="body2" component="span">

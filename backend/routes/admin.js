@@ -79,7 +79,7 @@ router.use(adminMiddleware);
 router.get('/dashboard', getDashboardStats);
 
 // Activity Logs
-router.get('/activity-logs', getAdminLogs);
+router.get('/logs', getAdminLogs);
 
 // Photo verification routes
 router.get('/photos/pending', getPendingVerifications);
