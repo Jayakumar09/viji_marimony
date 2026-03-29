@@ -17,7 +17,8 @@ const {
   syncUserSubscription,
   getPendingProfileVerifications,
   approveProfileVerification,
-  rejectProfileVerification
+  rejectProfileVerification,
+  getAdminLogs
 } = require('../controllers/adminController');
 const {
   getAdminUserProfile,
@@ -76,6 +77,9 @@ router.use(adminMiddleware);
 
 // Dashboard
 router.get('/dashboard', getDashboardStats);
+
+// Activity Logs
+router.get('/activity-logs', getAdminLogs);
 
 // Photo verification routes
 router.get('/photos/pending', getPendingVerifications);
