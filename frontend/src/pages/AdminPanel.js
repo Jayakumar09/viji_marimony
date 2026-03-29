@@ -1345,13 +1345,13 @@ const UserManagement = () => {
                           color={user.isVerified ? 'success' : 'default'}
                           sx={{ borderRadius: 1 }}
                         />
-                        {user.isPremium && (
+                        {user.subscriptionPlan && user.subscriptionPlan !== 'FREE' && (
                           <Chip
-                            label="Premium"
+                            label={user.subscriptionPlan === 'PREMIUM' ? 'Premium' : user.subscriptionPlan === 'PRO' ? 'Pro' : user.subscriptionPlan === 'BASIC' ? 'Basic' : user.subscriptionPlan}
                             size="small"
                             sx={{
-                              bgcolor: '#fef3c7',
-                              color: '#d97706',
+                              bgcolor: user.subscriptionPlan === 'PREMIUM' ? '#fef3c7' : user.subscriptionPlan === 'PRO' ? '#ede9fe' : user.subscriptionPlan === 'BASIC' ? '#dcfce7' : '#e5e7eb',
+                              color: '#000',
                               fontWeight: 600,
                               borderRadius: 1
                             }}
@@ -1473,11 +1473,13 @@ const UserManagement = () => {
                     {selectedUser.firstName} {selectedUser.lastName}
                   </Typography>
                   <Chip
-                    label={selectedUser.isPremium ? 'Premium User' : 'Free User'}
+                    label={selectedUser.subscriptionPlan && selectedUser.subscriptionPlan !== 'FREE' 
+                      ? `${selectedUser.subscriptionPlan} User` 
+                      : 'Free User'}
                     size="small"
                     sx={{
-                      bgcolor: selectedUser.isPremium ? '#fef3c7' : '#f0f0f0',
-                      color: selectedUser.isPremium ? '#d97706' : 'text.secondary'
+                      bgcolor: selectedUser.subscriptionPlan === 'PREMIUM' ? '#fef3c7' : selectedUser.subscriptionPlan === 'PRO' ? '#ede9fe' : selectedUser.subscriptionPlan === 'BASIC' ? '#dcfce7' : '#f0f0f0',
+                      color: selectedUser.subscriptionPlan && selectedUser.subscriptionPlan !== 'FREE' ? '#000' : 'text.secondary'
                     }}
                   />
                 </Box>
@@ -2193,22 +2195,38 @@ const SubscriptionManagement = () => {
 const ActivityLogs = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filterType, setFilterType] = useState('all');
 
   useEffect(() => {
     fetchLogs();
-  }, []);
+  }, [filterType]);
 
   const fetchLogs = async () => {
     try {
-      const response = await api.get('/admin/logs');
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (filterType !== 'all') {
+        params.append('type', filterType);
+      }
+      const queryString = params.toString();
+      console.log('Fetching logs from:', `/admin/logs${queryString ? '?' + queryString : ''}`);
+      const response = await api.get(`/admin/logs${queryString ? '?' + queryString : ''}`);
+      console.log('Logs response:', response.data);
       setLogs(response.data.logs || []);
     } catch (error) {
-      // Mock data
-      setLogs([
-        { id: '1', action: 'User Registered', user: 'rama@example.com', timestamp: new Date(), details: 'New user registration' },
-        { id: '2', action: 'Photo Approved', user: 'admin', timestamp: new Date(Date.now() - 3600000), details: 'Profile photo verified' },
-        { id: '3', action: 'Subscription Created', user: 'sowmya@example.com', timestamp: new Date(Date.now() - 7200000), details: 'Premium plan activated' },
-      ]);
+      console.error('Fetch logs error:', error);
+      // Only show mock data if there's a network error
+      if (error.response) {
+        console.log('API error status:', error.response.status);
+        setLogs([]);
+      } else {
+        // Mock data
+        setLogs([
+          { id: '1', action: 'User Registered', user: 'rama@example.com', timestamp: new Date(), details: 'New user registration' },
+          { id: '2', action: 'Photo Approved', user: 'admin', timestamp: new Date(Date.now() - 3600000), details: 'Profile photo verified' },
+          { id: '3', action: 'Subscription Created', user: 'sowmya@example.com', timestamp: new Date(Date.now() - 7200000), details: 'Premium plan activated' },
+        ]);
+      }
     } finally {
       setLoading(false);
     }
@@ -2221,8 +2239,27 @@ const ActivityLogs = () => {
         Track all platform activities
       </Typography>
 
+      {/* Filter Dropdown */}
+      <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel>Filter by Type</InputLabel>
+          <Select
+            value={filterType}
+            label="Filter by Type"
+            onChange={(e) => setFilterType(e.target.value)}
+          >
+            <MenuItem value="all">All Activities</MenuItem>
+            <MenuItem value="admin">Admin Actions</MenuItem>
+            <MenuItem value="user_registration">User Registrations</MenuItem>
+            <MenuItem value="subscription">Subscriptions</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+
       {loading ? (
         <LinearProgress />
+      ) : logs.length === 0 ? (
+        <Typography color="textSecondary">No activities found</Typography>
       ) : (
         <Card sx={{ borderRadius: 3 }}>
           <List>

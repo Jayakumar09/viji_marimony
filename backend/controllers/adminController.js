@@ -195,43 +195,67 @@ const getAllUsers = async (req, res) => {
           where.isVerified = true;
           break;
         case 'premium':
-          where.isPremium = true;
+          where.subscriptions = {
+            some: {
+              status: 'ACTIVE'
+            }
+          };
           break;
         default:
           break;
       }
     }
     
+    // Fetch users with subscription data
     const users = await prisma.user.findMany({
       where,
       skip,
       take: parseInt(limit),
       orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        customId: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        city: true,
-        state: true,
-        isVerified: true,
-        photosVerified: true,
-        emailVerified: true,
-        phoneVerified: true,
-        isActive: true,
-        isPremium: true,
-        subscriptionTier: true,
-        subscriptionStart: true,
-        createdAt: true
+      include: {
+        subscriptions: {
+          where: { status: 'ACTIVE' },
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        }
       }
+    });
+    
+    // Map users to include actual subscription plan from Subscription table
+    const usersWithSubscription = users.map(user => {
+      const activeSubscription = user.subscriptions && user.subscriptions.length > 0 
+        ? user.subscriptions[0] 
+        : null;
+      
+      // Use Subscription table plan if available, otherwise fall back to User table
+      const actualPlan = activeSubscription 
+        ? activeSubscription.plan 
+        : (user.subscriptionTier || 'FREE');
+      
+      return {
+        id: user.id,
+        customId: user.customId,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        city: user.city,
+        state: user.state,
+        isVerified: user.isVerified,
+        isPremium: user.isPremium,
+        subscriptionTier: user.subscriptionTier,
+        subscriptionPlan: actualPlan,
+        subscriptionStart: activeSubscription?.startDate || user.subscriptionStart,
+        subscriptionEnd: activeSubscription?.endDate || null,
+        createdAt: user.createdAt,
+        isActive: user.isActive
+      };
     });
     
     const total = await prisma.user.count({ where });
     
     res.json({
-      users,
+      users: usersWithSubscription,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -788,6 +812,164 @@ const rejectProfileVerification = async (req, res) => {
   }
 };
 
+// Get admin activity logs + user activities (registrations, logins, subscriptions)
+const getAdminLogs = async (req, res) => {
+  try {
+    const { page = 1, limit = 50, action, type } = req.query;
+    console.log('getAdminLogs called with:', { page, limit, action, type });
+    const skip = (page - 1) * limit;
+    const parsedLimit = parseInt(limit);
+    
+    let where = {};
+    if (action && action !== 'all') {
+      where.action = action;
+    }
+    
+    // Get admin logs (no include since relation may not exist in all DBs)
+    const adminLogs = await prisma.adminActivityLog.findMany({
+      where,
+      skip,
+      take: parsedLimit,
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    // Get recent user registrations (last 20 users)
+    const recentUsers = await prisma.user.findMany({
+      take: 20,
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, firstName: true, lastName: true, email: true, createdAt: true, customId: true }
+    });
+    
+    // Get recent subscriptions
+    const recentSubscriptions = await prisma.subscription.findMany({
+      take: 20,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true, customId: true } }
+      }
+    });
+    
+    // Build combined logs list
+    let combinedLogs = [];
+    
+    // Create a map of userId to user info for quick lookup
+    const userMap = new Map();
+    recentUsers.forEach(user => {
+      userMap.set(user.id, user);
+    });
+    recentSubscriptions.forEach(sub => {
+      if (sub.user) userMap.set(sub.userId, sub.user);
+    });
+    
+    // Add admin logs
+    adminLogs.forEach(log => {
+      // Parse details JSON for better display
+      let details = log.details || '';
+      
+      // Get target user info if available
+      const targetUser = log.targetUserId ? userMap.get(log.targetUserId) : null;
+      const targetUserName = targetUser ? `${targetUser.firstName || ''} ${targetUser.lastName || ''}`.trim() : null;
+      const targetUserCustomId = targetUser ? targetUser.customId : null;
+      
+      try {
+        const parsed = JSON.parse(log.details);
+        
+        // Generate readable description based on action type
+        switch (log.action) {
+          case 'VIEW_USER_PROFILE':
+            details = targetUserName 
+              ? `Viewed profile of ${targetUserName} (${targetUserCustomId || log.targetUserId})`
+              : targetUserCustomId
+                ? `Viewed profile (${targetUserCustomId})`
+                : 'Viewed user profile';
+            break;
+          case 'UPDATE_SUBSCRIPTION':
+            details = parsed.plan ? `Updated ${targetUserName || 'user'} subscription to ${parsed.plan} plan` : 'Updated subscription';
+            break;
+          case 'VERIFY_USER':
+            details = `Verified ${targetUserName || 'user'}'s profile`;
+            break;
+          case 'BLOCK_USER':
+            details = `Blocked ${targetUserName || 'user'}`;
+            break;
+          case 'UNBLOCK_USER':
+            details = `Unblocked ${targetUserName || 'user'}`;
+            break;
+          case 'DELETE_USER':
+            details = `Deleted ${targetUserName || 'user'}'s profile`;
+            break;
+          default:
+            // For other actions, show parsed details or original
+            details = targetUserName ? `${log.action} - ${targetUserName}` : log.details;
+        }
+      } catch {
+        // Keep original details if not valid JSON
+      }
+      
+      combinedLogs.push({
+        id: log.id,
+        type: 'admin',
+        action: log.action,
+        user: 'Admin', // Admin relation not available in all DBs
+        timestamp: log.createdAt,
+        details: details,
+        targetUserId: log.targetUserId
+      });
+    });
+    
+    // Add user registrations
+    recentUsers.forEach(user => {
+      combinedLogs.push({
+        id: `reg_${user.id}`,
+        type: 'user_registration',
+        action: 'USER_REGISTERED',
+        user: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+        timestamp: user.createdAt,
+        details: `New user registered - ID: ${user.customId || user.id}`,
+        targetUserId: user.id
+      });
+    });
+    
+    // Add subscriptions
+    recentSubscriptions.forEach(sub => {
+      combinedLogs.push({
+        id: `sub_${sub.id}`,
+        type: 'subscription',
+        action: 'SUBSCRIPTION_CREATED',
+        user: sub.user ? `${sub.user.firstName || ''} ${sub.user.lastName || ''}`.trim() || sub.user.email : 'Unknown',
+        timestamp: sub.createdAt,
+        details: `${sub.plan} plan - ₹${sub.amount} (${sub.status})`,
+        targetUserId: sub.userId
+      });
+    });
+    
+    // Sort by timestamp descending
+    combinedLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Filter by type if specified
+    if (type && type !== 'all') {
+      combinedLogs = combinedLogs.filter(log => log.type === type);
+    }
+    
+    // Apply pagination
+    const total = combinedLogs.length;
+    const paginatedLogs = combinedLogs.slice(skip, skip + parsedLimit);
+    
+    res.json({
+      logs: paginatedLogs,
+      pagination: {
+        page: parseInt(page),
+        limit: parsedLimit,
+        total,
+        pages: Math.ceil(total / parsedLimit)
+      }
+    });
+  } catch (error) {
+    console.error('Get admin logs error:', error);
+    res.status(500).json({ error: 'Failed to fetch logs' });
+  }
+};
+
 module.exports = {
   adminMiddleware,
   getPendingVerifications,
@@ -802,5 +984,6 @@ module.exports = {
   syncUserSubscription,
   getPendingProfileVerifications,
   approveProfileVerification,
-  rejectProfileVerification
+  rejectProfileVerification,
+  getAdminLogs
 };

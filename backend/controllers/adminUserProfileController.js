@@ -318,7 +318,8 @@ const getAdminUserProfile = async (req, res) => {
       accountStatus: {
         isActive: user.isActive,
         isPremium: user.isPremium,
-        subscriptionTier: user.subscriptionTier || 'FREE',
+        // Use Subscription table plan as primary, fallback to User table
+        subscriptionTier: (user.subscriptions.length > 0 && user.subscriptions[0].plan) || user.subscriptionTier || 'FREE',
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         lastLoginAt: user.lastLoginAt
@@ -627,7 +628,6 @@ const manualVerifyUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, notes } = req.body;
-    const adminId = req.admin.id;
 
     if (!id) {
       return res.status(400).json({ error: 'User ID is required' });
@@ -638,20 +638,7 @@ const manualVerifyUser = async (req, res) => {
       data: {
         isVerified: status === 'APPROVED',
         manualVerificationStatus: status,
-        manualVerificationNotes: notes,
-        reviewedBy: adminId,
-        reviewedAt: new Date()
-      }
-    });
-
-    await logAdminActivity({
-      adminId,
-      action: 'MANUAL_VERIFY_USER',
-      targetUserId: id,
-      details: {
-        status: status,
-        notes: notes,
-        verifiedAt: new Date()
+        manualVerificationNotes: notes
       }
     });
 

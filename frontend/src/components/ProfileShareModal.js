@@ -64,6 +64,9 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
   const [shareOption, setShareOption] = useState('myself');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [emailing, setEmailing] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [previewMode, setPreviewMode] = useState(false);
   const [sanitizedPreview, setSanitizedPreview] = useState(null);
@@ -175,13 +178,11 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
       return;
     }
 
-    setLoading(true);
+    setDownloading(true);
     try {
       // Use backend PDF generation for better quality
-      const pdfBlob = await profileService.downloadProfilePdf(userId);
-      
-      // DEBUG: Log what's being used for filename
-      console.log('PDF download - customId:', profileData?.customId, 'firstName:', profileData?.firstName);
+      const isSanitizedPreview = shareOption === 'other';
+      const pdfBlob = await profileService.downloadProfilePdf(userId, isSanitizedPreview);
       
       // Create download link
       const url = window.URL.createObjectURL(new Blob([pdfBlob]));
@@ -202,69 +203,90 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
       downloadProfilePDF(profileData, isSanitized);
       toast.success('PDF downloaded successfully!');
     } finally {
-      setLoading(false);
+      setDownloading(false);
     }
   };
 
-  const handleWhatsAppShare = async () => {
+  // Direct share handler - must be called directly from button click
+  const handleDirectShare = async () => {
     if (!profileData) {
       toast.error('Profile data not loaded');
       return;
     }
 
-    setLoading(true);
+    const name = profileData.customId || `${profileData.firstName || 'Profile'}_${profileData.lastName || ''}`.trim();
+    
     try {
-      // Try backend PDF generation first
+      // Get PDF blob
       let pdfBlob;
       try {
-        pdfBlob = await profileService.downloadProfilePdf(userId);
-      } catch (backendError) {
-        // Fallback to frontend PDF
-        const isSanitized = shareOption === 'other';
-        await shareViaWhatsApp(profileData, isSanitized);
+        pdfBlob = await profileService.downloadProfilePdf(userId, isSanitized);
+      } catch {
+        pdfBlob = getProfilePDFBlob(profileData, shareOption === 'other');
       }
       
-      if (pdfBlob) {
-        // Create download link for PDF
-        const url = window.URL.createObjectURL(new Blob([pdfBlob]));
-        const link = document.createElement('a');
-        const name = profileData.customId || `${profileData.firstName || 'Profile'}_${profileData.lastName || ''}`.trim();
-        link.href = url;
-        link.setAttribute('download', `${name.replace(/\s+/g, '_')}_Profile.pdf`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
+      if (!pdfBlob) {
+        throw new Error('Failed to generate PDF');
       }
       
-      // Build comprehensive WhatsApp message with profile details
-      const name = `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim();
-      let shareMessage = `📋 *${name}'s Profile*\n\n`;
+      // Create file for sharing
+      const fileName = `${name.replace(/\s+/g, '_')}_Profile.pdf`;
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
       
-      if (profileData.age) shareMessage += `👤 Age: ${profileData.age} years\n`;
-      if (profileData.gender) shareMessage += `⚥ Gender: ${profileData.gender}\n`;
-      if (profileData.height) shareMessage += `📏 Height: ${profileData.height}\n`;
-      if (profileData.complexion) shareMessage += `🎨 Complexion: ${profileData.complexion}\n`;
-      if (profileData.community) shareMessage += `🕉️ Community: ${profileData.community}\n`;
-      if (profileData.subCaste) shareMessage += `📿 Subcaste: ${profileData.subCaste}\n`;
-      if (profileData.education) shareMessage += `🎓 Education: ${profileData.education}\n`;
-      if (profileData.profession) shareMessage += `💼 Profession: ${profileData.profession}\n`;
-      if (profileData.city || profileData.state) shareMessage += `📍 Location: ${[profileData.city, profileData.state].filter(Boolean).join(', ')}\n`;
-      if (profileData.maritalStatus) shareMessage += `💍 Marital Status: ${profileData.maritalStatus}\n`;
-      
-      shareMessage += `\n✨ *Vijayalakshmi Boyar Matrimony*\n`;
-      shareMessage += `View full profile in the attached PDF.`;
-      
-      // Open WhatsApp with the share message
-      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
-      window.open(whatsappUrl, '_blank');
-      
-      toast.success('PDF downloaded! Share it on WhatsApp.');
+      // Use native share API - works on mobile when called directly from button
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        await navigator.share({
+          files: [pdfFile],
+          title: `${name}'s Profile`,
+          text: `Vijayalakshmi Boyar Matrimony Profile`
+        });
+        toast.success('Shared successfully!');
+      } else {
+        // Desktop fallback - try cloud upload for WhatsApp share
+        try {
+          // First try server-side cloud upload
+          const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/shared-profile/${userId}/cloud-upload`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            // Open WhatsApp with the cloud URL
+            const shareMessage = `${name}'s Profile\nVijayalakshmi Boyar Matrimony\n${result.url}`;
+            window.open(`https://wa.me/?text=${encodeURIComponent(shareMessage)}`, '_blank');
+            toast.success('PDF uploaded! Opening WhatsApp with link.');
+          } else {
+            throw new Error('Cloud upload failed');
+          }
+        } catch (cloudError) {
+          console.log('Cloud upload failed, falling back to download:', cloudError);
+          // Fallback: download PDF and open WhatsApp
+          const pdfBlob = getProfilePDFBlob(profileData, shareOption === 'other');
+          const fileName = `${name.replace(/\s+/g, '_')}_Profile.pdf`;
+          
+          // Download the PDF
+          const url = window.URL.createObjectURL(new Blob([pdfBlob]));
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', fileName);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.URL.revokeObjectURL(url);
+          
+          // Open WhatsApp
+          const shareMessage = `${name}'s Profile\nVijayalakshmi Boyar Matrimony`;
+          window.open(`https://wa.me/?text=${encodeURIComponent(shareMessage)}`, '_blank');
+          toast.success('PDF downloaded! Please attach to WhatsApp.');
+        }
+      }
     } catch (error) {
-      console.error('WhatsApp share error:', error);
-      toast.error('Failed to share via WhatsApp');
-    } finally {
-      setLoading(false);
+      console.error('Share error:', error);
+      if (error.name !== 'AbortError') {
+        toast.error('Failed to share');
+      }
     }
   };
 
@@ -284,15 +306,15 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
       return;
     }
 
-    setLoading(true);
+    setEmailing(true);
     try {
       // Try backend PDF first
       let pdfBlob;
+      const isSanitized = shareOption === 'other';
       try {
-        pdfBlob = await profileService.downloadProfilePdf(userId);
+        pdfBlob = await profileService.downloadProfilePdf(userId, isSanitized);
       } catch (backendError) {
         // Fallback to frontend PDF
-        const isSanitized = shareOption === 'other';
         pdfBlob = getProfilePDFBlob(profileData, isSanitized);
       }
       
@@ -314,11 +336,12 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
       setEmail('');
     } catch (error) {
       console.error('Email share error:', error);
-      // Fallback: Open email client
+      // Fallback: Open email client with link only
+      const pdfLink = `${window.location.origin}/profile/${userId || profileData?.customId}`;
       const subject = encodeURIComponent(`${userName}'s Profile - Vijayalakshmi Boyar Matrimony`);
-      const body = encodeURIComponent(`Please find attached the profile of ${userName}.\n\nRegards,\nVijayalakshmi Boyar Matrimony`);
+      const body = encodeURIComponent(`Please view the profile here:\n${pdfLink}\n\nRegards,\nVijayalakshmi Boyar Matrimony`);
       window.open(`mailto:${email}?subject=${subject}&body=${body}`);
-      toast('PDF downloaded. Please attach it to your email.', { icon: '📧' });
+      toast('Profile link sent. Please check your email.', { icon: '📧' });
       
       // Download PDF as fallback
       try {
@@ -335,7 +358,7 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
         downloadProfilePDF(profileData, shareOption === 'other');
       }
     } finally {
-      setLoading(false);
+      setEmailing(false);
     }
   };
 
@@ -566,9 +589,9 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
                 <Button
                   fullWidth
                   variant="outlined"
-                  startIcon={loading ? <CircularProgress size={20} /> : <PictureAsPdf />}
+                  startIcon={downloading ? <CircularProgress size={20} /> : <PictureAsPdf />}
                   onClick={handleDownloadPDF}
-                  disabled={loading}
+                  disabled={downloading}
                   sx={{
                     py: 1.5,
                     borderRadius: 2,
@@ -586,9 +609,9 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
                 <Button
                   fullWidth
                   variant="outlined"
-                  startIcon={loading ? <CircularProgress size={20} /> : <WhatsApp />}
-                  onClick={handleWhatsAppShare}
-                  disabled={loading}
+                  startIcon={sharing ? <CircularProgress size={20} /> : <WhatsApp />}
+                  onClick={handleDirectShare}
+                  disabled={sharing}
                   sx={{
                     py: 1.5,
                     borderRadius: 2,
@@ -606,9 +629,9 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
                 <Button
                   fullWidth
                   variant="outlined"
-                  startIcon={loading ? <CircularProgress size={20} /> : <Email />}
+                  startIcon={emailing ? <CircularProgress size={20} /> : <Email />}
                   onClick={() => document.getElementById('email-input')?.focus()}
-                  disabled={loading}
+                  disabled={emailing}
                   sx={{
                     py: 1.5,
                     borderRadius: 2,
@@ -631,7 +654,7 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
                 label="Enter email address to share"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
+                disabled={emailing}
                 size="small"
                 sx={{
                   '& .MuiOutlinedInput-root': { borderRadius: 2 }
@@ -642,7 +665,7 @@ const ProfileShareModal = ({ open, onClose, userId, userName }) => {
                       size="small"
                       variant="contained"
                       onClick={handleEmailShare}
-                      disabled={loading || !email}
+                      disabled={emailing || !email}
                       sx={{
                         bgcolor: '#8B5CF6',
                         '&:hover': { bgcolor: '#7C3AED' },

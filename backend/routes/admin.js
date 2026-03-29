@@ -14,7 +14,8 @@ const {
   syncUserSubscription,
   getPendingProfileVerifications,
   approveProfileVerification,
-  rejectProfileVerification
+  rejectProfileVerification,
+  getAdminLogs
 } = require('../controllers/adminController');
 const {
   getAdminUserProfile,
@@ -82,6 +83,9 @@ router.put('/photos/:id/reject', rejectPhoto);
 // User management
 router.get('/users', getAllUsers);
 
+// Admin activity logs
+router.get('/logs', getAdminLogs);
+
 // Photo verification for user photos (profile and gallery) - MUST be before /users/:id routes
 router.post('/users/:userId/photos/verify', verifyUserPhoto);
 
@@ -143,27 +147,111 @@ router.put('/documents/:id/approve', approveDocument);
 router.put('/documents/:id/reject', rejectDocument);
 
 // Share profile via email
-router.post('/share-profile-email', async (req, res) => {
+const nodemailer = require('nodemailer');
+const multer = require('multer');
+
+// Configure multer for memory storage (to get the file buffer)
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Create email transporter
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER || 'vijayalakshmijayakumar45@gmail.com',
+      pass: process.env.EMAIL_PASS || 'qjmc lyil hdwo wtiy'
+    }
+  });
+};
+
+// Middleware to handle multipart form data
+const uploadFields = upload.fields([
+  { name: 'pdf', maxCount: 1 },
+  { name: 'email', maxCount: 1 },
+  { name: 'profileName', maxCount: 1 },
+  { name: 'shareType', maxCount: 1 },
+  { name: 'message', maxCount: 1 }
+]);
+
+router.post('/share-profile-email', uploadFields, async (req, res) => {
   try {
-    const { pdf, email, profileName, shareType } = req.body;
+    const { email, profileName, shareType, message } = req.body;
+    const pdfFile = req.files?.pdf?.[0];
     
-    // For now, we'll just return success since the frontend handles the email client fallback
-    // In production, you would integrate with an email service like SendGrid, Mailgun, etc.
+    if (!email || !profileName) {
+      return res.status(400).json({ error: 'Email and profile name are required' });
+    }
     
     console.log('Profile share request:', {
-      email,
+      to: email,
       profileName,
       shareType,
-      pdfSize: pdf ? 'PDF attached' : 'No PDF'
+      hasPdf: !!pdfFile
     });
+    
+    // Create transporter
+    const transporter = createTransporter();
+    
+    // Email content
+    const subject = shareType === 'family' 
+      ? `Profile Share: ${profileName} - Vijayalakshmi Boyar Matrimony`
+      : `Profile Interest: ${profileName} - Vijayalakshmi Boyar Matrimony`;
+    
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #8B5CF6; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Vijayalakshmi Boyar Matrimony</h1>
+        </div>
+        <div style="padding: 20px; background: #f9f9f9;">
+          <h2 style="color: #333;">Profile Shared With You</h2>
+          <p style="color: #666;">Hello,</p>
+          <p style="color: #666;">A profile has been shared with you via Vijayalakshmi Boyar Matrimony.</p>
+          <div style="background: white; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="color: #8B5CF6; margin: 0 0 10px 0;">${profileName}</h3>
+            <p style="color: #666; margin: 5px 0;"><strong>Share Type:</strong> ${shareType === 'family' ? 'Family View' : 'Personal Interest'}</p>
+            ${message ? `<p style="color: #666;"><strong>Message:</strong> ${message}</p>` : ''}
+          </div>
+          <p style="color: #666;">To view the complete profile, please visit our website and search for this profile.</p>
+          <p style="color: #666;">Best regards,<br>Vijayalakshmi Boyar Matrimony Team</p>
+        </div>
+        <div style="background: #333; padding: 15px; text-align: center;">
+          <p style="color: white; margin: 0; font-size: 12px;">
+            This is an automated message from vijayalakshmiboyarmatrimony.com
+          </p>
+        </div>
+      </div>
+    `;
+    
+    // Prepare mail options
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'vijayalakshmijayakumar45@gmail.com',
+      to: email,
+      subject: subject,
+      html: htmlContent
+    };
+    
+    // Attach PDF if provided
+    if (pdfFile) {
+      mailOptions.attachments = [
+        {
+          filename: pdfFile.originalname || `${profileName.replace(/\s+/g, '_')}_Profile.pdf`,
+          content: pdfFile.buffer
+        }
+      ];
+    }
+    
+    // Send email
+    await transporter.sendMail(mailOptions);
+    
+    console.log('Email sent successfully to:', email);
     
     res.json({ 
       success: true, 
-      message: 'Email endpoint ready. In production, this would send the PDF via email service.' 
+      message: 'Profile shared successfully! The email has been sent.' 
     });
   } catch (error) {
     console.error('Share profile email error:', error);
-    res.status(500).json({ error: 'Failed to send email' });
+    res.status(500).json({ error: 'Failed to send email: ' + error.message });
   }
 });
 

@@ -160,5 +160,29 @@ module.exports = {
   extractPublicId,
   handleMulterError,
   cloudinary,
-  isCloudinaryConfigured
+  isCloudinaryConfigured,
+  // New function to upload buffer (PDF) to Cloudinary
+  uploadBuffer: async (buffer, options = {}) => {
+    if (!isCloudinaryConfigured()) {
+      throw new Error('Cloudinary not configured');
+    }
+    
+    const { folder = 'matrimony-profiles', publicId, resource_type = 'raw', format = 'pdf' } = options;
+    
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder,
+          public_id: publicId,
+          resource_type,
+          format
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(buffer);
+    });
+  }
 };

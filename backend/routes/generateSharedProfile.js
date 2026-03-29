@@ -19,8 +19,8 @@ const axios = require('axios');
 const WATERMARK_TEXT = 'Vijayalakshmi Boyar Matrimony';
 const WATERMARK_FONT = 'Helvetica';
 
-// Database path
-const dbPath = path.join(__dirname, '..', 'prisma', 'dev.db');
+// Database path - Use prisma/prisma/dev.db to match where new users are stored
+const dbPath = path.join(__dirname, '..', 'prisma', 'prisma', 'dev.db');
 
 async function fetchImage(imagePath) {
   try {
@@ -51,17 +51,31 @@ async function fetchImage(imagePath) {
       return Buffer.from(response.data);
     }
     
-    // Otherwise, try local file
+    // Otherwise, try local file - check multiple possible paths
     let filename = imagePath.split('/').pop().split('\\').pop();
-    const paths = [
+    
+    // Try various path combinations
+    const possiblePaths = [
       path.join(__dirname, '..', 'uploads', filename),
-      path.join(__dirname, '..', 'uploads', 'user_' + filename)
+      path.join(__dirname, '..', 'uploads', 'user_' + filename),
+      path.join(__dirname, '..', imagePath), // direct relative path
+      path.join(__dirname, '..', '..', 'backend', 'uploads', filename),
+      path.join(process.cwd(), 'uploads', filename),
     ];
-    for (const fullPath of paths) {
-      if (fs.existsSync(fullPath)) return fs.readFileSync(fullPath);
+    
+    for (const fullPath of possiblePaths) {
+      if (fs.existsSync(fullPath)) {
+        console.log('Loading image from:', fullPath);
+        return fs.readFileSync(fullPath);
+      }
     }
+    
+    console.log('Image file not found for path:', imagePath, 'tried:', possiblePaths);
     return null;
-  } catch { return null; }
+  } catch (e) {
+    console.log('Error loading image:', e.message);
+    return null;
+  }
 }
 
 // Extract public ID from Cloudinary URL
@@ -319,8 +333,9 @@ router.get('/:userId', async (req, res) => {
     doc.fontSize(10).fillColor('#666').text(`ID: ${displayId}`, 130, y + 22);
     doc.fillColor('#059669').text('✓ Verified', 130, y + 35);
     
-    // Show subscription tier based on actual value
-    const tier = user.subscription_tier || 'FREE';
+    // Show subscription tier - ALWAYS get from subscriptions table for accurate status
+    const subs = db.prepare('SELECT plan FROM subscriptions WHERE user_id = ? AND status = ? ORDER BY created_at DESC LIMIT 1').all(user.id, 'ACTIVE');
+    const tier = subs && subs.length > 0 ? subs[0].plan : 'FREE';
     if (tier !== 'FREE') {
       const tierLabel = tier === 'PREMIUM' ? '★ Premium' : tier === 'PRO' ? '★ Pro' : tier === 'BASIC' ? '★ Basic' : `★ ${tier}`;
       doc.fillColor('#d97706').text(tierLabel, 130, y + 48);
@@ -338,7 +353,7 @@ router.get('/:userId', async (req, res) => {
       y = addField(doc, 'Email:', user.email || 'Not provided', 40, y);
       y = addField(doc, 'Phone:', user.phone || 'Not provided', 40, y);
     }
-    y = addField(doc, 'DOB / Age:', `${formatDate(user.date_of_birth)} (${user.age} years)`, 40, y);
+    y = addField(doc, 'DOB / Age:', sanitize ? `${user.age} years` : `${formatDate(user.date_of_birth)} (${user.age} years)`, 40, y);
     y = addField(doc, 'City:', user.city || 'Not provided', 40, y);
     y = addField(doc, 'State:', user.state || 'Not provided', 40, y);
     y = addField(doc, 'Country:', user.country || 'Not provided', 40, y);
@@ -360,15 +375,17 @@ router.get('/:userId', async (req, res) => {
     y = addField(doc, 'Income:', user.income || 'Not provided', 40, y);
     
     // Family Details
-    y = addSectionHeader(doc, 'Family Details', y);
-    y = addField(doc, 'Father Name:', user.father_name || 'Not provided', 40, y);
-    y = addField(doc, 'Father Occupation:', user.father_occupation || 'Not provided', 40, y);
-    y = addField(doc, 'Mother Name:', user.mother_name || 'Not provided', 40, y);
-    y = addField(doc, 'Mother Occupation:', user.mother_occupation || 'Not provided', 40, y);
-    y = addField(doc, 'Family Values:', user.family_values || 'Not provided', 40, y);
-    y = addField(doc, 'Family Type:', user.family_type || 'Not provided', 40, y);
-    y = addField(doc, 'Family Status:', user.family_status || 'Not provided', 40, y);
-    y = addField(doc, 'About Family:', user.about_family || 'Not provided', 40, y);
+    if (!sanitize) {
+      y = addSectionHeader(doc, 'Family Details', y);
+      y = addField(doc, 'Father Name:', user.father_name || 'Not provided', 40, y);
+      y = addField(doc, 'Father Occupation:', user.father_occupation || 'Not provided', 40, y);
+      y = addField(doc, 'Mother Name:', user.mother_name || 'Not provided', 40, y);
+      y = addField(doc, 'Mother Occupation:', user.mother_occupation || 'Not provided', 40, y);
+      y = addField(doc, 'Family Values:', user.family_values || 'Not provided', 40, y);
+      y = addField(doc, 'Family Type:', user.family_type || 'Not provided', 40, y);
+      y = addField(doc, 'Family Status:', user.family_status || 'Not provided', 40, y);
+      y = addField(doc, 'About Family:', user.about_family || 'Not provided', 40, y);
+    }
     
     // Horoscope Details
     y = addSectionHeader(doc, 'Horoscope Details', y);
@@ -453,3 +470,105 @@ router.get('/:userId', async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * POST /api/shared-profile/:userId/cloud-upload
+ * Generate PDF on server, upload to Cloudinary, return shareable URL
+ * For WhatsApp sharing - link can be sent directly
+ */
+router.post('/:userId/cloud-upload', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { name } = req.body; // Optional: name for filename
+    
+    const { isCloudinaryConfigured, uploadBuffer } = require('../utils/upload');
+    
+    if (!isCloudinaryConfigured()) {
+      return res.status(500).json({ error: 'Cloudinary not configured' });
+    }
+    
+    // Connect to database
+    const db = new Database(dbPath, { readonly: true });
+    
+    // Fetch user profile
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    
+    if (!user) {
+      db.close();
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    
+    if (!user.is_active) {
+      db.close();
+      return res.status(404).json({ error: 'Profile not available' });
+    }
+    
+    // Get profile photo
+    let profilePhotoUrl = user.profile_photo;
+    let gallery = [];
+    if (user.photos) {
+      try {
+        gallery = JSON.parse(user.photos);
+      } catch {}
+    }
+    
+    // Get documents
+    let documents = [];
+    try {
+      documents = db.prepare('SELECT * FROM documents WHERE user_id = ?').all(userId);
+    } catch {}
+    
+    db.close();
+    
+    // Fetch images
+    let profilePhoto = null;
+    if (profilePhotoUrl) {
+      profilePhoto = await fetchImage(profilePhotoUrl);
+    }
+    
+    const galleryImages = [];
+    for (const photo of gallery.slice(0, 5)) {
+      if (photo && typeof photo === 'string') {
+        const img = await fetchImage(photo);
+        if (img) galleryImages.push(img);
+      }
+    }
+    
+    const docImages = [];
+    for (const doc of documents.slice(0, 3)) {
+      if (doc.file_url) {
+        const docImg = await fetchImage(doc.file_url);
+        if (docImg) docImages.push(docImg);
+      }
+    }
+    
+    // Generate PDF buffer
+    const pdfBuffer = await generatePDFBuffer(user, profilePhoto, galleryImages, docImages, WATERMARK_TEXT);
+    
+    // Upload to Cloudinary
+    const fileName = name ? `${name.replace(/\s+/g, '_')}_Profile` : `Profile_${userId}`;
+    const timestamp = Date.now();
+    
+    const uploadResult = await uploadBuffer(pdfBuffer, {
+      folder: 'matrimony-profiles',
+      publicId: `${fileName}_${timestamp}`,
+      resource_type: 'raw',
+      format: 'pdf'
+    });
+    
+    res.json({
+      success: true,
+      url: uploadResult.secure_url,
+      publicId: uploadResult.public_id,
+      format: 'pdf',
+      message: 'PDF uploaded. Use URL to share via WhatsApp.'
+    });
+    
+  } catch (error) {
+    console.error('Cloudinary upload error:', error);
+    res.status(500).json({ error: 'Failed to upload PDF: ' + error.message });
+  }
+});
+
+// Add new endpoint for cloud upload - must be after module.exports is defined
+// This will be added at the bottom of the file by the router
